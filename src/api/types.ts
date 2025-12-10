@@ -21,6 +21,10 @@ export interface TemplateResponse {
   inputSchema?: Record<string, unknown> | null
   canonicalOutcome: string | null
   standards: TemplateStandardRef[]
+  is_hot?: boolean
+  is_favorite?: boolean
+  execution_count?: number
+  category?: string | null  // Template category for icon mapping
 }
 
 export interface PagedResponse<T> {
@@ -83,6 +87,8 @@ export interface TemplateListParams {
   page?: number
   pageSize?: number
   sort?: TemplateSort
+  is_hot?: boolean
+  is_favorite?: boolean
 }
 
 export interface TemplateExecuteRequest {
@@ -100,3 +106,31 @@ export interface TemplateExecuteResponse {
   template: TemplateResponse
   result: TemplateExecutionResult
 }
+
+// Streaming Event Types
+export interface StreamMetaEvent {
+  type: 'meta'
+  template_slug: string
+  template_name: string
+  timestamp: number
+}
+
+export interface StreamContentEvent {
+  type: 'content'
+  chunk: string
+  template_slug: string
+}
+
+export interface StreamDoneEvent {
+  type: 'done'
+  execution_id: string
+  template_slug: string
+}
+
+export interface StreamErrorEvent {
+  type: 'error'
+  message: string
+  template_slug: string
+}
+
+export type StreamEvent = StreamMetaEvent | StreamContentEvent | StreamDoneEvent | StreamErrorEvent
