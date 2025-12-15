@@ -101,8 +101,9 @@ import AdaptiveMathStrategist from './features/AdaptiveMathStrategist'
 import AlgebraGeometryTutor from './features/AlgebraGeometryTutor'
 import STEMInquiryMentor from './features/STEMInquiryMentor'
 import ProblemSolvingCoach from './features/ProblemSolvingCoach'
-import AdvancedKnowledgeSkillsCoach from './features/AdvancedKnowledgeSkillsCoach'
+
 import UNECAcademicDevelopment from './features/UNECAcademicDevelopment'
+import { AdvancedKnowledgeSkillsCoach } from './features/AdvancedKnowledgeSkillsCoach'
 
 const Dashboard = () => {
   return (

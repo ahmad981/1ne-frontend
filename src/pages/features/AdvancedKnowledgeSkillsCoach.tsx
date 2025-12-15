@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState } from 'react';
 import {
   BookOpen,
   FileText,
@@ -44,382 +44,385 @@ import {
   File,
   Image,
   XCircle,
-} from 'lucide-react'
+} from 'lucide-react';
 
 interface InternationalFramework {
-  name: string
-  alignment: string
-  standards: string[]
+  name: string;
+  alignment: string;
+  standards: string[];
 }
 
 interface DetailedLessonPlan {
-  title: string
-  duration: string
-  learningObjectives: string[]
-  materials: string[]
+  title: string;
+  duration: string;
+  learningObjectives: string[];
+  materials: string[];
   activities: {
-    step: string
-    time: string
-    description: string
-    questions?: string[]
-  }[]
-  assessmentCheckpoints: string[]
+    step: string;
+    time: string;
+    description: string;
+    questions?: string[];
+  }[];
+  assessmentCheckpoints: string[];
   differentiationStrategies: {
-    emerging: string[]
-    advanced: string[]
-  }
+    emerging: string[];
+    advanced: string[];
+  };
 }
 
 interface QuestionType {
-  type: string
-  description: string
-  examples: string[]
-  purpose: string
+  type: string;
+  description: string;
+  examples: string[];
+  purpose: string;
 }
 
 interface ActivityExample {
-  name: string
-  description: string
-  duration: string
-  steps: string[]
-  materials: string[]
-  variations: string[]
+  name: string;
+  description: string;
+  duration: string;
+  steps: string[];
+  materials: string[];
+  variations: string[];
 }
 
 interface AssessmentStrategy {
-  type: string
-  description: string
+  type: string;
+  description: string;
   rubric?: {
-    criteria: string[]
-    levels: string[]
-  }
-  tools: string[]
+    criteria: string[];
+    levels: string[];
+  };
+  tools: string[];
 }
 
 interface ExpertKnowledgeResults {
-  contentMasteryScore: number
-  teachingAbilityScore: number
-  overallScore: number
-  strengths: string[]
-  areasForGrowth: string[]
-  recommendations: string[]
-  nextSteps: string[]
+  contentMasteryScore: number;
+  teachingAbilityScore: number;
+  overallScore: number;
+  strengths: string[];
+  areasForGrowth: string[];
+  recommendations: string[];
+  nextSteps: string[];
 }
 
 interface CompetencyCriterion {
-  id: string
-  description: string
-  weight: number
-  score: number
-  evidence: string
+  id: string;
+  description: string;
+  weight: number;
+  score: number;
+  evidence: string;
   indicators: {
-    exemplary: string[]
-    proficient: string[]
-    developing: string[]
-    beginning: string[]
-  }
+    exemplary: string[];
+    proficient: string[];
+    developing: string[];
+    beginning: string[];
+  };
 }
 
 interface ExpertCompetency {
-  id: string
-  name: string
-  description: string
-  criteria: CompetencyCriterion[]
-  score: number
-  level: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary'
+  id: string;
+  name: string;
+  description: string;
+  criteria: CompetencyCriterion[];
+  score: number;
+  level: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary';
 }
 
 interface TeachingAbilityCriterion {
-  id: string
-  name: string
-  description: string
-  score: number
-  evidence: string
+  id: string;
+  name: string;
+  description: string;
+  score: number;
+  evidence: string;
   indicators: {
-    exemplary: string[]
-    proficient: string[]
-    developing: string[]
-    beginning: string[]
-  }
+    exemplary: string[];
+    proficient: string[];
+    developing: string[];
+    beginning: string[];
+  };
 }
 
 interface InternationalStandardAlignment {
-  framework: string
-  standard: string
-  alignment: string
-  evidence: string[]
+  framework: string;
+  standard: string;
+  alignment: string;
+  evidence: string[];
 }
 
 interface ExpertKnowledgeAssessment {
-  studentName: string
-  expertTopic: string
-  assessmentDate: string
-  competencies: ExpertCompetency[]
-  teachingAbility: TeachingAbilityCriterion[]
-  internationalStandards: InternationalStandardAlignment[]
-  overallScore: number
-  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary'
-  recommendations: string[]
-  nextSteps: string[]
+  studentName: string;
+  expertTopic: string;
+  assessmentDate: string;
+  competencies: ExpertCompetency[];
+  teachingAbility: TeachingAbilityCriterion[];
+  internationalStandards: InternationalStandardAlignment[];
+  overallScore: number;
+  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary';
+  recommendations: string[];
+  nextSteps: string[];
 }
 
 interface PeerTeachingObservation {
-  observerName: string
-  teacherStudentName: string
-  peerLearnerName: string
-  observationDate: string
-  topic: string
-  observationCriteria: ObservationCriterion[]
-  overallScore: number
-  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary'
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
+  observerName: string;
+  teacherStudentName: string;
+  peerLearnerName: string;
+  observationDate: string;
+  topic: string;
+  observationCriteria: ObservationCriterion[];
+  overallScore: number;
+  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary';
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
 }
 
 interface ObservationCriterion {
-  id: string
-  category: string
-  description: string
+  id: string;
+  category: string;
+  description: string;
   indicators: {
-    exemplary: string[]
-    proficient: string[]
-    developing: string[]
-    beginning: string[]
-  }
-  score: number
-  evidence: string
-  notes: string
+    exemplary: string[];
+    proficient: string[];
+    developing: string[];
+    beginning: string[];
+  };
+  score: number;
+  evidence: string;
+  notes: string;
 }
 
 interface PeerTeachingObservationResults {
-  overallScore: number
-  categoryScores: Record<string, number>
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
-  nextSteps: string[]
+  overallScore: number;
+  categoryScores: Record<string, number>;
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
+  nextSteps: string[];
 }
 
 interface ExpertGroupParticipationRubric {
-  studentName: string
-  expertGroupTopic: string
-  assessmentDate: string
-  participationCriteria: GroupParticipationCriterion[]
-  overallScore: number
-  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary'
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
+  studentName: string;
+  expertGroupTopic: string;
+  assessmentDate: string;
+  participationCriteria: GroupParticipationCriterion[];
+  overallScore: number;
+  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary';
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
 }
 
 interface GroupParticipationCriterion {
-  id: string
-  category: string
-  description: string
+  id: string;
+  category: string;
+  description: string;
   indicators: {
-    exemplary: string[]
-    proficient: string[]
-    developing: string[]
-    beginning: string[]
-  }
-  score: number
-  evidence: string
-  notes: string
+    exemplary: string[];
+    proficient: string[];
+    developing: string[];
+    beginning: string[];
+  };
+  score: number;
+  evidence: string;
+  notes: string;
 }
 
 interface ExpertGroupParticipationResults {
-  overallScore: number
-  categoryScores: Record<string, number>
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
-  nextSteps: string[]
+  overallScore: number;
+  categoryScores: Record<string, number>;
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
+  nextSteps: string[];
 }
 
 interface CollaborativeProblemSolvingAssessment {
-  groupName: string
-  problemContext: string
-  assessmentDate: string
-  groupMembers: string[]
-  assessmentCriteria: CollaborativeCriterion[]
-  overallScore: number
-  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary'
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
+  groupName: string;
+  problemContext: string;
+  assessmentDate: string;
+  groupMembers: string[];
+  assessmentCriteria: CollaborativeCriterion[];
+  overallScore: number;
+  overallLevel: 'Beginning' | 'Developing' | 'Proficient' | 'Exemplary';
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
 }
 
 interface CollaborativeCriterion {
-  id: string
-  category: string
-  description: string
+  id: string;
+  category: string;
+  description: string;
   indicators: {
-    exemplary: string[]
-    proficient: string[]
-    developing: string[]
-    beginning: string[]
-  }
-  score: number
-  evidence: string
-  notes: string
+    exemplary: string[];
+    proficient: string[];
+    developing: string[];
+    beginning: string[];
+  };
+  score: number;
+  evidence: string;
+  notes: string;
 }
 
 interface CollaborativeProblemSolvingResults {
-  overallScore: number
-  categoryScores: Record<string, number>
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendations: string[]
-  nextSteps: string[]
+  overallScore: number;
+  categoryScores: Record<string, number>;
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendations: string[];
+  nextSteps: string[];
 }
 
 interface PedagogicalMethod {
-  name: string
-  description: string
-  keyPrinciples: string[]
-  implementationSteps: string[]
-  benefits: string[]
-  challenges: string[]
-  gradeLevels: string[]
-  subjects: string[]
-  resources: string[]
-  internationalFrameworks?: InternationalFramework[]
-  detailedLessonPlans?: DetailedLessonPlan[]
-  questionTypes?: QuestionType[]
-  activityExamples?: ActivityExample[]
-  assessmentStrategies?: AssessmentStrategy[]
-  differentiationStrategies?: string[]
-  realWorldApplications?: string[]
+  name: string;
+  description: string;
+  keyPrinciples: string[];
+  implementationSteps: string[];
+  benefits: string[];
+  challenges: string[];
+  gradeLevels: string[];
+  subjects: string[];
+  resources: string[];
+  internationalFrameworks?: InternationalFramework[];
+  detailedLessonPlans?: DetailedLessonPlan[];
+  questionTypes?: QuestionType[];
+  activityExamples?: ActivityExample[];
+  assessmentStrategies?: AssessmentStrategy[];
+  differentiationStrategies?: string[];
+  realWorldApplications?: string[];
 }
 
 interface SkillDevelopment {
-  skill: string
-  currentLevel: string
-  targetLevel: string
+  skill: string;
+  currentLevel: string;
+  targetLevel: string;
   learningPath: {
-    step: string
-    description: string
-    resources: string[]
-    estimatedTime: string
-  }[]
-  practiceActivities: string[]
+    step: string;
+    description: string;
+    resources: string[];
+    estimatedTime: string;
+  }[];
+  practiceActivities: string[];
 }
 
 interface ClassroomManagementCompetency {
-  id: string
-  name: string
-  description: string
-  internationalStandards: string[]
-  subCompetencies: string[]
+  id: string;
+  name: string;
+  description: string;
+  internationalStandards: string[];
+  subCompetencies: string[];
 }
 
 interface SelfAssessmentQuestion {
-  id: string
-  competencyId: string
-  question: string
-  type: 'likert' | 'multiple-choice' | 'scenario-response'
-  options?: string[]
-  weight: number
+  id: string;
+  competencyId: string;
+  question: string;
+  type: 'likert' | 'multiple-choice' | 'scenario-response';
+  options?: string[];
+  weight: number;
 }
 
 interface ScenarioAssessment {
-  id: string
-  title: string
-  description: string
-  competencyAreas: string[]
+  id: string;
+  title: string;
+  description: string;
+  competencyAreas: string[];
   options: {
-    id: string
-    response: string
-    score: Record<string, number>
-    feedback: string
-  }[]
-  correctResponse?: string
-  explanation: string
+    id: string;
+    response: string;
+    score: Record<string, number>;
+    feedback: string;
+  }[];
+  correctResponse?: string;
+  explanation: string;
 }
 
 interface LearningPath {
-  competencyId: string
-  currentLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert'
-  targetLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert'
-  modules: LearningModule[]
-  estimatedDuration: string
-  prerequisites?: string[]
+  competencyId: string;
+  currentLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert';
+  targetLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert';
+  modules: LearningModule[];
+  estimatedDuration: string;
+  prerequisites?: string[];
 }
 
 interface LearningModule {
-  id: string
-  title: string
-  description: string
-  type: 'video' | 'reading' | 'interactive' | 'practice' | 'reflection'
-  duration: string
-  resources: Resource[]
-  activities: Activity[]
-  assessment: ModuleAssessment
-  internationalAlignment: string[]
+  id: string;
+  title: string;
+  description: string;
+  type: 'video' | 'reading' | 'interactive' | 'practice' | 'reflection';
+  duration: string;
+  resources: Resource[];
+  activities: Activity[];
+  assessment: ModuleAssessment;
+  internationalAlignment: string[];
 }
 
 interface Resource {
-  type: 'video' | 'article' | 'tool' | 'template' | 'case-study' | 'research'
-  title: string
-  url?: string
-  description: string
-  source: string
+  type: 'video' | 'article' | 'tool' | 'template' | 'case-study' | 'research';
+  title: string;
+  url?: string;
+  description: string;
+  source: string;
 }
 
 interface Activity {
-  id: string
-  title: string
-  description: string
-  type: 'exercise' | 'scenario' | 'reflection' | 'practice'
-  instructions: string[]
+  id: string;
+  title: string;
+  description: string;
+  type: 'exercise' | 'scenario' | 'reflection' | 'practice';
+  instructions: string[];
 }
 
 interface ModuleAssessment {
   questions: {
-    id: string
-    question: string
-    type: 'multiple-choice' | 'true-false' | 'short-answer'
-    options?: string[]
-    correctAnswer: string
-    explanation: string
-  }[]
+    id: string;
+    question: string;
+    type: 'multiple-choice' | 'true-false' | 'short-answer';
+    options?: string[];
+    correctAnswer: string;
+    explanation: string;
+  }[];
 }
 
 interface ProgressTracker {
-  competencyId: string
-  completedModules: string[]
-  currentModule: string
-  assessmentScores: Record<string, number>
-  lastUpdated: Date
-  milestones: Milestone[]
+  competencyId: string;
+  completedModules: string[];
+  currentModule: string;
+  assessmentScores: Record<string, number>;
+  lastUpdated: Date;
+  milestones: Milestone[];
 }
 
 interface Milestone {
-  id: string
-  title: string
-  description: string
-  achieved: boolean
-  achievedDate?: Date
-  badge?: string
+  id: string;
+  title: string;
+  description: string;
+  achieved: boolean;
+  achievedDate?: Date;
+  badge?: string;
 }
 
 interface AssessmentResults {
-  overallScore: number
-  overallLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert'
-  competencyScores: Record<string, {
-    score: number
-    level: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert'
-    strengths: string[]
-    areasForImprovement: string[]
-  }>
-  strengths: string[]
-  areasForImprovement: string[]
-  recommendedFocusAreas: string[]
-  estimatedTimeToTarget: string
+  overallScore: number;
+  overallLevel: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert';
+  competencyScores: Record<
+    string,
+    {
+      score: number;
+      level: 'Novice' | 'Developing' | 'Proficient' | 'Advanced' | 'Expert';
+      strengths: string[];
+      areasForImprovement: string[];
+    }
+  >;
+  strengths: string[];
+  areasForImprovement: string[];
+  recommendedFocusAreas: string[];
+  estimatedTimeToTarget: string;
 }
 
-type ArticleCategory = 
+type ArticleCategory =
   | 'Meta-Analyses & Systematic Reviews'
   | 'Case Studies & Implementation'
   | 'Best Practices & Strategies'
@@ -433,37 +436,44 @@ type ArticleCategory =
   | 'Critical Thinking Development'
   | 'Collaborative Learning'
   | 'Classroom Management'
-  | 'Cultural Responsiveness'
+  | 'Cultural Responsiveness';
 
 interface ResearchArticle {
-  id: string
-  title: string
-  authors: string[]
-  journal: string
-  year: number
-  abstract: string
-  fullContent: string
-  category: ArticleCategory
-  pedagogicalMethods: string[]
-  internationalStandards: string[]
-  researchType: 'Meta-Analysis' | 'Systematic Review' | 'Case Study' | 'Experimental Study' | 'Best Practices' | 'Framework Analysis' | 'Literature Review'
-  keywords: string[]
-  citations: number
-  doi?: string
-  url?: string
-  readingTime: string
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced'
-  relatedArticles: string[]
-  keyFindings: string[]
-  practicalImplications: string[]
-  methodology: string
-  sampleSize?: string
-  gradeLevels: string[]
-  subjects: string[]
-  tags: string[]
+  id: string;
+  title: string;
+  authors: string[];
+  journal: string;
+  year: number;
+  abstract: string;
+  fullContent: string;
+  category: ArticleCategory;
+  pedagogicalMethods: string[];
+  internationalStandards: string[];
+  researchType:
+    | 'Meta-Analysis'
+    | 'Systematic Review'
+    | 'Case Study'
+    | 'Experimental Study'
+    | 'Best Practices'
+    | 'Framework Analysis'
+    | 'Literature Review';
+  keywords: string[];
+  citations: number;
+  doi?: string;
+  url?: string;
+  readingTime: string;
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  relatedArticles: string[];
+  keyFindings: string[];
+  practicalImplications: string[];
+  methodology: string;
+  sampleSize?: string;
+  gradeLevels: string[];
+  subjects: string[];
+  tags: string[];
 }
 
-type VideoCategory = 
+type VideoCategory =
   | 'Socratic Method'
   | 'Jigsaw Method'
   | 'Flipped Classroom'
@@ -477,258 +487,329 @@ type VideoCategory =
   | 'Assessment Strategies'
   | 'Classroom Management'
   | 'Technology Integration'
-  | 'Student-Centered Learning'
+  | 'Student-Centered Learning';
 
 interface YouTubeVideo {
-  id: string
-  title: string
-  channel: string
-  videoId: string
-  description: string
-  duration: string
-  category: VideoCategory
-  pedagogicalMethods: string[]
-  gradeLevels: string[]
-  subjects: string[]
-  tags: string[]
-  difficulty: 'Beginner' | 'Intermediate' | 'Advanced'
-  year: number
-  views?: number
-  thumbnail?: string
-  keyTopics: string[]
-  implementationSteps: string[]
-  relatedVideos: string[]
+  id: string;
+  title: string;
+  channel: string;
+  videoId: string;
+  description: string;
+  duration: string;
+  category: VideoCategory;
+  pedagogicalMethods: string[];
+  gradeLevels: string[];
+  subjects: string[];
+  tags: string[];
+  difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
+  year: number;
+  views?: number;
+  thumbnail?: string;
+  keyTopics: string[];
+  implementationSteps: string[];
+  relatedVideos: string[];
 }
 
 interface MethodComparison {
-  method1: string
-  method2: string
-  similarities: string[]
-  differences: string[]
+  method1: string;
+  method2: string;
+  similarities: string[];
+  differences: string[];
   whenToUse: {
-    method: string
-    scenarios: string[]
-  }[]
+    method: string;
+    scenarios: string[];
+  }[];
   comparisonMatrix: {
-    dimension: string
-    method1Score: number
-    method2Score: number
-    method1Description: string
-    method2Description: string
-    winner?: string
-  }[]
+    dimension: string;
+    method1Score: number;
+    method2Score: number;
+    method1Description: string;
+    method2Description: string;
+    winner?: string;
+  }[];
   learningOutcomes: {
-    outcome: string
-    method1Strength: string
-    method2Strength: string
-    researchEvidence: string
-  }[]
+    outcome: string;
+    method1Strength: string;
+    method2Strength: string;
+    researchEvidence: string;
+  }[];
   teacherRole: {
     method1: {
-      role: string
-      responsibilities: string[]
-      timeCommitment: string
-      skillRequirements: string[]
-    }
+      role: string;
+      responsibilities: string[];
+      timeCommitment: string;
+      skillRequirements: string[];
+    };
     method2: {
-      role: string
-      responsibilities: string[]
-      timeCommitment: string
-      skillRequirements: string[]
-    }
-  }
+      role: string;
+      responsibilities: string[];
+      timeCommitment: string;
+      skillRequirements: string[];
+    };
+  };
   studentEngagement: {
     method1: {
-      level: 'Low' | 'Medium' | 'High'
-      factors: string[]
-      researchRating: number
-    }
+      level: 'Low' | 'Medium' | 'High';
+      factors: string[];
+      researchRating: number;
+    };
     method2: {
-      level: 'Low' | 'Medium' | 'High'
-      factors: string[]
-      researchRating: number
-    }
-  }
+      level: 'Low' | 'Medium' | 'High';
+      factors: string[];
+      researchRating: number;
+    };
+  };
   assessmentApproach: {
     method1: {
-      types: string[]
-      frequency: string
-      challenges: string[]
-      strengths: string[]
-    }
+      types: string[];
+      frequency: string;
+      challenges: string[];
+      strengths: string[];
+    };
     method2: {
-      types: string[]
-      frequency: string
-      challenges: string[]
-      strengths: string[]
-    }
-  }
+      types: string[];
+      frequency: string;
+      challenges: string[];
+      strengths: string[];
+    };
+  };
   resourceRequirements: {
     method1: {
-      time: string
-      materials: string[]
-      technology: string[]
-      space: string
-      cost: 'Low' | 'Medium' | 'High'
-    }
+      time: string;
+      materials: string[];
+      technology: string[];
+      space: string;
+      cost: 'Low' | 'Medium' | 'High';
+    };
     method2: {
-      time: string
-      materials: string[]
-      technology: string[]
-      space: string
-      cost: 'Low' | 'Medium' | 'High'
-    }
-  }
+      time: string;
+      materials: string[];
+      technology: string[];
+      space: string;
+      cost: 'Low' | 'Medium' | 'High';
+    };
+  };
   effectivenessData: {
-    dimension: string
+    dimension: string;
     method1Data: {
-      score: number
-      evidence: string
-      researchSource: string
-    }
+      score: number;
+      evidence: string;
+      researchSource: string;
+    };
     method2Data: {
-      score: number
-      evidence: string
-      researchSource: string
-    }
-  }[]
+      score: number;
+      evidence: string;
+      researchSource: string;
+    };
+  }[];
   hybridPossibilities: {
-    description: string
-    benefits: string[]
-    implementation: string[]
-    examples: string[]
-  }
+    description: string;
+    benefits: string[];
+    implementation: string[];
+    examples: string[];
+  };
   internationalStandardsAlignment: {
-    framework: string
-    method1Alignment: string[]
-    method2Alignment: string[]
-    combinedStrength: string
-  }[]
+    framework: string;
+    method1Alignment: string[];
+    method2Alignment: string[];
+    combinedStrength: string;
+  }[];
   caseStudies: {
-    title: string
-    context: string
-    method1Results: string
-    method2Results: string
-    insights: string
-  }[]
+    title: string;
+    context: string;
+    method1Results: string;
+    method2Results: string;
+    insights: string;
+  }[];
   decisionFramework: {
-    criteria: string
-    method1Fit: 'Low' | 'Medium' | 'High'
-    method2Fit: 'Low' | 'Medium' | 'High'
-    explanation: string
-  }[]
+    criteria: string;
+    method1Fit: 'Low' | 'Medium' | 'High';
+    method2Fit: 'Low' | 'Medium' | 'High';
+    explanation: string;
+  }[];
 }
 
-const AdvancedKnowledgeSkillsCoach = () => {
-  const [activeTab, setActiveTab] = useState<'methods' | 'skills' | 'compare' | 'resources' | 'chat'>('methods')
-  const [selectedMethod, setSelectedMethod] = useState('')
-  const [pedagogicalType, setPedagogicalType] = useState('')
-  const [gradeLevel, setGradeLevel] = useState('5-8')
-  const [isGenerating, setIsGenerating] = useState(false)
-  const [methodDetails, setMethodDetails] = useState<PedagogicalMethod | null>(null)
-  const [skillDevelopment, setSkillDevelopment] = useState<SkillDevelopment | null>(null)
-  const [methodComparison, setMethodComparison] = useState<MethodComparison | null>(null)
-  const [selectedMethod1, setSelectedMethod1] = useState('')
-  const [selectedMethod2, setSelectedMethod2] = useState('')
-  
+export  const AdvancedKnowledgeSkillsCoach = () => {
+  const [activeTab, setActiveTab] = useState<
+    'methods' | 'skills' | 'compare' | 'resources' | 'chat'
+  >('methods');
+  const [selectedMethod, setSelectedMethod] = useState('');
+  const [pedagogicalType, setPedagogicalType] = useState('');
+  const [gradeLevel, setGradeLevel] = useState('5-8');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [methodDetails, setMethodDetails] = useState<PedagogicalMethod | null>(
+    null
+  );
+  const [skillDevelopment, setSkillDevelopment] =
+    useState<SkillDevelopment | null>(null);
+  const [methodComparison, setMethodComparison] =
+    useState<MethodComparison | null>(null);
+  const [selectedMethod1, setSelectedMethod1] = useState('');
+  const [selectedMethod2, setSelectedMethod2] = useState('');
+
   // Research Articles States
-  const [resourcesView, setResourcesView] = useState<'main' | 'research-articles' | 'youtube-videos'>('main')
-  const [selectedArticle, setSelectedArticle] = useState<ResearchArticle | null>(null)
+  const [resourcesView, setResourcesView] = useState<
+    'main' | 'research-articles' | 'youtube-videos'
+  >('main');
+  const [selectedArticle, setSelectedArticle] =
+    useState<ResearchArticle | null>(null);
   const [articleFilters, setArticleFilters] = useState<{
-    category?: ArticleCategory | 'All'
-    method?: string
-    researchType?: string
-    difficulty?: string
-    searchQuery?: string
-  }>({})
-  const [bookmarkedArticles, setBookmarkedArticles] = useState<string[]>([])
-  const [articleSearchQuery, setArticleSearchQuery] = useState('')
+    category?: ArticleCategory | 'All';
+    method?: string;
+    researchType?: string;
+    difficulty?: string;
+    searchQuery?: string;
+  }>({});
+  const [bookmarkedArticles, setBookmarkedArticles] = useState<string[]>([]);
+  const [articleSearchQuery, setArticleSearchQuery] = useState('');
 
   // YouTube Videos States
-  const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null)
+  const [selectedVideo, setSelectedVideo] = useState<YouTubeVideo | null>(null);
   const [videoFilters, setVideoFilters] = useState<{
-    category?: VideoCategory | 'All'
-    method?: string
-    difficulty?: string
-    gradeLevel?: string
-    subject?: string
-  }>({})
-  const [videoSearchQuery, setVideoSearchQuery] = useState('')
-  const [bookmarkedVideos, setBookmarkedVideos] = useState<string[]>([])
-  
+    category?: VideoCategory | 'All';
+    method?: string;
+    difficulty?: string;
+    gradeLevel?: string;
+    subject?: string;
+  }>({});
+  const [videoSearchQuery, setVideoSearchQuery] = useState('');
+  const [bookmarkedVideos, setBookmarkedVideos] = useState<string[]>([]);
+
   // Classroom Management Assessment States
-  const [assessmentPhase, setAssessmentPhase] = useState<'self' | 'scenario' | 'results' | 'path'>('self')
-  const [selfAssessmentAnswers, setSelfAssessmentAnswers] = useState<Record<string, number>>({})
-  const [scenarioAnswers, setScenarioAnswers] = useState<Record<string, string>>({})
-  const [assessmentResults, setAssessmentResults] = useState<AssessmentResults | null>(null)
-  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([])
-  const [currentModule, setCurrentModule] = useState<LearningModule | null>(null)
-  const [progressTracker, setProgressTracker] = useState<Record<string, ProgressTracker>>({})
-  
+  const [assessmentPhase, setAssessmentPhase] = useState<
+    'self' | 'scenario' | 'results' | 'path'
+  >('self');
+  const [selfAssessmentAnswers, setSelfAssessmentAnswers] = useState<
+    Record<string, number>
+  >({});
+  const [scenarioAnswers, setScenarioAnswers] = useState<
+    Record<string, string>
+  >({});
+  const [assessmentResults, setAssessmentResults] =
+    useState<AssessmentResults | null>(null);
+  const [learningPaths, setLearningPaths] = useState<LearningPath[]>([]);
+  const [currentModule, setCurrentModule] = useState<LearningModule | null>(
+    null
+  );
+  const [progressTracker, setProgressTracker] = useState<
+    Record<string, ProgressTracker>
+  >({});
+
   // Expert Knowledge Assessment States
   // Section visibility states for collapsible sections
-  const [showInternationalFrameworks, setShowInternationalFrameworks] = useState(false)
-  const [showQuestionTypes, setShowQuestionTypes] = useState(false)
-  const [showDetailedLessonPlans, setShowDetailedLessonPlans] = useState(false)
-  const [showActivityExamples, setShowActivityExamples] = useState(false)
-  const [showAssessmentStrategies, setShowAssessmentStrategies] = useState(false)
-  const [showDifferentiationStrategies, setShowDifferentiationStrategies] = useState(false)
-  const [showRealWorldApplications, setShowRealWorldApplications] = useState(false)
+  const [showInternationalFrameworks, setShowInternationalFrameworks] =
+    useState(false);
+  const [showQuestionTypes, setShowQuestionTypes] = useState(false);
+  const [showDetailedLessonPlans, setShowDetailedLessonPlans] = useState(false);
+  const [showActivityExamples, setShowActivityExamples] = useState(false);
+  const [showAssessmentStrategies, setShowAssessmentStrategies] =
+    useState(false);
+  const [showDifferentiationStrategies, setShowDifferentiationStrategies] =
+    useState(false);
+  const [showRealWorldApplications, setShowRealWorldApplications] =
+    useState(false);
 
-  const [showExpertKnowledgeTool, setShowExpertKnowledgeTool] = useState(false)
-  const [expertAssessmentStep, setExpertAssessmentStep] = useState<'setup' | 'assessment' | 'results'>('setup')
-  const [expertStudentName, setExpertStudentName] = useState('')
-  const [expertTopic, setExpertTopic] = useState('')
-  const [competencyScores, setCompetencyScores] = useState<Record<string, Record<string, number>>>({})
-  const [teachingScores, setTeachingScores] = useState<Record<string, number>>({})
-  const [assessmentEvidence, setAssessmentEvidence] = useState<Record<string, string>>({})
-  const [expertAssessmentResults, setExpertAssessmentResults] = useState<ExpertKnowledgeResults | null>(null)
-  
+  const [showExpertKnowledgeTool, setShowExpertKnowledgeTool] = useState(false);
+  const [expertAssessmentStep, setExpertAssessmentStep] = useState<
+    'setup' | 'assessment' | 'results'
+  >('setup');
+  const [expertStudentName, setExpertStudentName] = useState('');
+  const [expertTopic, setExpertTopic] = useState('');
+  const [competencyScores, setCompetencyScores] = useState<
+    Record<string, Record<string, number>>
+  >({});
+  const [teachingScores, setTeachingScores] = useState<Record<string, number>>(
+    {}
+  );
+  const [assessmentEvidence, setAssessmentEvidence] = useState<
+    Record<string, string>
+  >({});
+  const [expertAssessmentResults, setExpertAssessmentResults] =
+    useState<ExpertKnowledgeResults | null>(null);
+
   // Peer Teaching Observation States
-  const [showPeerTeachingTool, setShowPeerTeachingTool] = useState(false)
-  const [peerObservationStep, setPeerObservationStep] = useState<'setup' | 'observation' | 'results'>('setup')
-  const [observerName, setObserverName] = useState('')
-  const [teacherStudentName, setTeacherStudentName] = useState('')
-  const [peerLearnerName, setPeerLearnerName] = useState('')
-  const [peerTopic, setPeerTopic] = useState('')
-  const [peerObservationScores, setPeerObservationScores] = useState<Record<string, number>>({})
-  const [peerObservationEvidence, setPeerObservationEvidence] = useState<Record<string, string>>({})
-  const [peerObservationNotes, setPeerObservationNotes] = useState<Record<string, string>>({})
-  const [peerObservationResults, setPeerObservationResults] = useState<PeerTeachingObservationResults | null>(null)
-  
+  const [showPeerTeachingTool, setShowPeerTeachingTool] = useState(false);
+  const [peerObservationStep, setPeerObservationStep] = useState<
+    'setup' | 'observation' | 'results'
+  >('setup');
+  const [observerName, setObserverName] = useState('');
+  const [teacherStudentName, setTeacherStudentName] = useState('');
+  const [peerLearnerName, setPeerLearnerName] = useState('');
+  const [peerTopic, setPeerTopic] = useState('');
+  const [peerObservationScores, setPeerObservationScores] = useState<
+    Record<string, number>
+  >({});
+  const [peerObservationEvidence, setPeerObservationEvidence] = useState<
+    Record<string, string>
+  >({});
+  const [peerObservationNotes, setPeerObservationNotes] = useState<
+    Record<string, string>
+  >({});
+  const [peerObservationResults, setPeerObservationResults] =
+    useState<PeerTeachingObservationResults | null>(null);
+
   // Expert Group Participation Rubric States
-  const [showExpertGroupRubricTool, setShowExpertGroupRubricTool] = useState(false)
-  const [groupRubricStep, setGroupRubricStep] = useState<'setup' | 'assessment' | 'results'>('setup')
-  const [groupStudentName, setGroupStudentName] = useState('')
-  const [expertGroupTopic, setExpertGroupTopic] = useState('')
-  const [groupSize, setGroupSize] = useState('')
-  const [groupParticipationScores, setGroupParticipationScores] = useState<Record<string, number>>({})
-  const [groupParticipationEvidence, setGroupParticipationEvidence] = useState<Record<string, string>>({})
-  const [groupParticipationNotes, setGroupParticipationNotes] = useState<Record<string, string>>({})
-  const [groupParticipationResults, setGroupParticipationResults] = useState<ExpertGroupParticipationResults | null>(null)
-  
+  const [showExpertGroupRubricTool, setShowExpertGroupRubricTool] =
+    useState(false);
+  const [groupRubricStep, setGroupRubricStep] = useState<
+    'setup' | 'assessment' | 'results'
+  >('setup');
+  const [groupStudentName, setGroupStudentName] = useState('');
+  const [expertGroupTopic, setExpertGroupTopic] = useState('');
+  const [groupSize, setGroupSize] = useState('');
+  const [groupParticipationScores, setGroupParticipationScores] = useState<
+    Record<string, number>
+  >({});
+  const [groupParticipationEvidence, setGroupParticipationEvidence] = useState<
+    Record<string, string>
+  >({});
+  const [groupParticipationNotes, setGroupParticipationNotes] = useState<
+    Record<string, string>
+  >({});
+  const [groupParticipationResults, setGroupParticipationResults] =
+    useState<ExpertGroupParticipationResults | null>(null);
+
   // Collaborative Problem-Solving Assessment States
-  const [showCollaborativeAssessmentTool, setShowCollaborativeAssessmentTool] = useState(false)
-  const [collaborativeStep, setCollaborativeStep] = useState<'setup' | 'assessment' | 'results'>('setup')
-  const [groupName, setGroupName] = useState('')
-  const [problemContext, setProblemContext] = useState('')
-  const [groupMembers, setGroupMembers] = useState<string[]>([])
-  const [currentMemberInput, setCurrentMemberInput] = useState('')
-  const [collaborativeScores, setCollaborativeScores] = useState<Record<string, number>>({})
-  const [collaborativeEvidence, setCollaborativeEvidence] = useState<Record<string, string>>({})
-  const [collaborativeNotes, setCollaborativeNotes] = useState<Record<string, string>>({})
-  const [collaborativeUploadedFiles, setCollaborativeUploadedFiles] = useState<Record<string, File[]>>({})
-  const [collaborativeScoringMode, setCollaborativeScoringMode] = useState<Record<string, 'manual' | 'auto'>>({})
-  const [isEvaluatingAuto, setIsEvaluatingAuto] = useState<Record<string, boolean>>({})
-  const [collaborativeResults, setCollaborativeResults] = useState<CollaborativeProblemSolvingResults | null>(null)
-  
+  const [showCollaborativeAssessmentTool, setShowCollaborativeAssessmentTool] =
+    useState(false);
+  const [collaborativeStep, setCollaborativeStep] = useState<
+    'setup' | 'assessment' | 'results'
+  >('setup');
+  const [groupName, setGroupName] = useState('');
+  const [problemContext, setProblemContext] = useState('');
+  const [groupMembers, setGroupMembers] = useState<string[]>([]);
+  const [currentMemberInput, setCurrentMemberInput] = useState('');
+  const [collaborativeScores, setCollaborativeScores] = useState<
+    Record<string, number>
+  >({});
+  const [collaborativeEvidence, setCollaborativeEvidence] = useState<
+    Record<string, string>
+  >({});
+  const [collaborativeNotes, setCollaborativeNotes] = useState<
+    Record<string, string>
+  >({});
+  const [collaborativeUploadedFiles, setCollaborativeUploadedFiles] = useState<
+    Record<string, File[]>
+  >({});
+  const [collaborativeScoringMode, setCollaborativeScoringMode] = useState<
+    Record<string, 'manual' | 'auto'>
+  >({});
+  const [isEvaluatingAuto, setIsEvaluatingAuto] = useState<
+    Record<string, boolean>
+  >({});
+  const [collaborativeResults, setCollaborativeResults] =
+    useState<CollaborativeProblemSolvingResults | null>(null);
+
   // Differentiation Strategy Modal States
-  const [showDifferentiationModal, setShowDifferentiationModal] = useState(false)
-  const [selectedDifferentiationStrategy, setSelectedDifferentiationStrategy] = useState<string | null>(null)
-  
+  const [showDifferentiationModal, setShowDifferentiationModal] =
+    useState(false);
+  const [selectedDifferentiationStrategy, setSelectedDifferentiationStrategy] =
+    useState<string | null>(null);
+
   // Real World Application Modal States
-  const [showRealWorldModal, setShowRealWorldModal] = useState(false)
-  const [selectedRealWorldApplication, setSelectedRealWorldApplication] = useState<string | null>(null)
+  const [showRealWorldModal, setShowRealWorldModal] = useState(false);
+  const [selectedRealWorldApplication, setSelectedRealWorldApplication] =
+    useState<string | null>(null);
 
   const pedagogicalTypes = [
     'Student-Centered Approach',
@@ -739,7 +820,7 @@ const AdvancedKnowledgeSkillsCoach = () => {
     'Culturally Responsive Approach',
     'Problem-Solving Approach',
     'Experiential Approach',
-  ]
+  ];
 
   const modernMethods = [
     'Project-Based Learning (PBL)',
@@ -762,7 +843,7 @@ const AdvancedKnowledgeSkillsCoach = () => {
     'Formative Assessment',
     'Peer Instruction',
     'Jigsaw Method',
-  ]
+  ];
 
   const teachingSkills = [
     'Classroom Management',
@@ -775,14 +856,15 @@ const AdvancedKnowledgeSkillsCoach = () => {
     'Collaborative Learning Facilitation',
     'Feedback Delivery',
     'Adaptive Teaching',
-  ]
+  ];
 
   // Classroom Management Competencies
   const classroomManagementCompetencies: ClassroomManagementCompetency[] = [
     {
       id: 'env-setup',
       name: 'Classroom Environment & Physical Setup',
-      description: 'Creating and maintaining an organized, safe, and conducive learning environment',
+      description:
+        'Creating and maintaining an organized, safe, and conducive learning environment',
       internationalStandards: [
         'Danielson 2b: Establishing a Culture for Learning',
         'Marzano DQ5: Establishing Rules and Procedures',
@@ -800,7 +882,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'routines',
       name: 'Routines, Procedures & Transitions',
-      description: 'Establishing clear routines and procedures for smooth classroom operations',
+      description:
+        'Establishing clear routines and procedures for smooth classroom operations',
       internationalStandards: [
         'Danielson 2c: Managing Classroom Procedures',
         'Marzano DQ5: Establishing Rules and Procedures',
@@ -818,7 +901,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'behavior',
       name: 'Behavior Management & Discipline',
-      description: 'Proactive strategies for managing student behavior and maintaining positive classroom climate',
+      description:
+        'Proactive strategies for managing student behavior and maintaining positive classroom climate',
       internationalStandards: [
         'Danielson 2d: Managing Student Behavior',
         'Marzano DQ6: Recognizing Adherence to Rules',
@@ -836,7 +920,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'relationships',
       name: 'Student Relationships & Community Building',
-      description: 'Building positive relationships and fostering a sense of community',
+      description:
+        'Building positive relationships and fostering a sense of community',
       internationalStandards: [
         'Danielson 2a: Creating Environment of Respect and Rapport',
         'InTASC Standard 3: Learning Environments',
@@ -854,7 +939,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'instructional',
       name: 'Instructional Management',
-      description: 'Managing instruction effectively to maximize learning time and engagement',
+      description:
+        'Managing instruction effectively to maximize learning time and engagement',
       internationalStandards: [
         'Danielson 2c: Managing Classroom Procedures',
         'InTASC Standard 8: Instructional Strategies',
@@ -872,7 +958,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'communication',
       name: 'Communication & Feedback',
-      description: 'Effective communication with students, parents, and colleagues',
+      description:
+        'Effective communication with students, parents, and colleagues',
       internationalStandards: [
         'Danielson 2a: Creating Environment of Respect and Rapport',
         'InTASC Standard 3: Learning Environments',
@@ -890,7 +977,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'assessment',
       name: 'Assessment & Data-Driven Management',
-      description: 'Using assessment and data to inform classroom management decisions',
+      description:
+        'Using assessment and data to inform classroom management decisions',
       internationalStandards: [
         'InTASC Standard 6: Assessment',
         'Danielson Domain 1: Planning and Preparation',
@@ -908,7 +996,8 @@ const AdvancedKnowledgeSkillsCoach = () => {
     {
       id: 'crisis',
       name: 'Crisis Management & Special Situations',
-      description: 'Handling emergencies, challenging behaviors, and special situations',
+      description:
+        'Handling emergencies, challenging behaviors, and special situations',
       internationalStandards: [
         'InTASC Standard 3: Learning Environments',
         'UNESCO Inclusive Education Competency',
@@ -923,180 +1012,450 @@ const AdvancedKnowledgeSkillsCoach = () => {
         'Crisis intervention',
       ],
     },
-  ]
+  ];
 
   // Self-Assessment Questions (Sample - comprehensive set)
   const selfAssessmentQuestions: SelfAssessmentQuestion[] = [
     // Environment & Setup
-    { id: 'env-1', competencyId: 'env-setup', question: 'I organize my classroom space to maximize learning and minimize distractions', type: 'likert', weight: 1 },
-    { id: 'env-2', competencyId: 'env-setup', question: 'I create distinct learning zones for different activities', type: 'likert', weight: 1 },
-    { id: 'env-3', competencyId: 'env-setup', question: 'I ensure my classroom is accessible to all students', type: 'likert', weight: 1 },
-    { id: 'env-4', competencyId: 'env-setup', question: 'I use visual supports and displays effectively to support learning', type: 'likert', weight: 1 },
-    { id: 'env-5', competencyId: 'env-setup', question: 'I manage classroom resources efficiently and teach students to do the same', type: 'likert', weight: 1 },
-    
+    {
+      id: 'env-1',
+      competencyId: 'env-setup',
+      question:
+        'I organize my classroom space to maximize learning and minimize distractions',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'env-2',
+      competencyId: 'env-setup',
+      question: 'I create distinct learning zones for different activities',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'env-3',
+      competencyId: 'env-setup',
+      question: 'I ensure my classroom is accessible to all students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'env-4',
+      competencyId: 'env-setup',
+      question:
+        'I use visual supports and displays effectively to support learning',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'env-5',
+      competencyId: 'env-setup',
+      question:
+        'I manage classroom resources efficiently and teach students to do the same',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Routines & Procedures
-    { id: 'rout-1', competencyId: 'routines', question: 'I establish clear classroom rules and procedures at the beginning of the year', type: 'likert', weight: 1 },
-    { id: 'rout-2', competencyId: 'routines', question: 'I explicitly teach procedures and practice them with students', type: 'likert', weight: 1 },
-    { id: 'rout-3', competencyId: 'routines', question: 'I manage transitions smoothly and efficiently', type: 'likert', weight: 1 },
-    { id: 'rout-4', competencyId: 'routines', question: 'I maintain consistent routines throughout the school year', type: 'likert', weight: 1 },
-    { id: 'rout-5', competencyId: 'routines', question: 'I use time management strategies effectively', type: 'likert', weight: 1 },
-    
+    {
+      id: 'rout-1',
+      competencyId: 'routines',
+      question:
+        'I establish clear classroom rules and procedures at the beginning of the year',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rout-2',
+      competencyId: 'routines',
+      question: 'I explicitly teach procedures and practice them with students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rout-3',
+      competencyId: 'routines',
+      question: 'I manage transitions smoothly and efficiently',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rout-4',
+      competencyId: 'routines',
+      question: 'I maintain consistent routines throughout the school year',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rout-5',
+      competencyId: 'routines',
+      question: 'I use time management strategies effectively',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Behavior Management
-    { id: 'beh-1', competencyId: 'behavior', question: 'I use proactive behavior management strategies daily', type: 'likert', weight: 1 },
-    { id: 'beh-2', competencyId: 'behavior', question: 'I implement positive behavior support systems', type: 'likert', weight: 1 },
-    { id: 'beh-3', competencyId: 'behavior', question: 'I use restorative practices to address conflicts', type: 'likert', weight: 1 },
-    { id: 'beh-4', competencyId: 'behavior', question: 'I can de-escalate challenging situations effectively', type: 'likert', weight: 1 },
-    { id: 'beh-5', competencyId: 'behavior', question: 'I provide consistent consequences for behavior', type: 'likert', weight: 1 },
-    
+    {
+      id: 'beh-1',
+      competencyId: 'behavior',
+      question: 'I use proactive behavior management strategies daily',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'beh-2',
+      competencyId: 'behavior',
+      question: 'I implement positive behavior support systems',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'beh-3',
+      competencyId: 'behavior',
+      question: 'I use restorative practices to address conflicts',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'beh-4',
+      competencyId: 'behavior',
+      question: 'I can de-escalate challenging situations effectively',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'beh-5',
+      competencyId: 'behavior',
+      question: 'I provide consistent consequences for behavior',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Relationships
-    { id: 'rel-1', competencyId: 'relationships', question: 'I build positive relationships with all my students', type: 'likert', weight: 1 },
-    { id: 'rel-2', competencyId: 'relationships', question: 'I foster positive peer relationships in my classroom', type: 'likert', weight: 1 },
-    { id: 'rel-3', competencyId: 'relationships', question: 'I create a strong sense of classroom community', type: 'likert', weight: 1 },
-    { id: 'rel-4', competencyId: 'relationships', question: 'I incorporate culturally responsive practices', type: 'likert', weight: 1 },
-    { id: 'rel-5', competencyId: 'relationships', question: 'I support students\' social-emotional needs', type: 'likert', weight: 1 },
-    
+    {
+      id: 'rel-1',
+      competencyId: 'relationships',
+      question: 'I build positive relationships with all my students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rel-2',
+      competencyId: 'relationships',
+      question: 'I foster positive peer relationships in my classroom',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rel-3',
+      competencyId: 'relationships',
+      question: 'I create a strong sense of classroom community',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rel-4',
+      competencyId: 'relationships',
+      question: 'I incorporate culturally responsive practices',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'rel-5',
+      competencyId: 'relationships',
+      question: "I support students' social-emotional needs",
+      type: 'likert',
+      weight: 1,
+    },
+
     // Instructional Management
-    { id: 'inst-1', competencyId: 'instructional', question: 'I pace my lessons appropriately for student learning', type: 'likert', weight: 1 },
-    { id: 'inst-2', competencyId: 'instructional', question: 'I use strategies to maintain student engagement', type: 'likert', weight: 1 },
-    { id: 'inst-3', competencyId: 'instructional', question: 'I manage differentiated instruction effectively', type: 'likert', weight: 1 },
-    { id: 'inst-4', competencyId: 'instructional', question: 'I facilitate group work smoothly', type: 'likert', weight: 1 },
-    { id: 'inst-5', competencyId: 'instructional', question: 'I integrate technology while maintaining classroom management', type: 'likert', weight: 1 },
-    
+    {
+      id: 'inst-1',
+      competencyId: 'instructional',
+      question: 'I pace my lessons appropriately for student learning',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'inst-2',
+      competencyId: 'instructional',
+      question: 'I use strategies to maintain student engagement',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'inst-3',
+      competencyId: 'instructional',
+      question: 'I manage differentiated instruction effectively',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'inst-4',
+      competencyId: 'instructional',
+      question: 'I facilitate group work smoothly',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'inst-5',
+      competencyId: 'instructional',
+      question: 'I integrate technology while maintaining classroom management',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Communication
-    { id: 'comm-1', competencyId: 'communication', question: 'I communicate expectations clearly to students', type: 'likert', weight: 1 },
-    { id: 'comm-2', competencyId: 'communication', question: 'I provide effective feedback to students', type: 'likert', weight: 1 },
-    { id: 'comm-3', competencyId: 'communication', question: 'I maintain regular communication with parents', type: 'likert', weight: 1 },
-    { id: 'comm-4', competencyId: 'communication', question: 'I engage in meaningful dialogue with students', type: 'likert', weight: 1 },
-    { id: 'comm-5', competencyId: 'communication', question: 'I use non-verbal communication effectively', type: 'likert', weight: 1 },
-    
+    {
+      id: 'comm-1',
+      competencyId: 'communication',
+      question: 'I communicate expectations clearly to students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'comm-2',
+      competencyId: 'communication',
+      question: 'I provide effective feedback to students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'comm-3',
+      competencyId: 'communication',
+      question: 'I maintain regular communication with parents',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'comm-4',
+      competencyId: 'communication',
+      question: 'I engage in meaningful dialogue with students',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'comm-5',
+      competencyId: 'communication',
+      question: 'I use non-verbal communication effectively',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Assessment & Data
-    { id: 'assess-1', competencyId: 'assessment', question: 'I integrate formative assessment into my classroom management', type: 'likert', weight: 1 },
-    { id: 'assess-2', competencyId: 'assessment', question: 'I collect and analyze behavior data regularly', type: 'likert', weight: 1 },
-    { id: 'assess-3', competencyId: 'assessment', question: 'I monitor student progress systematically', type: 'likert', weight: 1 },
-    { id: 'assess-4', competencyId: 'assessment', question: 'I use data to inform my management decisions', type: 'likert', weight: 1 },
-    { id: 'assess-5', competencyId: 'assessment', question: 'I create individualized support plans based on data', type: 'likert', weight: 1 },
-    
+    {
+      id: 'assess-1',
+      competencyId: 'assessment',
+      question: 'I integrate formative assessment into my classroom management',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'assess-2',
+      competencyId: 'assessment',
+      question: 'I collect and analyze behavior data regularly',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'assess-3',
+      competencyId: 'assessment',
+      question: 'I monitor student progress systematically',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'assess-4',
+      competencyId: 'assessment',
+      question: 'I use data to inform my management decisions',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'assess-5',
+      competencyId: 'assessment',
+      question: 'I create individualized support plans based on data',
+      type: 'likert',
+      weight: 1,
+    },
+
     // Crisis Management
-    { id: 'crisis-1', competencyId: 'crisis', question: 'I know and follow emergency procedures', type: 'likert', weight: 1 },
-    { id: 'crisis-2', competencyId: 'crisis', question: 'I can handle challenging behaviors effectively', type: 'likert', weight: 1 },
-    { id: 'crisis-3', competencyId: 'crisis', question: 'I support students with special needs appropriately', type: 'likert', weight: 1 },
-    { id: 'crisis-4', competencyId: 'crisis', question: 'I use trauma-informed practices', type: 'likert', weight: 1 },
-    { id: 'crisis-5', competencyId: 'crisis', question: 'I can intervene effectively in crisis situations', type: 'likert', weight: 1 },
-  ]
+    {
+      id: 'crisis-1',
+      competencyId: 'crisis',
+      question: 'I know and follow emergency procedures',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'crisis-2',
+      competencyId: 'crisis',
+      question: 'I can handle challenging behaviors effectively',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'crisis-3',
+      competencyId: 'crisis',
+      question: 'I support students with special needs appropriately',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'crisis-4',
+      competencyId: 'crisis',
+      question: 'I use trauma-informed practices',
+      type: 'likert',
+      weight: 1,
+    },
+    {
+      id: 'crisis-5',
+      competencyId: 'crisis',
+      question: 'I can intervene effectively in crisis situations',
+      type: 'likert',
+      weight: 1,
+    },
+  ];
 
   // Scenario-Based Assessments
   const scenarioAssessments: ScenarioAssessment[] = [
     {
       id: 'scenario-1',
       title: 'Disruptive Group Work',
-      description: 'During a group activity, one student consistently disrupts others by talking loudly, moving around, and distracting peers. Other students are complaining and the group work is not progressing.',
+      description:
+        'During a group activity, one student consistently disrupts others by talking loudly, moving around, and distracting peers. Other students are complaining and the group work is not progressing.',
       competencyAreas: ['behavior', 'instructional', 'relationships'],
       options: [
         {
           id: 'opt-1',
-          response: 'Immediately remove the disruptive student from the group and have them work alone',
+          response:
+            'Immediately remove the disruptive student from the group and have them work alone',
           score: { behavior: 2, instructional: 1, relationships: 1 },
-          feedback: 'While this addresses the immediate disruption, it doesn\'t teach the student appropriate behavior or address underlying issues.',
+          feedback:
+            "While this addresses the immediate disruption, it doesn't teach the student appropriate behavior or address underlying issues.",
         },
         {
           id: 'opt-2',
-          response: 'Use proximity, non-verbal cues, and then have a private conversation with the student about expectations',
+          response:
+            'Use proximity, non-verbal cues, and then have a private conversation with the student about expectations',
           score: { behavior: 5, instructional: 4, relationships: 5 },
-          feedback: 'Excellent approach! This uses proactive strategies, maintains relationships, and addresses the behavior without disrupting instruction.',
+          feedback:
+            'Excellent approach! This uses proactive strategies, maintains relationships, and addresses the behavior without disrupting instruction.',
         },
         {
           id: 'opt-3',
-          response: 'Stop the entire class and lecture about appropriate behavior',
+          response:
+            'Stop the entire class and lecture about appropriate behavior',
           score: { behavior: 2, instructional: 1, relationships: 2 },
-          feedback: 'This disrupts learning for all students and may embarrass the student, potentially damaging relationships.',
+          feedback:
+            'This disrupts learning for all students and may embarrass the student, potentially damaging relationships.',
         },
         {
           id: 'opt-4',
           response: 'Ignore the behavior and hope it stops on its own',
           score: { behavior: 1, instructional: 1, relationships: 1 },
-          feedback: 'Ignoring disruptive behavior typically makes it worse and doesn\'t support learning or relationships.',
+          feedback:
+            "Ignoring disruptive behavior typically makes it worse and doesn't support learning or relationships.",
         },
       ],
-      explanation: 'Effective classroom management requires proactive strategies that address behavior while maintaining instruction and relationships. Private conversations and non-verbal cues are often most effective.',
+      explanation:
+        'Effective classroom management requires proactive strategies that address behavior while maintaining instruction and relationships. Private conversations and non-verbal cues are often most effective.',
     },
     {
       id: 'scenario-2',
       title: 'Parent Complaint',
-      description: 'A parent emails you complaining that their child feels unfairly targeted by your classroom management strategies. They say other students misbehave but don\'t receive consequences.',
+      description:
+        "A parent emails you complaining that their child feels unfairly targeted by your classroom management strategies. They say other students misbehave but don't receive consequences.",
       competencyAreas: ['communication', 'behavior', 'relationships'],
       options: [
         {
           id: 'opt-1',
-          response: 'Respond defensively, explaining why their child needs consequences',
+          response:
+            'Respond defensively, explaining why their child needs consequences',
           score: { communication: 1, behavior: 2, relationships: 1 },
-          feedback: 'A defensive response can damage relationships and doesn\'t address the parent\'s concerns constructively.',
+          feedback:
+            "A defensive response can damage relationships and doesn't address the parent's concerns constructively.",
         },
         {
           id: 'opt-2',
-          response: 'Schedule a meeting to listen to concerns, review behavior data together, and collaboratively develop a plan',
+          response:
+            'Schedule a meeting to listen to concerns, review behavior data together, and collaboratively develop a plan',
           score: { communication: 5, behavior: 5, relationships: 5 },
-          feedback: 'Excellent approach! This demonstrates respect, uses data, and builds collaborative relationships.',
+          feedback:
+            'Excellent approach! This demonstrates respect, uses data, and builds collaborative relationships.',
         },
         {
           id: 'opt-3',
           response: 'Ignore the email and continue with current practices',
           score: { communication: 1, behavior: 2, relationships: 1 },
-          feedback: 'Ignoring parent concerns damages relationships and may escalate the situation.',
+          feedback:
+            'Ignoring parent concerns damages relationships and may escalate the situation.',
         },
         {
           id: 'opt-4',
           response: 'Stop giving consequences to their child to avoid conflict',
           score: { communication: 2, behavior: 1, relationships: 2 },
-          feedback: 'This undermines consistency and fairness, which are essential for effective classroom management.',
+          feedback:
+            'This undermines consistency and fairness, which are essential for effective classroom management.',
         },
       ],
-      explanation: 'Effective communication with parents involves listening, using data, and collaborating. Building relationships requires addressing concerns constructively.',
+      explanation:
+        'Effective communication with parents involves listening, using data, and collaborating. Building relationships requires addressing concerns constructively.',
     },
     {
       id: 'scenario-3',
       title: 'Routine Refusal',
-      description: 'A student consistently refuses to follow a well-established classroom routine (e.g., putting materials away). When reminded, they become defiant and say "I don\'t want to."',
+      description:
+        'A student consistently refuses to follow a well-established classroom routine (e.g., putting materials away). When reminded, they become defiant and say "I don\'t want to."',
       competencyAreas: ['routines', 'behavior', 'relationships'],
       options: [
         {
           id: 'opt-1',
           response: 'Give an immediate consequence (detention, call home)',
           score: { routines: 2, behavior: 2, relationships: 1 },
-          feedback: 'While consequences may be necessary, starting with them without understanding the cause can damage relationships.',
+          feedback:
+            'While consequences may be necessary, starting with them without understanding the cause can damage relationships.',
         },
         {
           id: 'opt-2',
-          response: 'Have a private conversation to understand why, review the routine\'s purpose, and collaboratively problem-solve',
+          response:
+            "Have a private conversation to understand why, review the routine's purpose, and collaboratively problem-solve",
           score: { routines: 5, behavior: 5, relationships: 5 },
-          feedback: 'Excellent! This addresses the root cause, maintains relationships, and teaches the importance of routines.',
+          feedback:
+            'Excellent! This addresses the root cause, maintains relationships, and teaches the importance of routines.',
         },
         {
           id: 'opt-3',
-          response: 'Ignore it since it\'s a minor issue',
+          response: "Ignore it since it's a minor issue",
           score: { routines: 1, behavior: 1, relationships: 2 },
-          feedback: 'Ignoring routine violations undermines consistency and can lead to larger behavior issues.',
+          feedback:
+            'Ignoring routine violations undermines consistency and can lead to larger behavior issues.',
         },
         {
           id: 'opt-4',
           response: 'Make an example by addressing it publicly',
           score: { routines: 2, behavior: 2, relationships: 1 },
-          feedback: 'Public correction can embarrass students and damage relationships while not effectively teaching the routine.',
+          feedback:
+            'Public correction can embarrass students and damage relationships while not effectively teaching the routine.',
         },
       ],
-      explanation: 'Routine compliance requires understanding why students resist. Private conversations and collaborative problem-solving are most effective.',
+      explanation:
+        'Routine compliance requires understanding why students resist. Private conversations and collaborative problem-solving are most effective.',
     },
-  ]
+  ];
 
   // Research Articles Database
   const researchArticlesDatabase: ResearchArticle[] = [
     // Meta-Analyses & Systematic Reviews
     {
       id: 'meta-pbl-effectiveness',
-      title: 'The Effectiveness of Project-Based Learning: A Meta-Analysis of 50 Studies',
+      title:
+        'The Effectiveness of Project-Based Learning: A Meta-Analysis of 50 Studies',
       authors: ['Dr. Sarah Johnson', 'Dr. Michael Chen', 'Dr. Emily Rodriguez'],
       journal: 'Educational Research Review',
       year: 2023,
-      abstract: 'This comprehensive meta-analysis examines the effectiveness of Project-Based Learning across 50 studies involving over 15,000 students. Findings reveal significant improvements in academic achievement, critical thinking, and collaboration skills. Effect sizes range from moderate to large (d = 0.65) with strongest impacts in science and mathematics. Moderator analysis indicates project duration and teacher training significantly influence outcomes.',
+      abstract:
+        'This comprehensive meta-analysis examines the effectiveness of Project-Based Learning across 50 studies involving over 15,000 students. Findings reveal significant improvements in academic achievement, critical thinking, and collaboration skills. Effect sizes range from moderate to large (d = 0.65) with strongest impacts in science and mathematics. Moderator analysis indicates project duration and teacher training significantly influence outcomes.',
       fullContent: `# The Effectiveness of Project-Based Learning: A Meta-Analysis
 
 ## Introduction
@@ -1215,7 +1574,14 @@ PBL demonstrates significant positive effects on academic achievement and 21st c
       pedagogicalMethods: ['Project-Based Learning (PBL)'],
       internationalStandards: ['Common Core', 'NGSS', 'ISTE', 'PISA'],
       researchType: 'Meta-Analysis',
-      keywords: ['project-based learning', 'meta-analysis', 'academic achievement', '21st century skills', 'effectiveness', 'student engagement'],
+      keywords: [
+        'project-based learning',
+        'meta-analysis',
+        'academic achievement',
+        '21st century skills',
+        'effectiveness',
+        'student engagement',
+      ],
       citations: 234,
       doi: '10.1016/j.edurev.2023.123456',
       readingTime: '25 min',
@@ -1235,19 +1601,39 @@ PBL demonstrates significant positive effects on academic achievement and 21st c
         'Use authentic assessment methods aligned with PBL outcomes',
         'Consider cross-curricular projects to maximize learning impact',
       ],
-      methodology: 'Random-effects meta-analysis of 50 empirical studies (2015-2023) using Comprehensive Meta-Analysis software',
+      methodology:
+        'Random-effects meta-analysis of 50 empirical studies (2015-2023) using Comprehensive Meta-Analysis software',
       sampleSize: '15,247 students',
-      gradeLevels: ['Elementary', 'Middle School', 'High School', 'Higher Education'],
-      subjects: ['Mathematics', 'Science', 'Language Arts', 'Social Studies', 'STEM'],
-      tags: ['meta-analysis', 'effectiveness', 'academic achievement', 'research', 'evidence-based'],
+      gradeLevels: [
+        'Elementary',
+        'Middle School',
+        'High School',
+        'Higher Education',
+      ],
+      subjects: [
+        'Mathematics',
+        'Science',
+        'Language Arts',
+        'Social Studies',
+        'STEM',
+      ],
+      tags: [
+        'meta-analysis',
+        'effectiveness',
+        'academic achievement',
+        'research',
+        'evidence-based',
+      ],
     },
     {
       id: 'meta-flipped-classroom',
-      title: 'Flipped Classroom Outcomes: A Systematic Review of Academic Achievement and Engagement',
+      title:
+        'Flipped Classroom Outcomes: A Systematic Review of Academic Achievement and Engagement',
       authors: ['Dr. Robert Martinez', 'Dr. Lisa Wang', 'Dr. James Thompson'],
       journal: 'Computers & Education',
       year: 2023,
-      abstract: 'This systematic review examines flipped classroom effectiveness across 42 studies and 8,500+ students. Results show significant improvements in academic achievement (d = 0.58) and student engagement (d = 0.64). Technology-enhanced flipped classrooms demonstrate stronger effects than traditional implementations. Findings highlight the importance of in-class activity design and pre-class content quality.',
+      abstract:
+        'This systematic review examines flipped classroom effectiveness across 42 studies and 8,500+ students. Results show significant improvements in academic achievement (d = 0.58) and student engagement (d = 0.64). Technology-enhanced flipped classrooms demonstrate stronger effects than traditional implementations. Findings highlight the importance of in-class activity design and pre-class content quality.',
       fullContent: `# Flipped Classroom Outcomes: A Systematic Review
 
 ## Introduction
@@ -1298,7 +1684,12 @@ The flipped classroom model has revolutionized traditional instruction by invert
       pedagogicalMethods: ['Flipped Classroom'],
       internationalStandards: ['ISTE', 'Common Core', 'NGSS'],
       researchType: 'Systematic Review',
-      keywords: ['flipped classroom', 'academic achievement', 'student engagement', 'technology integration'],
+      keywords: [
+        'flipped classroom',
+        'academic achievement',
+        'student engagement',
+        'technology integration',
+      ],
       citations: 189,
       doi: '10.1016/j.compedu.2023.104567',
       readingTime: '20 min',
@@ -1316,19 +1707,27 @@ The flipped classroom model has revolutionized traditional instruction by invert
         'Use interactive technology tools to enhance engagement',
         'Implement accountability measures for pre-class completion',
       ],
-      methodology: 'Systematic review of 42 empirical studies with meta-analysis',
+      methodology:
+        'Systematic review of 42 empirical studies with meta-analysis',
       sampleSize: '8,547 students',
       gradeLevels: ['Middle School', 'High School', 'Higher Education'],
       subjects: ['Mathematics', 'Science', 'Language Arts', 'All Subjects'],
-      tags: ['flipped classroom', 'systematic review', 'technology', 'engagement'],
+      tags: [
+        'flipped classroom',
+        'systematic review',
+        'technology',
+        'engagement',
+      ],
     },
     {
       id: 'case-pbl-urban',
-      title: 'Project-Based Learning in Urban Middle Schools: A Case Study of Implementation Challenges and Successes',
+      title:
+        'Project-Based Learning in Urban Middle Schools: A Case Study of Implementation Challenges and Successes',
       authors: ['Dr. Patricia Williams', 'Dr. David Kim'],
       journal: 'Urban Education',
       year: 2023,
-      abstract: 'This case study examines PBL implementation in three urban middle schools serving diverse, low-income populations. Despite resource constraints and initial teacher resistance, students showed significant gains in engagement, critical thinking, and academic achievement. Key success factors included strong administrative support, teacher collaboration, and community partnerships.',
+      abstract:
+        'This case study examines PBL implementation in three urban middle schools serving diverse, low-income populations. Despite resource constraints and initial teacher resistance, students showed significant gains in engagement, critical thinking, and academic achievement. Key success factors included strong administrative support, teacher collaboration, and community partnerships.',
       fullContent: `# Project-Based Learning in Urban Middle Schools: A Case Study
 
 ## Introduction
@@ -1375,7 +1774,13 @@ Urban schools face unique challenges implementing innovative pedagogies due to r
       pedagogicalMethods: ['Project-Based Learning (PBL)'],
       internationalStandards: ['Common Core', 'ISTE'],
       researchType: 'Case Study',
-      keywords: ['project-based learning', 'urban education', 'case study', 'implementation', 'diverse learners'],
+      keywords: [
+        'project-based learning',
+        'urban education',
+        'case study',
+        'implementation',
+        'diverse learners',
+      ],
       citations: 67,
       doi: '10.1177/00420859231123456',
       readingTime: '18 min',
@@ -1395,19 +1800,27 @@ Urban schools face unique challenges implementing innovative pedagogies due to r
         'Begin with shorter projects and gradually increase complexity',
         'Use data-driven approaches to address implementation challenges',
       ],
-      methodology: 'Multi-site case study with mixed methods (surveys, interviews, observations, achievement data)',
+      methodology:
+        'Multi-site case study with mixed methods (surveys, interviews, observations, achievement data)',
       sampleSize: '450 students, 18 teachers across 3 schools',
       gradeLevels: ['Middle School'],
       subjects: ['Mathematics', 'Science', 'Social Studies', 'Language Arts'],
-      tags: ['case study', 'urban education', 'implementation', 'diverse learners'],
+      tags: [
+        'case study',
+        'urban education',
+        'implementation',
+        'diverse learners',
+      ],
     },
     {
       id: 'best-practices-pbl',
-      title: 'Implementing Project-Based Learning: A Comprehensive Guide to Best Practices',
+      title:
+        'Implementing Project-Based Learning: A Comprehensive Guide to Best Practices',
       authors: ['Dr. Jennifer Adams', 'Dr. Mark Stevens'],
       journal: 'Teaching and Teacher Education',
       year: 2023,
-      abstract: 'This comprehensive guide synthesizes best practices from successful PBL implementations worldwide. Drawing on 30+ case studies and expert interviews, the article provides actionable strategies for project design, student scaffolding, assessment, and teacher facilitation. Key recommendations include authentic problem selection, structured checkpoints, and collaborative assessment approaches.',
+      abstract:
+        'This comprehensive guide synthesizes best practices from successful PBL implementations worldwide. Drawing on 30+ case studies and expert interviews, the article provides actionable strategies for project design, student scaffolding, assessment, and teacher facilitation. Key recommendations include authentic problem selection, structured checkpoints, and collaborative assessment approaches.',
       fullContent: `# Implementing Project-Based Learning: A Comprehensive Guide
 
 ## Introduction
@@ -1471,7 +1884,13 @@ While research demonstrates PBL's effectiveness, successful implementation requi
       pedagogicalMethods: ['Project-Based Learning (PBL)'],
       internationalStandards: ['Common Core', 'NGSS', 'ISTE'],
       researchType: 'Best Practices',
-      keywords: ['project-based learning', 'best practices', 'implementation', 'teaching strategies', 'pedagogy'],
+      keywords: [
+        'project-based learning',
+        'best practices',
+        'implementation',
+        'teaching strategies',
+        'pedagogy',
+      ],
       citations: 145,
       readingTime: '22 min',
       difficulty: 'Beginner',
@@ -1484,24 +1903,27 @@ While research demonstrates PBL's effectiveness, successful implementation requi
         'Student voice and choice increase engagement and ownership',
       ],
       practicalImplications: [
-        'Start with authentic problems that connect to students\' interests and communities',
+        "Start with authentic problems that connect to students' interests and communities",
         'Provide clear structure and scaffolding, especially in early implementations',
         'Use multiple assessment types to capture diverse learning outcomes',
         'Invest in developing teacher facilitation skills',
         'Balance student autonomy with necessary support and guidance',
       ],
-      methodology: 'Synthesis of 30+ case studies and expert interviews with best practices analysis',
+      methodology:
+        'Synthesis of 30+ case studies and expert interviews with best practices analysis',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['best practices', 'implementation guide', 'teaching strategies'],
     },
     {
       id: 'framework-unesco',
-      title: 'UNESCO Pedagogical Competencies: Aligning Modern Methods with Global Education Goals',
+      title:
+        'UNESCO Pedagogical Competencies: Aligning Modern Methods with Global Education Goals',
       authors: ['Dr. Maria Santos', 'Dr. Ahmed Hassan', 'Dr. Yuki Tanaka'],
       journal: 'International Journal of Educational Development',
       year: 2023,
-      abstract: 'This framework analysis examines how modern pedagogical methods align with UNESCO\'s Sustainable Development Goal 4 (Quality Education) and teacher competency frameworks. The analysis identifies key competencies required for implementing student-centered, inquiry-based, and technology-enhanced pedagogies. Recommendations include competency-based teacher education and ongoing professional development aligned with global standards.',
+      abstract:
+        "This framework analysis examines how modern pedagogical methods align with UNESCO's Sustainable Development Goal 4 (Quality Education) and teacher competency frameworks. The analysis identifies key competencies required for implementing student-centered, inquiry-based, and technology-enhanced pedagogies. Recommendations include competency-based teacher education and ongoing professional development aligned with global standards.",
       fullContent: `# UNESCO Pedagogical Competencies: Framework Analysis
 
 ## Introduction
@@ -1546,40 +1968,62 @@ UNESCO's Education 2030 Framework emphasizes quality education and teacher compe
 
 [Full framework analysis would continue]`,
       category: 'International Frameworks',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Technology-Enhanced Approach'],
-      internationalStandards: ['UNESCO', 'SDG 4', 'Global Citizenship Education'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Technology-Enhanced Approach',
+      ],
+      internationalStandards: [
+        'UNESCO',
+        'SDG 4',
+        'Global Citizenship Education',
+      ],
       researchType: 'Framework Analysis',
-      keywords: ['UNESCO', 'international frameworks', 'teacher competencies', 'sustainable development', 'global education'],
+      keywords: [
+        'UNESCO',
+        'international frameworks',
+        'teacher competencies',
+        'sustainable development',
+        'global education',
+      ],
       citations: 98,
       readingTime: '20 min',
       difficulty: 'Intermediate',
       relatedArticles: ['framework-ib', 'framework-pisa'],
       keyFindings: [
-        'Modern pedagogical methods strongly align with UNESCO\'s SDG 4 goals',
+        "Modern pedagogical methods strongly align with UNESCO's SDG 4 goals",
         'Teacher competency frameworks must include pedagogical innovation skills',
         'Cultural responsiveness is essential for global education implementation',
-        'Technology integration supports UNESCO\'s digital literacy objectives',
+        "Technology integration supports UNESCO's digital literacy objectives",
         'Collaborative learning methods promote global citizenship education',
       ],
       practicalImplications: [
         'Align teacher education programs with UNESCO competency frameworks',
         'Integrate global citizenship education into all pedagogical methods',
         'Develop cultural responsiveness as a core teacher competency',
-        'Ensure technology integration supports UNESCO\'s digital literacy goals',
+        "Ensure technology integration supports UNESCO's digital literacy goals",
         'Create opportunities for international teacher collaboration',
       ],
-      methodology: 'Framework analysis of UNESCO documents and alignment with modern pedagogical research',
+      methodology:
+        'Framework analysis of UNESCO documents and alignment with modern pedagogical research',
       gradeLevels: ['All Levels'],
       subjects: ['All Subjects'],
-      tags: ['UNESCO', 'international standards', 'framework', 'global education'],
+      tags: [
+        'UNESCO',
+        'international standards',
+        'framework',
+        'global education',
+      ],
     },
     {
       id: 'engagement-research',
-      title: 'Student Engagement in Modern Pedagogical Methods: A Comprehensive Research Synthesis',
+      title:
+        'Student Engagement in Modern Pedagogical Methods: A Comprehensive Research Synthesis',
       authors: ['Dr. Rachel Green', 'Dr. Thomas Brown'],
       journal: 'Journal of Educational Psychology',
       year: 2023,
-      abstract: 'This research synthesis examines student engagement across multiple modern pedagogical methods including PBL, flipped classroom, inquiry-based learning, and collaborative approaches. Findings reveal method-specific engagement patterns, motivational factors, and long-term engagement outcomes. The study identifies key design principles that maximize engagement across all methods.',
+      abstract:
+        'This research synthesis examines student engagement across multiple modern pedagogical methods including PBL, flipped classroom, inquiry-based learning, and collaborative approaches. Findings reveal method-specific engagement patterns, motivational factors, and long-term engagement outcomes. The study identifies key design principles that maximize engagement across all methods.',
       fullContent: `# Student Engagement in Modern Pedagogical Methods
 
 ## Introduction
@@ -1636,10 +2080,19 @@ Student engagement is a critical predictor of academic success and lifelong lear
 
 [Full research synthesis would continue]`,
       category: 'Student Engagement Research',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Flipped Classroom', 'Inquiry-Based Learning'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Flipped Classroom',
+        'Inquiry-Based Learning',
+      ],
       internationalStandards: ['PISA', 'Common Core'],
       researchType: 'Literature Review',
-      keywords: ['student engagement', 'motivation', 'pedagogical methods', 'learning outcomes'],
+      keywords: [
+        'student engagement',
+        'motivation',
+        'pedagogical methods',
+        'learning outcomes',
+      ],
       citations: 156,
       readingTime: '24 min',
       difficulty: 'Advanced',
@@ -1658,18 +2111,21 @@ Student engagement is a critical predictor of academic success and lifelong lear
         'Create opportunities for meaningful collaboration',
         'Use multiple engagement strategies simultaneously',
       ],
-      methodology: 'Comprehensive literature review and research synthesis of 80+ studies',
+      methodology:
+        'Comprehensive literature review and research synthesis of 80+ studies',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['engagement', 'motivation', 'research synthesis'],
     },
     {
       id: 'assessment-evaluation',
-      title: 'Authentic Assessment in Modern Pedagogical Methods: Design Principles and Implementation Strategies',
+      title:
+        'Authentic Assessment in Modern Pedagogical Methods: Design Principles and Implementation Strategies',
       authors: ['Dr. Karen White', 'Dr. Robert Lee'],
       journal: 'Assessment in Education',
       year: 2023,
-      abstract: 'This article examines authentic assessment design and implementation across modern pedagogical methods. Drawing on 25 implementation studies, the authors identify key principles for designing assessments that align with student-centered, project-based, and inquiry-oriented approaches. Findings emphasize the importance of rubrics, peer assessment, and portfolio approaches.',
+      abstract:
+        'This article examines authentic assessment design and implementation across modern pedagogical methods. Drawing on 25 implementation studies, the authors identify key principles for designing assessments that align with student-centered, project-based, and inquiry-oriented approaches. Findings emphasize the importance of rubrics, peer assessment, and portfolio approaches.',
       fullContent: `# Authentic Assessment in Modern Pedagogical Methods
 
 ## Introduction
@@ -1723,10 +2179,20 @@ Traditional assessments often fail to capture the complex learning outcomes of m
 
 [Full assessment guide would continue]`,
       category: 'Assessment & Evaluation',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Flipped Classroom'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Flipped Classroom',
+      ],
       internationalStandards: ['Common Core', 'ISTE'],
       researchType: 'Best Practices',
-      keywords: ['assessment', 'authentic assessment', 'evaluation', 'rubrics', 'pedagogical methods'],
+      keywords: [
+        'assessment',
+        'authentic assessment',
+        'evaluation',
+        'rubrics',
+        'pedagogical methods',
+      ],
       citations: 112,
       readingTime: '19 min',
       difficulty: 'Intermediate',
@@ -1745,18 +2211,21 @@ Traditional assessments often fail to capture the complex learning outcomes of m
         'Train students in peer and self-assessment skills',
         'Implement portfolio systems to document learning progress',
       ],
-      methodology: 'Analysis of 25 implementation studies and assessment design frameworks',
+      methodology:
+        'Analysis of 25 implementation studies and assessment design frameworks',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['assessment', 'evaluation', 'authentic assessment'],
     },
     {
       id: 'tech-integration',
-      title: 'Technology Integration in Modern Pedagogy: Effectiveness, Equity, and Best Practices',
+      title:
+        'Technology Integration in Modern Pedagogy: Effectiveness, Equity, and Best Practices',
       authors: ['Dr. Amanda Chen', 'Dr. Kevin Patel'],
       journal: 'Educational Technology Research and Development',
       year: 2023,
-      abstract: 'This comprehensive review examines technology integration effectiveness across modern pedagogical methods. Findings reveal significant benefits for engagement and achievement when technology is thoughtfully integrated. However, equity concerns persist, requiring intentional design to ensure all students benefit. The article provides evidence-based recommendations for effective technology integration.',
+      abstract:
+        'This comprehensive review examines technology integration effectiveness across modern pedagogical methods. Findings reveal significant benefits for engagement and achievement when technology is thoughtfully integrated. However, equity concerns persist, requiring intentional design to ensure all students benefit. The article provides evidence-based recommendations for effective technology integration.',
       fullContent: `# Technology Integration in Modern Pedagogy
 
 ## Introduction
@@ -1798,10 +2267,20 @@ Technology integration has become essential in modern education, but effectivene
 
 [Full technology integration review would continue]`,
       category: 'Technology Integration',
-      pedagogicalMethods: ['Flipped Classroom', 'Technology-Enhanced Approach', 'Blended Learning'],
+      pedagogicalMethods: [
+        'Flipped Classroom',
+        'Technology-Enhanced Approach',
+        'Blended Learning',
+      ],
       internationalStandards: ['ISTE', 'UNESCO'],
       researchType: 'Literature Review',
-      keywords: ['technology integration', 'digital tools', 'equity', 'engagement', 'pedagogy'],
+      keywords: [
+        'technology integration',
+        'digital tools',
+        'equity',
+        'engagement',
+        'pedagogy',
+      ],
       citations: 203,
       readingTime: '21 min',
       difficulty: 'Intermediate',
@@ -1820,18 +2299,21 @@ Technology integration has become essential in modern education, but effectivene
         'Design for accessibility and multiple access points',
         'Provide ongoing technical and pedagogical support',
       ],
-      methodology: 'Comprehensive literature review of 60+ studies on technology integration',
+      methodology:
+        'Comprehensive literature review of 60+ studies on technology integration',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['technology', 'digital tools', 'equity', 'integration'],
     },
     {
       id: 'differentiation-inclusion',
-      title: 'Differentiation and Inclusion in Modern Pedagogical Methods: Strategies for Diverse Learners',
+      title:
+        'Differentiation and Inclusion in Modern Pedagogical Methods: Strategies for Diverse Learners',
       authors: ['Dr. Susan Martinez', 'Dr. John Anderson'],
       journal: 'Journal of Special Education',
       year: 2023,
-      abstract: 'This article examines how modern pedagogical methods can be adapted to support diverse learners, including students with disabilities, English language learners, and gifted students. The study synthesizes research on Universal Design for Learning, scaffolding strategies, and inclusive implementation approaches. Findings demonstrate that with appropriate adaptations, modern methods benefit all learners.',
+      abstract:
+        'This article examines how modern pedagogical methods can be adapted to support diverse learners, including students with disabilities, English language learners, and gifted students. The study synthesizes research on Universal Design for Learning, scaffolding strategies, and inclusive implementation approaches. Findings demonstrate that with appropriate adaptations, modern methods benefit all learners.',
       fullContent: `# Differentiation and Inclusion in Modern Pedagogical Methods
 
 ## Introduction
@@ -1885,10 +2367,21 @@ Modern pedagogical methods must serve all learners, including those with diverse
 
 [Full differentiation guide would continue]`,
       category: 'Differentiation & Inclusion',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Flipped Classroom', 'Differentiated Instruction'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Flipped Classroom',
+        'Differentiated Instruction',
+      ],
       internationalStandards: ['UDL', 'IDEA', 'UNESCO'],
       researchType: 'Best Practices',
-      keywords: ['differentiation', 'inclusion', 'diverse learners', 'UDL', 'special education'],
+      keywords: [
+        'differentiation',
+        'inclusion',
+        'diverse learners',
+        'UDL',
+        'special education',
+      ],
       citations: 134,
       readingTime: '23 min',
       difficulty: 'Intermediate',
@@ -1907,18 +2400,21 @@ Modern pedagogical methods must serve all learners, including those with diverse
         'Ensure accessibility features are built into all materials',
         'Collaborate with special education and support staff',
       ],
-      methodology: 'Synthesis of research on UDL, differentiation, and inclusive pedagogy',
+      methodology:
+        'Synthesis of research on UDL, differentiation, and inclusive pedagogy',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['differentiation', 'inclusion', 'UDL', 'diverse learners'],
     },
     {
       id: '21st-century-skills',
-      title: 'Developing 21st Century Skills Through Modern Pedagogical Methods: A Research Synthesis',
+      title:
+        'Developing 21st Century Skills Through Modern Pedagogical Methods: A Research Synthesis',
       authors: ['Dr. Michael Johnson', 'Dr. Sarah Davis'],
       journal: 'Educational Researcher',
       year: 2023,
-      abstract: 'This research synthesis examines how modern pedagogical methods develop 21st century skills including critical thinking, collaboration, communication, and creativity. Analysis of 45 studies reveals that student-centered, project-based, and inquiry-oriented approaches most effectively develop these competencies. The article provides evidence-based recommendations for skill development.',
+      abstract:
+        'This research synthesis examines how modern pedagogical methods develop 21st century skills including critical thinking, collaboration, communication, and creativity. Analysis of 45 studies reveals that student-centered, project-based, and inquiry-oriented approaches most effectively develop these competencies. The article provides evidence-based recommendations for skill development.',
       fullContent: `# Developing 21st Century Skills Through Modern Pedagogy
 
 ## Introduction
@@ -1965,10 +2461,21 @@ Modern pedagogical methods must serve all learners, including those with diverse
 
 [Full research synthesis would continue]`,
       category: '21st Century Skills',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Socratic Method', 'Jigsaw Method'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Socratic Method',
+        'Jigsaw Method',
+      ],
       internationalStandards: ['PISA', 'ISTE', 'Common Core'],
       researchType: 'Literature Review',
-      keywords: ['21st century skills', 'critical thinking', 'collaboration', 'creativity', 'communication'],
+      keywords: [
+        '21st century skills',
+        'critical thinking',
+        'collaboration',
+        'creativity',
+        'communication',
+      ],
       citations: 178,
       readingTime: '26 min',
       difficulty: 'Advanced',
@@ -1987,18 +2494,26 @@ Modern pedagogical methods must serve all learners, including those with diverse
         'Use authentic assessment methods that evaluate skill development',
         'Integrate reflection activities to develop metacognitive awareness',
       ],
-      methodology: 'Research synthesis of 45 studies on 21st century skill development',
+      methodology:
+        'Research synthesis of 45 studies on 21st century skill development',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['21st century skills', 'critical thinking', 'collaboration', 'research'],
+      tags: [
+        '21st century skills',
+        'critical thinking',
+        'collaboration',
+        'research',
+      ],
     },
     {
       id: 'cultural-responsiveness',
-      title: 'Culturally Responsive Pedagogy: Integrating Modern Methods with Cultural Competence',
+      title:
+        'Culturally Responsive Pedagogy: Integrating Modern Methods with Cultural Competence',
       authors: ['Dr. Maria Rodriguez', 'Dr. James Wilson'],
       journal: 'Multicultural Education Review',
       year: 2023,
-      abstract: 'This article examines how modern pedagogical methods can be implemented through culturally responsive approaches. Drawing on research from diverse educational contexts, the authors identify key principles for adapting student-centered, inquiry-based, and collaborative methods to honor diverse cultural perspectives and learning styles. The article provides practical strategies for culturally responsive implementation.',
+      abstract:
+        'This article examines how modern pedagogical methods can be implemented through culturally responsive approaches. Drawing on research from diverse educational contexts, the authors identify key principles for adapting student-centered, inquiry-based, and collaborative methods to honor diverse cultural perspectives and learning styles. The article provides practical strategies for culturally responsive implementation.',
       fullContent: `# Culturally Responsive Pedagogy: Integrating Modern Methods
 
 ## Introduction
@@ -2055,10 +2570,19 @@ Culturally responsive pedagogy ensures that modern methods honor and leverage st
 
 [Full culturally responsive guide would continue]`,
       category: 'Cultural Responsiveness',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Culturally Responsive Teaching'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Culturally Responsive Teaching',
+      ],
       internationalStandards: ['UNESCO', 'Global Citizenship Education'],
       researchType: 'Best Practices',
-      keywords: ['cultural responsiveness', 'multicultural education', 'diverse learners', 'inclusive pedagogy'],
+      keywords: [
+        'cultural responsiveness',
+        'multicultural education',
+        'diverse learners',
+        'inclusive pedagogy',
+      ],
       citations: 167,
       readingTime: '22 min',
       difficulty: 'Intermediate',
@@ -2071,24 +2595,32 @@ Culturally responsive pedagogy ensures that modern methods honor and leverage st
         'Teacher cultural competence is essential for effective implementation',
       ],
       practicalImplications: [
-        'Learn about students\' cultural backgrounds and experiences',
+        "Learn about students' cultural backgrounds and experiences",
         'Include diverse voices and perspectives in all content',
         'Adapt pedagogical methods to honor cultural ways of knowing',
-        'Build partnerships with students\' communities',
+        "Build partnerships with students' communities",
         'Continuously reflect on and improve cultural responsiveness',
       ],
-      methodology: 'Synthesis of research on culturally responsive pedagogy and modern methods',
+      methodology:
+        'Synthesis of research on culturally responsive pedagogy and modern methods',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['cultural responsiveness', 'multicultural', 'inclusive', 'diversity'],
+      tags: [
+        'cultural responsiveness',
+        'multicultural',
+        'inclusive',
+        'diversity',
+      ],
     },
     {
       id: 'case-flipped-rural',
-      title: 'Flipped Classroom in Rural Schools: Overcoming Technology Challenges and Maximizing Engagement',
+      title:
+        'Flipped Classroom in Rural Schools: Overcoming Technology Challenges and Maximizing Engagement',
       authors: ['Dr. Jennifer Taylor', 'Dr. Robert Kim'],
       journal: 'Rural Education Quarterly',
       year: 2023,
-      abstract: 'This case study examines flipped classroom implementation in three rural schools facing technology access challenges. Despite limited internet connectivity and device availability, teachers successfully adapted the model using offline resources, school-based technology, and creative scheduling. Student engagement and achievement improved significantly, demonstrating that flipped classrooms can work in resource-constrained environments.',
+      abstract:
+        'This case study examines flipped classroom implementation in three rural schools facing technology access challenges. Despite limited internet connectivity and device availability, teachers successfully adapted the model using offline resources, school-based technology, and creative scheduling. Student engagement and achievement improved significantly, demonstrating that flipped classrooms can work in resource-constrained environments.',
       fullContent: `# Flipped Classroom in Rural Schools: A Case Study
 
 ## Introduction
@@ -2148,7 +2680,13 @@ Rural schools face unique challenges implementing technology-dependent pedagogie
       pedagogicalMethods: ['Flipped Classroom'],
       internationalStandards: ['ISTE', 'Common Core'],
       researchType: 'Case Study',
-      keywords: ['flipped classroom', 'rural education', 'technology access', 'case study', 'equity'],
+      keywords: [
+        'flipped classroom',
+        'rural education',
+        'technology access',
+        'case study',
+        'equity',
+      ],
       citations: 89,
       readingTime: '17 min',
       difficulty: 'Intermediate',
@@ -2167,7 +2705,8 @@ Rural schools face unique challenges implementing technology-dependent pedagogie
         'Establish school-based technology access programs',
         'Build community partnerships to support resource needs',
       ],
-      methodology: 'Multi-site case study with mixed methods (surveys, interviews, observations, achievement data)',
+      methodology:
+        'Multi-site case study with mixed methods (surveys, interviews, observations, achievement data)',
       sampleSize: '280 students, 12 teachers across 3 rural schools',
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Mathematics', 'Science', 'Language Arts'],
@@ -2175,11 +2714,13 @@ Rural schools face unique challenges implementing technology-dependent pedagogie
     },
     {
       id: 'framework-ib',
-      title: 'International Baccalaureate Approaches to Teaching: Inquiry, Concept-Based Learning, and International-Mindedness',
+      title:
+        'International Baccalaureate Approaches to Teaching: Inquiry, Concept-Based Learning, and International-Mindedness',
       authors: ['Dr. Helen Chang', 'Dr. David Miller'],
       journal: 'IB Research Journal',
       year: 2023,
-      abstract: 'This framework analysis examines IB Approaches to Teaching and their alignment with modern pedagogical methods. The article explores how inquiry-based learning, concept-based instruction, and international-mindedness can be integrated across educational contexts. Practical strategies for implementing IB approaches in diverse settings are provided.',
+      abstract:
+        'This framework analysis examines IB Approaches to Teaching and their alignment with modern pedagogical methods. The article explores how inquiry-based learning, concept-based instruction, and international-mindedness can be integrated across educational contexts. Practical strategies for implementing IB approaches in diverse settings are provided.',
       fullContent: `# IB Approaches to Teaching: Framework Analysis
 
 ## Introduction
@@ -2236,10 +2777,20 @@ The International Baccalaureate (IB) framework emphasizes inquiry, concept-based
 
 [Full IB framework analysis would continue]`,
       category: 'International Frameworks',
-      pedagogicalMethods: ['Inquiry-Based Learning', 'Project-Based Learning (PBL)', 'Concept-Based Learning'],
+      pedagogicalMethods: [
+        'Inquiry-Based Learning',
+        'Project-Based Learning (PBL)',
+        'Concept-Based Learning',
+      ],
       internationalStandards: ['IB', 'ATL Skills', 'Global Citizenship'],
       researchType: 'Framework Analysis',
-      keywords: ['International Baccalaureate', 'IB', 'inquiry', 'concept-based', 'international-mindedness'],
+      keywords: [
+        'International Baccalaureate',
+        'IB',
+        'inquiry',
+        'concept-based',
+        'international-mindedness',
+      ],
       citations: 123,
       readingTime: '19 min',
       difficulty: 'Intermediate',
@@ -2258,18 +2809,21 @@ The International Baccalaureate (IB) framework emphasizes inquiry, concept-based
         'Explicitly develop Approaches to Learning skills',
         'Connect learning to real-world global issues',
       ],
-      methodology: 'Framework analysis of IB documents and alignment with pedagogical research',
+      methodology:
+        'Framework analysis of IB documents and alignment with pedagogical research',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['IB', 'international frameworks', 'inquiry', 'concept-based'],
     },
     {
       id: 'framework-pisa',
-      title: 'PISA Competencies and Modern Pedagogy: Developing Collaborative Problem-Solving and Global Competence',
+      title:
+        'PISA Competencies and Modern Pedagogy: Developing Collaborative Problem-Solving and Global Competence',
       authors: ['Dr. Anna Schmidt', 'Dr. Carlos Mendez'],
       journal: 'International Journal of Educational Research',
       year: 2023,
-      abstract: 'This analysis examines how modern pedagogical methods develop PISA competencies including collaborative problem-solving, critical thinking, and global competence. The article identifies specific pedagogical strategies that align with PISA assessment frameworks and provides evidence-based recommendations for competency development.',
+      abstract:
+        'This analysis examines how modern pedagogical methods develop PISA competencies including collaborative problem-solving, critical thinking, and global competence. The article identifies specific pedagogical strategies that align with PISA assessment frameworks and provides evidence-based recommendations for competency development.',
       fullContent: `# PISA Competencies and Modern Pedagogy
 
 ## Introduction
@@ -2325,10 +2879,20 @@ PISA assessments evaluate students' ability to apply knowledge in real-world con
 
 [Full PISA framework analysis would continue]`,
       category: 'International Frameworks',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Collaborative Learning'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Collaborative Learning',
+      ],
       internationalStandards: ['PISA', 'Global Competence'],
       researchType: 'Framework Analysis',
-      keywords: ['PISA', 'collaborative problem-solving', 'global competence', 'critical thinking', 'international assessment'],
+      keywords: [
+        'PISA',
+        'collaborative problem-solving',
+        'global competence',
+        'critical thinking',
+        'international assessment',
+      ],
       citations: 145,
       readingTime: '18 min',
       difficulty: 'Intermediate',
@@ -2347,18 +2911,21 @@ PISA assessments evaluate students' ability to apply knowledge in real-world con
         'Use authentic assessment methods aligned with PISA',
         'Provide explicit instruction in competency development',
       ],
-      methodology: 'Framework analysis of PISA documents and competency development research',
+      methodology:
+        'Framework analysis of PISA documents and competency development research',
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Mathematics', 'Science', 'Social Studies'],
       tags: ['PISA', 'international frameworks', 'competencies', 'assessment'],
     },
     {
       id: 'critical-thinking-development',
-      title: 'Critical Thinking Development Through Socratic and Inquiry Methods: A Comparative Analysis',
+      title:
+        'Critical Thinking Development Through Socratic and Inquiry Methods: A Comparative Analysis',
       authors: ['Dr. Elizabeth Brown', 'Dr. Michael Garcia'],
       journal: 'Thinking Skills and Creativity',
       year: 2023,
-      abstract: 'This comparative analysis examines critical thinking development through Socratic Method and Inquiry-Based Learning approaches. Both methods show strong effects, but differ in their emphasis and implementation. The Socratic Method excels in analytical reasoning, while Inquiry-Based Learning develops research and investigation skills. The article provides guidance for selecting and implementing each approach.',
+      abstract:
+        'This comparative analysis examines critical thinking development through Socratic Method and Inquiry-Based Learning approaches. Both methods show strong effects, but differ in their emphasis and implementation. The Socratic Method excels in analytical reasoning, while Inquiry-Based Learning develops research and investigation skills. The article provides guidance for selecting and implementing each approach.',
       fullContent: `# Critical Thinking Development: Socratic vs Inquiry Methods
 
 ## Introduction
@@ -2425,7 +2992,12 @@ Combine both methods:
       pedagogicalMethods: ['Socratic Method', 'Inquiry-Based Learning'],
       internationalStandards: ['Common Core', 'PISA', 'IB'],
       researchType: 'Experimental Study',
-      keywords: ['critical thinking', 'Socratic method', 'inquiry-based learning', 'analytical reasoning'],
+      keywords: [
+        'critical thinking',
+        'Socratic method',
+        'inquiry-based learning',
+        'analytical reasoning',
+      ],
       citations: 198,
       readingTime: '24 min',
       difficulty: 'Advanced',
@@ -2444,7 +3016,8 @@ Combine both methods:
         'Provide explicit instruction in critical thinking processes',
         'Assess critical thinking through authentic tasks and reasoning',
       ],
-      methodology: 'Comparative experimental study with control groups and pre/post assessments',
+      methodology:
+        'Comparative experimental study with control groups and pre/post assessments',
       sampleSize: '320 students across 8 classrooms',
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Language Arts', 'Social Studies', 'Science'],
@@ -2452,11 +3025,13 @@ Combine both methods:
     },
     {
       id: 'collaborative-learning',
-      title: 'Collaborative Learning Effectiveness: Meta-Analysis of Jigsaw, Cooperative Learning, and Peer Instruction',
+      title:
+        'Collaborative Learning Effectiveness: Meta-Analysis of Jigsaw, Cooperative Learning, and Peer Instruction',
       authors: ['Dr. Richard Taylor', 'Dr. Lisa Chen'],
       journal: 'Review of Educational Research',
       year: 2023,
-      abstract: 'This meta-analysis examines collaborative learning effectiveness across Jigsaw Method, Cooperative Learning, and Peer Instruction approaches. Analysis of 38 studies reveals strong positive effects on academic achievement (d = 0.68) and social skill development (d = 0.71). Group composition, structure, and individual accountability significantly influence outcomes.',
+      abstract:
+        'This meta-analysis examines collaborative learning effectiveness across Jigsaw Method, Cooperative Learning, and Peer Instruction approaches. Analysis of 38 studies reveals strong positive effects on academic achievement (d = 0.68) and social skill development (d = 0.71). Group composition, structure, and individual accountability significantly influence outcomes.',
       fullContent: `# Collaborative Learning Effectiveness: Meta-Analysis
 
 ## Introduction
@@ -2505,10 +3080,20 @@ Collaborative learning has shown consistent positive effects. This meta-analysis
 
 [Full meta-analysis would continue]`,
       category: 'Collaborative Learning',
-      pedagogicalMethods: ['Jigsaw Method', 'Cooperative Learning', 'Peer Instruction'],
+      pedagogicalMethods: [
+        'Jigsaw Method',
+        'Cooperative Learning',
+        'Peer Instruction',
+      ],
       internationalStandards: ['PISA', 'Common Core', 'ISTE'],
       researchType: 'Meta-Analysis',
-      keywords: ['collaborative learning', 'cooperative learning', 'jigsaw method', 'peer instruction', 'meta-analysis'],
+      keywords: [
+        'collaborative learning',
+        'cooperative learning',
+        'jigsaw method',
+        'peer instruction',
+        'meta-analysis',
+      ],
       citations: 167,
       readingTime: '23 min',
       difficulty: 'Advanced',
@@ -2527,19 +3112,27 @@ Collaborative learning has shown consistent positive effects. This meta-analysis
         'Actively facilitate and monitor group work',
         'Assess both individual and collaborative outcomes',
       ],
-      methodology: 'Meta-analysis of 38 empirical studies on collaborative learning',
+      methodology:
+        'Meta-analysis of 38 empirical studies on collaborative learning',
       sampleSize: '12,450 students',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['collaborative learning', 'meta-analysis', 'cooperation', 'research'],
+      tags: [
+        'collaborative learning',
+        'meta-analysis',
+        'cooperation',
+        'research',
+      ],
     },
     {
       id: 'classroom-management',
-      title: 'Classroom Management in Student-Centered Learning Environments: Research-Based Strategies',
+      title:
+        'Classroom Management in Student-Centered Learning Environments: Research-Based Strategies',
       authors: ['Dr. Robert Martinez', 'Dr. Sarah Johnson'],
       journal: 'Teaching and Teacher Education',
       year: 2023,
-      abstract: 'Student-centered pedagogies require different classroom management approaches than traditional methods. This article synthesizes research on effective management strategies for PBL, inquiry-based, and collaborative learning environments. Findings emphasize proactive strategies, relationship-building, and student autonomy support.',
+      abstract:
+        'Student-centered pedagogies require different classroom management approaches than traditional methods. This article synthesizes research on effective management strategies for PBL, inquiry-based, and collaborative learning environments. Findings emphasize proactive strategies, relationship-building, and student autonomy support.',
       fullContent: `# Classroom Management in Student-Centered Environments
 
 ## Introduction
@@ -2595,10 +3188,19 @@ Student-centered learning requires rethinking classroom management. This article
 
 [Full classroom management guide would continue]`,
       category: 'Classroom Management',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Inquiry-Based Learning', 'Collaborative Learning'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Inquiry-Based Learning',
+        'Collaborative Learning',
+      ],
       internationalStandards: ['Danielson Framework', 'InTASC'],
       researchType: 'Best Practices',
-      keywords: ['classroom management', 'student-centered', 'behavior management', 'pedagogical methods'],
+      keywords: [
+        'classroom management',
+        'student-centered',
+        'behavior management',
+        'pedagogical methods',
+      ],
       citations: 156,
       readingTime: '20 min',
       difficulty: 'Intermediate',
@@ -2617,18 +3219,26 @@ Student-centered learning requires rethinking classroom management. This article
         'Create clear structures that enable student freedom',
         'Use positive reinforcement and community-building approaches',
       ],
-      methodology: 'Synthesis of research on classroom management in student-centered environments',
+      methodology:
+        'Synthesis of research on classroom management in student-centered environments',
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['classroom management', 'student-centered', 'behavior', 'pedagogy'],
+      tags: [
+        'classroom management',
+        'student-centered',
+        'behavior',
+        'pedagogy',
+      ],
     },
     {
       id: 'teacher-professional-development',
-      title: 'Professional Development for Modern Pedagogy: Effective Training Models and Implementation Support',
+      title:
+        'Professional Development for Modern Pedagogy: Effective Training Models and Implementation Support',
       authors: ['Dr. Patricia White', 'Dr. David Kim'],
       journal: 'Professional Development in Education',
       year: 2023,
-      abstract: 'This article examines effective professional development models for implementing modern pedagogical methods. Analysis of 30 PD programs reveals that sustained, collaborative, and practice-based approaches are most effective. Key success factors include ongoing support, peer collaboration, and implementation coaching.',
+      abstract:
+        'This article examines effective professional development models for implementing modern pedagogical methods. Analysis of 30 PD programs reveals that sustained, collaborative, and practice-based approaches are most effective. Key success factors include ongoing support, peer collaboration, and implementation coaching.',
       fullContent: `# Professional Development for Modern Pedagogy
 
 ## Introduction
@@ -2693,7 +3303,12 @@ Effective professional development is essential for successful implementation of
       pedagogicalMethods: ['All Methods'],
       internationalStandards: ['InTASC', 'ISTE', 'UNESCO'],
       researchType: 'Best Practices',
-      keywords: ['professional development', 'teacher training', 'pedagogical methods', 'implementation support'],
+      keywords: [
+        'professional development',
+        'teacher training',
+        'pedagogical methods',
+        'implementation support',
+      ],
       citations: 134,
       readingTime: '21 min',
       difficulty: 'Intermediate',
@@ -2712,18 +3327,21 @@ Effective professional development is essential for successful implementation of
         'Offer ongoing coaching and follow-up support',
         'Align training with specific pedagogical methods and curriculum',
       ],
-      methodology: 'Analysis of 30 professional development programs and effectiveness research',
+      methodology:
+        'Analysis of 30 professional development programs and effectiveness research',
       gradeLevels: ['All Levels'],
       subjects: ['All Subjects'],
       tags: ['professional development', 'teacher training', 'implementation'],
     },
     {
       id: 'case-inquiry-stem',
-      title: 'Inquiry-Based Learning in STEM: A Longitudinal Study of Student Investigation Processes and Outcomes',
+      title:
+        'Inquiry-Based Learning in STEM: A Longitudinal Study of Student Investigation Processes and Outcomes',
       authors: ['Dr. James Wilson', 'Dr. Maria Garcia'],
       journal: 'Science Education',
       year: 2023,
-      abstract: 'This longitudinal study follows 200 students through three years of inquiry-based science and mathematics instruction. Findings reveal significant improvements in scientific reasoning, problem-solving, and long-term retention. The study documents evolution of student investigation processes and teacher facilitation approaches over time.',
+      abstract:
+        'This longitudinal study follows 200 students through three years of inquiry-based science and mathematics instruction. Findings reveal significant improvements in scientific reasoning, problem-solving, and long-term retention. The study documents evolution of student investigation processes and teacher facilitation approaches over time.',
       fullContent: `# Inquiry-Based Learning in STEM: Longitudinal Study
 
 ## Introduction
@@ -2783,11 +3401,20 @@ Teachers evolved from:
       pedagogicalMethods: ['Inquiry-Based Learning'],
       internationalStandards: ['NGSS', 'Common Core', 'PISA'],
       researchType: 'Case Study',
-      keywords: ['inquiry-based learning', 'STEM', 'longitudinal study', 'scientific reasoning', 'science education'],
+      keywords: [
+        'inquiry-based learning',
+        'STEM',
+        'longitudinal study',
+        'scientific reasoning',
+        'science education',
+      ],
       citations: 112,
       readingTime: '19 min',
       difficulty: 'Advanced',
-      relatedArticles: ['meta-pbl-effectiveness', 'critical-thinking-development'],
+      relatedArticles: [
+        'meta-pbl-effectiveness',
+        'critical-thinking-development',
+      ],
       keyFindings: [
         'Inquiry skills develop progressively over time with consistent implementation',
         'Teacher facilitation evolves from direct instruction to skilled guidance',
@@ -2802,7 +3429,8 @@ Teachers evolved from:
         'Document student growth over time',
         'Be patient with initial challenges - skills develop gradually',
       ],
-      methodology: 'Longitudinal case study with mixed methods over three years',
+      methodology:
+        'Longitudinal case study with mixed methods over three years',
       sampleSize: '200 students, 8 teachers over 3 years',
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Science', 'Mathematics', 'STEM'],
@@ -2810,11 +3438,13 @@ Teachers evolved from:
     },
     {
       id: 'case-jigsaw-diverse',
-      title: 'Jigsaw Method in Culturally Diverse Classrooms: Adaptations for Multi-Language and Multi-Ability Learners',
+      title:
+        'Jigsaw Method in Culturally Diverse Classrooms: Adaptations for Multi-Language and Multi-Ability Learners',
       authors: ['Dr. Lisa Anderson', 'Dr. Carlos Rodriguez'],
       journal: 'Multicultural Perspectives',
       year: 2023,
-      abstract: 'This case study examines Jigsaw Method implementation in three culturally and linguistically diverse middle school classrooms. The study documents adaptations for English language learners, students with varying ability levels, and different cultural communication styles. Findings reveal that with appropriate adaptations, Jigsaw Method effectively supports all learners.',
+      abstract:
+        'This case study examines Jigsaw Method implementation in three culturally and linguistically diverse middle school classrooms. The study documents adaptations for English language learners, students with varying ability levels, and different cultural communication styles. Findings reveal that with appropriate adaptations, Jigsaw Method effectively supports all learners.',
       fullContent: `# Jigsaw Method in Culturally Diverse Classrooms
 
 ## Introduction
@@ -2868,9 +3498,19 @@ The Jigsaw Method can be highly effective in diverse classrooms when appropriate
 [Full case study would continue]`,
       category: 'Case Studies & Implementation',
       pedagogicalMethods: ['Jigsaw Method'],
-      internationalStandards: ['UDL', 'ESL Standards', 'Culturally Responsive Teaching'],
+      internationalStandards: [
+        'UDL',
+        'ESL Standards',
+        'Culturally Responsive Teaching',
+      ],
       researchType: 'Case Study',
-      keywords: ['jigsaw method', 'diverse learners', 'English language learners', 'cultural diversity', 'inclusion'],
+      keywords: [
+        'jigsaw method',
+        'diverse learners',
+        'English language learners',
+        'cultural diversity',
+        'inclusion',
+      ],
       citations: 98,
       readingTime: '18 min',
       difficulty: 'Intermediate',
@@ -2886,10 +3526,11 @@ The Jigsaw Method can be highly effective in diverse classrooms when appropriate
         'Adapt expert group materials for different ability and language levels',
         'Provide visual supports and graphic organizers',
         'Create flexible grouping strategies that honor diversity',
-        'Build on students\' cultural strengths and communication styles',
+        "Build on students' cultural strengths and communication styles",
         'Establish peer support structures for language and content learning',
       ],
-      methodology: 'Multi-site case study with observations, interviews, and achievement data',
+      methodology:
+        'Multi-site case study with observations, interviews, and achievement data',
       sampleSize: '180 students, 6 teachers across 3 diverse classrooms',
       gradeLevels: ['Middle School'],
       subjects: ['Social Studies', 'Science', 'Language Arts'],
@@ -2897,11 +3538,13 @@ The Jigsaw Method can be highly effective in diverse classrooms when appropriate
     },
     {
       id: 'case-socratic-international',
-      title: 'Socratic Method Across Cultures: International Implementation and Cultural Adaptations',
+      title:
+        'Socratic Method Across Cultures: International Implementation and Cultural Adaptations',
       authors: ['Dr. Yuki Tanaka', 'Dr. Ahmed Hassan', 'Dr. Maria Santos'],
       journal: 'Comparative Education Review',
       year: 2023,
-      abstract: 'This international case study examines Socratic Method implementation in classrooms across five countries (Japan, Egypt, Brazil, Finland, Singapore). Findings reveal both universal principles and necessary cultural adaptations. The study identifies key factors for successful cross-cultural implementation including question design, dialogue norms, and cultural sensitivity.',
+      abstract:
+        'This international case study examines Socratic Method implementation in classrooms across five countries (Japan, Egypt, Brazil, Finland, Singapore). Findings reveal both universal principles and necessary cultural adaptations. The study identifies key factors for successful cross-cultural implementation including question design, dialogue norms, and cultural sensitivity.',
       fullContent: `# Socratic Method Across Cultures: International Study
 
 ## Introduction
@@ -2957,9 +3600,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
 [Full international case study would continue]`,
       category: 'Case Studies & Implementation',
       pedagogicalMethods: ['Socratic Method'],
-      internationalStandards: ['UNESCO', 'Global Citizenship Education', 'Cultural Competence'],
+      internationalStandards: [
+        'UNESCO',
+        'Global Citizenship Education',
+        'Cultural Competence',
+      ],
       researchType: 'Case Study',
-      keywords: ['Socratic method', 'international', 'cultural adaptation', 'cross-cultural', 'global education'],
+      keywords: [
+        'Socratic method',
+        'international',
+        'cultural adaptation',
+        'cross-cultural',
+        'global education',
+      ],
       citations: 145,
       readingTime: '22 min',
       difficulty: 'Advanced',
@@ -2978,13 +3631,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Build on cultural strengths rather than imposing external models',
         'Maintain core Socratic principles while adapting to context',
       ],
-      methodology: 'Multi-country case study with observations, interviews, and cultural analysis',
+      methodology:
+        'Multi-country case study with observations, interviews, and cultural analysis',
       sampleSize: '250 students, 15 teachers across 5 countries',
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Language Arts', 'Social Studies', 'Philosophy'],
-      tags: ['case study', 'international', 'cultural adaptation', 'Socratic method'],
+      tags: [
+        'case study',
+        'international',
+        'cultural adaptation',
+        'Socratic method',
+      ],
     },
-  ]
+  ];
 
   // YouTube Videos Database
   const youtubeVideosDatabase: YouTubeVideo[] = [
@@ -2994,7 +3653,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'The Socratic Method: Teaching Through Questioning',
       channel: 'Edutopia',
       videoId: '0s22hxZqXqE',
-      description: 'Learn how to use the Socratic Method to engage students in deep thinking and critical analysis. This video demonstrates practical questioning techniques that help students discover knowledge through guided inquiry rather than direct instruction.',
+      description:
+        'Learn how to use the Socratic Method to engage students in deep thinking and critical analysis. This video demonstrates practical questioning techniques that help students discover knowledge through guided inquiry rather than direct instruction.',
       duration: '8:45',
       category: 'Socratic Method',
       pedagogicalMethods: ['Socratic Method', 'Inquiry-Based Learning'],
@@ -3010,7 +3670,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Crafting effective questions',
         'Facilitating student discovery',
         'Managing classroom discussions',
-        'Assessing student understanding through questions'
+        'Assessing student understanding through questions',
       ],
       implementationSteps: [
         'Prepare open-ended questions that guide thinking',
@@ -3018,22 +3678,28 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Ask follow-up questions to deepen understanding',
         'Encourage students to question assumptions',
         'Guide students to discover answers themselves',
-        'Reflect on the learning process together'
+        'Reflect on the learning process together',
       ],
-      relatedVideos: ['socratic-advanced', 'inquiry-basics']
+      relatedVideos: ['socratic-advanced', 'inquiry-basics'],
     },
     {
       id: 'socratic-advanced',
       title: 'Advanced Socratic Questioning Techniques',
       channel: 'Teaching Channel',
       videoId: '1a8pI65emDE',
-      description: 'Take your Socratic Method skills to the next level with advanced questioning techniques. This video covers complex questioning strategies for deeper analysis, including probing questions, clarifying questions, and questions that challenge assumptions.',
+      description:
+        'Take your Socratic Method skills to the next level with advanced questioning techniques. This video covers complex questioning strategies for deeper analysis, including probing questions, clarifying questions, and questions that challenge assumptions.',
       duration: '12:30',
       category: 'Socratic Method',
       pedagogicalMethods: ['Socratic Method'],
       gradeLevels: ['High School'],
       subjects: ['Language Arts', 'Social Studies', 'Philosophy'],
-      tags: ['Socratic method', 'advanced questioning', 'critical thinking', 'analysis'],
+      tags: [
+        'Socratic method',
+        'advanced questioning',
+        'critical thinking',
+        'analysis',
+      ],
       difficulty: 'Advanced',
       year: 2023,
       views: 89000,
@@ -3043,7 +3709,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Probing for deeper understanding',
         'Challenging assumptions',
         'Exploring implications',
-        'Questioning viewpoints and perspectives'
+        'Questioning viewpoints and perspectives',
       ],
       implementationSteps: [
         'Master the six types of Socratic questions',
@@ -3051,9 +3717,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Use questions to challenge assumptions',
         'Explore implications and consequences',
         'Question viewpoints and perspectives',
-        'Synthesize understanding through questioning'
+        'Synthesize understanding through questioning',
       ],
-      relatedVideos: ['socratic-intro', 'inquiry-basics']
+      relatedVideos: ['socratic-intro', 'inquiry-basics'],
     },
     // Jigsaw Method Videos
     {
@@ -3061,13 +3727,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Jigsaw Method: Cooperative Learning Strategy',
       channel: 'Cult of Pedagogy',
       videoId: 'mtm5_w6JthA',
-      description: 'Learn how to implement the Jigsaw Method, a powerful cooperative learning strategy where students become experts on different topics and teach their peers. This video provides step-by-step instructions for organizing and facilitating jigsaw activities.',
+      description:
+        'Learn how to implement the Jigsaw Method, a powerful cooperative learning strategy where students become experts on different topics and teach their peers. This video provides step-by-step instructions for organizing and facilitating jigsaw activities.',
       duration: '10:15',
       category: 'Jigsaw Method',
       pedagogicalMethods: ['Jigsaw Method', 'Cooperative Learning'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['jigsaw method', 'cooperative learning', 'peer teaching', 'collaboration'],
+      tags: [
+        'jigsaw method',
+        'cooperative learning',
+        'peer teaching',
+        'collaboration',
+      ],
       difficulty: 'Beginner',
       year: 2021,
       views: 234000,
@@ -3077,7 +3749,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Forming expert groups and home groups',
         'Teaching students to become experts',
         'Facilitating peer teaching',
-        'Ensuring individual accountability'
+        'Ensuring individual accountability',
       ],
       implementationSteps: [
         'Divide content into manageable sections',
@@ -3085,22 +3757,28 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Provide time for expert group learning',
         'Reorganize into home groups with one expert per section',
         'Have experts teach their section to home group',
-        'Assess both individual and group understanding'
+        'Assess both individual and group understanding',
       ],
-      relatedVideos: ['cooperative-learning', 'jigsaw-problem-solving']
+      relatedVideos: ['cooperative-learning', 'jigsaw-problem-solving'],
     },
     {
       id: 'jigsaw-problem-solving',
       title: 'Jigsaw Method for Problem-Solving',
       channel: 'ASCD',
       videoId: '2e8kSMw5D5o',
-      description: 'Discover how to adapt the Jigsaw Method for complex problem-solving scenarios. This video demonstrates how students can combine their expert knowledge to collaboratively solve challenging problems that require multiple perspectives.',
+      description:
+        'Discover how to adapt the Jigsaw Method for complex problem-solving scenarios. This video demonstrates how students can combine their expert knowledge to collaboratively solve challenging problems that require multiple perspectives.',
       duration: '14:20',
       category: 'Jigsaw Method',
       pedagogicalMethods: ['Jigsaw Method', 'Problem-Based Learning'],
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Mathematics', 'Science', 'Social Studies'],
-      tags: ['jigsaw method', 'problem-solving', 'collaborative learning', 'critical thinking'],
+      tags: [
+        'jigsaw method',
+        'problem-solving',
+        'collaborative learning',
+        'critical thinking',
+      ],
       difficulty: 'Intermediate',
       year: 2022,
       views: 156000,
@@ -3110,7 +3788,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Designing complex problems',
         'Expert knowledge integration',
         'Collaborative solution development',
-        'Evaluating group solutions'
+        'Evaluating group solutions',
       ],
       implementationSteps: [
         'Design problems requiring multiple expert perspectives',
@@ -3118,9 +3796,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Have experts develop solutions for their area',
         'Combine expert solutions in home groups',
         'Collaboratively refine integrated solutions',
-        'Present and evaluate final solutions'
+        'Present and evaluate final solutions',
       ],
-      relatedVideos: ['jigsaw-basics', 'problem-based-learning']
+      relatedVideos: ['jigsaw-basics', 'problem-based-learning'],
     },
     // Flipped Classroom Videos
     {
@@ -3128,13 +3806,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Flipped Classroom: Getting Started Guide',
       channel: 'Edutopia',
       videoId: '4a7NbuiOMVM',
-      description: 'A comprehensive introduction to the Flipped Classroom model. Learn how to create engaging video content, structure in-class activities, and maximize face-to-face time with students for deeper learning and personalized support.',
+      description:
+        'A comprehensive introduction to the Flipped Classroom model. Learn how to create engaging video content, structure in-class activities, and maximize face-to-face time with students for deeper learning and personalized support.',
       duration: '11:45',
       category: 'Flipped Classroom',
       pedagogicalMethods: ['Flipped Classroom', 'Blended Learning'],
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['flipped classroom', 'blended learning', 'video instruction', 'active learning'],
+      tags: [
+        'flipped classroom',
+        'blended learning',
+        'video instruction',
+        'active learning',
+      ],
       difficulty: 'Beginner',
       year: 2022,
       views: 312000,
@@ -3144,7 +3828,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Creating effective video content',
         'Designing in-class activities',
         'Maximizing face-to-face time',
-        'Assessing student preparation'
+        'Assessing student preparation',
       ],
       implementationSteps: [
         'Select content suitable for video instruction',
@@ -3152,22 +3836,28 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Set up system for students to access videos',
         'Design active learning activities for class',
         'Use class time for practice and support',
-        'Monitor and adjust based on student needs'
+        'Monitor and adjust based on student needs',
       ],
-      relatedVideos: ['flipped-advanced', 'blended-learning']
+      relatedVideos: ['flipped-advanced', 'blended-learning'],
     },
     {
       id: 'flipped-advanced',
       title: 'Advanced Flipped Classroom Strategies',
       channel: 'Teaching Channel',
       videoId: '3xMqJ2Mcgmk',
-      description: 'Take your flipped classroom to the next level with advanced strategies including interactive videos, peer instruction, and differentiated content. Learn how to create more engaging pre-class experiences and maximize collaborative learning in class.',
+      description:
+        'Take your flipped classroom to the next level with advanced strategies including interactive videos, peer instruction, and differentiated content. Learn how to create more engaging pre-class experiences and maximize collaborative learning in class.',
       duration: '15:30',
       category: 'Flipped Classroom',
       pedagogicalMethods: ['Flipped Classroom', 'Differentiated Instruction'],
       gradeLevels: ['High School'],
       subjects: ['All Subjects'],
-      tags: ['flipped classroom', 'interactive videos', 'differentiation', 'peer instruction'],
+      tags: [
+        'flipped classroom',
+        'interactive videos',
+        'differentiation',
+        'peer instruction',
+      ],
       difficulty: 'Advanced',
       year: 2023,
       views: 189000,
@@ -3177,7 +3867,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Peer instruction techniques',
         'Differentiated video content',
         'Advanced in-class activities',
-        'Data-driven instruction'
+        'Data-driven instruction',
       ],
       implementationSteps: [
         'Incorporate interactive elements in videos',
@@ -3185,9 +3875,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Create differentiated video content',
         'Design collaborative in-class projects',
         'Analyze student video engagement data',
-        'Continuously refine based on data'
+        'Continuously refine based on data',
       ],
-      relatedVideos: ['flipped-intro', 'differentiated-instruction']
+      relatedVideos: ['flipped-intro', 'differentiated-instruction'],
     },
     // Project-Based Learning Videos
     {
@@ -3195,13 +3885,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Project-Based Learning: Essential Elements',
       channel: 'Buck Institute for Education',
       videoId: 'LMCZvGesRz8',
-      description: 'Learn the essential elements of high-quality Project-Based Learning from the Buck Institute for Education. This video covers the gold standard PBL framework, including authentic problems, student voice and choice, and public products.',
+      description:
+        'Learn the essential elements of high-quality Project-Based Learning from the Buck Institute for Education. This video covers the gold standard PBL framework, including authentic problems, student voice and choice, and public products.',
       duration: '13:25',
       category: 'Project-Based Learning',
       pedagogicalMethods: ['Project-Based Learning (PBL)'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['project-based learning', 'PBL', 'authentic learning', 'student voice'],
+      tags: [
+        'project-based learning',
+        'PBL',
+        'authentic learning',
+        'student voice',
+      ],
       difficulty: 'Beginner',
       year: 2021,
       views: 456000,
@@ -3211,7 +3907,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Authentic problems and challenges',
         'Student voice and choice',
         'Sustained inquiry process',
-        'Public products and presentations'
+        'Public products and presentations',
       ],
       implementationSteps: [
         'Identify authentic, real-world problems',
@@ -3219,19 +3915,23 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Plan for sustained inquiry',
         'Provide opportunities for student voice',
         'Facilitate reflection and revision',
-        'Plan for public product presentations'
+        'Plan for public product presentations',
       ],
-      relatedVideos: ['pbl-assessment', 'inquiry-basics']
+      relatedVideos: ['pbl-assessment', 'inquiry-basics'],
     },
     {
       id: 'pbl-assessment',
       title: 'Assessing Project-Based Learning',
       channel: 'Edutopia',
       videoId: '5aP8X2fVUA8',
-      description: 'Discover effective assessment strategies for Project-Based Learning. Learn how to assess both the process and product, use rubrics effectively, and incorporate peer and self-assessment to support student growth.',
+      description:
+        'Discover effective assessment strategies for Project-Based Learning. Learn how to assess both the process and product, use rubrics effectively, and incorporate peer and self-assessment to support student growth.',
       duration: '9:50',
       category: 'Project-Based Learning',
-      pedagogicalMethods: ['Project-Based Learning (PBL)', 'Assessment Strategies'],
+      pedagogicalMethods: [
+        'Project-Based Learning (PBL)',
+        'Assessment Strategies',
+      ],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
       tags: ['PBL', 'assessment', 'rubrics', 'project evaluation'],
@@ -3244,7 +3944,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Creating effective PBL rubrics',
         'Peer assessment strategies',
         'Self-assessment techniques',
-        'Formative assessment in PBL'
+        'Formative assessment in PBL',
       ],
       implementationSteps: [
         'Design rubrics for process and product',
@@ -3252,9 +3952,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Teach peer assessment skills',
         'Incorporate self-reflection',
         'Use multiple assessment methods',
-        'Provide ongoing feedback'
+        'Provide ongoing feedback',
       ],
-      relatedVideos: ['pbl-foundations', 'assessment-strategies']
+      relatedVideos: ['pbl-foundations', 'assessment-strategies'],
     },
     // Inquiry-Based Learning Videos
     {
@@ -3262,13 +3962,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Inquiry-Based Learning: Student-Driven Exploration',
       channel: 'Edutopia',
       videoId: 'u84ZsS6niPc',
-      description: 'Explore how Inquiry-Based Learning empowers students to ask questions, investigate, and construct their own understanding. This video demonstrates how to structure inquiry cycles and support student-driven exploration.',
+      description:
+        'Explore how Inquiry-Based Learning empowers students to ask questions, investigate, and construct their own understanding. This video demonstrates how to structure inquiry cycles and support student-driven exploration.',
       duration: '10:30',
       category: 'Inquiry-Based Learning',
       pedagogicalMethods: ['Inquiry-Based Learning'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['Science', 'Social Studies', 'Mathematics'],
-      tags: ['inquiry-based learning', 'student-driven', 'exploration', 'questioning'],
+      tags: [
+        'inquiry-based learning',
+        'student-driven',
+        'exploration',
+        'questioning',
+      ],
       difficulty: 'Beginner',
       year: 2021,
       views: 278000,
@@ -3278,7 +3984,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Supporting student questions',
         'Guiding investigations',
         'Facilitating discovery',
-        'Documenting learning'
+        'Documenting learning',
       ],
       implementationSteps: [
         'Spark curiosity with engaging phenomena',
@@ -3286,9 +3992,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Guide investigation planning',
         'Facilitate data collection and analysis',
         'Help students construct explanations',
-        'Encourage reflection and new questions'
+        'Encourage reflection and new questions',
       ],
-      relatedVideos: ['pbl-foundations', 'socratic-intro']
+      relatedVideos: ['pbl-foundations', 'socratic-intro'],
     },
     // Cooperative Learning Videos
     {
@@ -3296,13 +4002,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Cooperative Learning Structures',
       channel: 'Kagan Publishing',
       videoId: 'hX1YVzdnpEc',
-      description: 'Learn proven cooperative learning structures that promote engagement, accountability, and positive interdependence. This video demonstrates structures like Think-Pair-Share, Round Robin, and Numbered Heads Together.',
+      description:
+        'Learn proven cooperative learning structures that promote engagement, accountability, and positive interdependence. This video demonstrates structures like Think-Pair-Share, Round Robin, and Numbered Heads Together.',
       duration: '12:15',
       category: 'Cooperative Learning',
       pedagogicalMethods: ['Cooperative Learning', 'Jigsaw Method'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['cooperative learning', 'Kagan structures', 'collaboration', 'engagement'],
+      tags: [
+        'cooperative learning',
+        'Kagan structures',
+        'collaboration',
+        'engagement',
+      ],
       difficulty: 'Beginner',
       year: 2020,
       views: 345000,
@@ -3312,7 +4024,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Think-Pair-Share structure',
         'Round Robin techniques',
         'Numbered Heads Together',
-        'Positive interdependence'
+        'Positive interdependence',
       ],
       implementationSteps: [
         'Understand cooperative learning principles',
@@ -3320,9 +4032,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Teach structure procedures',
         'Implement with clear roles',
         'Monitor group interactions',
-        'Reflect on effectiveness'
+        'Reflect on effectiveness',
       ],
-      relatedVideos: ['jigsaw-basics', 'cooperative-learning']
+      relatedVideos: ['jigsaw-basics', 'cooperative-learning'],
     },
     // Problem-Based Learning Videos
     {
@@ -3330,13 +4042,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Problem-Based Learning: Real-World Challenges',
       channel: 'Edutopia',
       videoId: 'riX2uR9aXjk',
-      description: 'Discover how Problem-Based Learning engages students in solving authentic, complex problems. Learn how to design problems, facilitate group work, and guide students through the problem-solving process.',
+      description:
+        'Discover how Problem-Based Learning engages students in solving authentic, complex problems. Learn how to design problems, facilitate group work, and guide students through the problem-solving process.',
       duration: '11:20',
       category: 'Problem-Based Learning',
       pedagogicalMethods: ['Problem-Based Learning'],
       gradeLevels: ['Middle School', 'High School'],
       subjects: ['Science', 'Mathematics', 'Social Studies'],
-      tags: ['problem-based learning', 'real-world problems', 'critical thinking', 'collaboration'],
+      tags: [
+        'problem-based learning',
+        'real-world problems',
+        'critical thinking',
+        'collaboration',
+      ],
       difficulty: 'Intermediate',
       year: 2022,
       views: 167000,
@@ -3346,7 +4064,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Facilitating problem-solving',
         'Supporting group collaboration',
         'Guiding without solving',
-        'Assessing problem-solving skills'
+        'Assessing problem-solving skills',
       ],
       implementationSteps: [
         'Identify authentic, complex problems',
@@ -3354,9 +4072,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Facilitate problem analysis',
         'Support research and investigation',
         'Guide solution development',
-        'Evaluate solutions and process'
+        'Evaluate solutions and process',
       ],
-      relatedVideos: ['jigsaw-problem-solving', 'problem-based-learning']
+      relatedVideos: ['jigsaw-problem-solving', 'problem-based-learning'],
     },
     // Blended Learning Videos
     {
@@ -3364,13 +4082,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Blended Learning Models and Implementation',
       channel: 'Edutopia',
       videoId: '4x2-wXLuE1Y',
-      description: 'Explore different blended learning models including rotation, flex, and self-blend models. Learn how to combine online and face-to-face instruction effectively to personalize learning and increase student engagement.',
+      description:
+        'Explore different blended learning models including rotation, flex, and self-blend models. Learn how to combine online and face-to-face instruction effectively to personalize learning and increase student engagement.',
       duration: '13:40',
       category: 'Blended Learning',
       pedagogicalMethods: ['Blended Learning', 'Flipped Classroom'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['blended learning', 'online learning', 'personalization', 'rotation models'],
+      tags: [
+        'blended learning',
+        'online learning',
+        'personalization',
+        'rotation models',
+      ],
       difficulty: 'Intermediate',
       year: 2022,
       views: 223000,
@@ -3380,7 +4104,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Rotation model implementation',
         'Flex model strategies',
         'Self-blend approaches',
-        'Personalizing learning paths'
+        'Personalizing learning paths',
       ],
       implementationSteps: [
         'Choose appropriate blended model',
@@ -3388,9 +4112,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Design online content',
         'Plan face-to-face activities',
         'Create rotation schedules',
-        'Monitor and adjust based on data'
+        'Monitor and adjust based on data',
       ],
-      relatedVideos: ['flipped-intro', 'technology-integration']
+      relatedVideos: ['flipped-intro', 'technology-integration'],
     },
     // Gamification Videos
     {
@@ -3398,7 +4122,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Gamification in Education: Engaging Students',
       channel: 'TED-Ed',
       videoId: 'mOssYTimLw4',
-      description: 'Learn how to gamify your classroom to increase student motivation and engagement. This video covers game mechanics, point systems, badges, leaderboards, and how to create meaningful learning experiences through game design.',
+      description:
+        'Learn how to gamify your classroom to increase student motivation and engagement. This video covers game mechanics, point systems, badges, leaderboards, and how to create meaningful learning experiences through game design.',
       duration: '9:15',
       category: 'Gamification',
       pedagogicalMethods: ['Gamification'],
@@ -3414,7 +4139,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Designing point systems',
         'Creating badges and achievements',
         'Implementing leaderboards',
-        'Balancing competition and collaboration'
+        'Balancing competition and collaboration',
       ],
       implementationSteps: [
         'Identify learning objectives',
@@ -3422,23 +4147,29 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Create point and badge systems',
         'Implement progress tracking',
         'Balance competition elements',
-        'Reflect and refine game design'
+        'Reflect and refine game design',
       ],
-      relatedVideos: ['student-centered-learning', 'pbl-foundations']
+      relatedVideos: ['student-centered-learning', 'pbl-foundations'],
     },
     // Differentiated Instruction Videos
     {
       id: 'differentiated-instruction',
-      title: 'Differentiated Instruction: Meeting All Learners\' Needs',
+      title: "Differentiated Instruction: Meeting All Learners' Needs",
       channel: 'ASCD',
       videoId: 'Y7OP9O1VyNM',
-      description: 'Master the art of differentiated instruction to meet the diverse needs of all learners. Learn how to differentiate content, process, and product based on student readiness, interests, and learning profiles.',
+      description:
+        'Master the art of differentiated instruction to meet the diverse needs of all learners. Learn how to differentiate content, process, and product based on student readiness, interests, and learning profiles.',
       duration: '14:25',
       category: 'Differentiated Instruction',
       pedagogicalMethods: ['Differentiated Instruction'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['differentiated instruction', 'personalization', 'diverse learners', 'individualization'],
+      tags: [
+        'differentiated instruction',
+        'personalization',
+        'diverse learners',
+        'individualization',
+      ],
       difficulty: 'Intermediate',
       year: 2022,
       views: 289000,
@@ -3448,7 +4179,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Differentiating content',
         'Differentiating process',
         'Differentiating product',
-        'Assessment in differentiation'
+        'Assessment in differentiation',
       ],
       implementationSteps: [
         'Assess student readiness and interests',
@@ -3456,9 +4187,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Differentiate content complexity',
         'Vary learning processes',
         'Offer product choices',
-        'Use flexible grouping'
+        'Use flexible grouping',
       ],
-      relatedVideos: ['flipped-advanced', 'student-centered-learning']
+      relatedVideos: ['flipped-advanced', 'student-centered-learning'],
     },
     // Assessment Strategies Videos
     {
@@ -3466,13 +4197,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Formative Assessment Strategies',
       channel: 'Teaching Channel',
       videoId: 'njeK2F7sT2E',
-      description: 'Discover effective formative assessment strategies that inform instruction and support student learning. Learn techniques like exit tickets, think-pair-share, and quick checks that provide immediate feedback.',
+      description:
+        'Discover effective formative assessment strategies that inform instruction and support student learning. Learn techniques like exit tickets, think-pair-share, and quick checks that provide immediate feedback.',
       duration: '10:50',
       category: 'Assessment Strategies',
       pedagogicalMethods: ['Assessment Strategies'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['formative assessment', 'assessment strategies', 'feedback', 'evaluation'],
+      tags: [
+        'formative assessment',
+        'assessment strategies',
+        'feedback',
+        'evaluation',
+      ],
       difficulty: 'Beginner',
       year: 2022,
       views: 198000,
@@ -3482,7 +4219,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Exit ticket strategies',
         'Quick check techniques',
         'Peer assessment methods',
-        'Using data to inform instruction'
+        'Using data to inform instruction',
       ],
       implementationSteps: [
         'Plan formative checkpoints',
@@ -3490,9 +4227,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Implement quick checks',
         'Incorporate peer assessment',
         'Analyze assessment data',
-        'Adjust instruction based on data'
+        'Adjust instruction based on data',
       ],
-      relatedVideos: ['pbl-assessment', 'assessment-strategies']
+      relatedVideos: ['pbl-assessment', 'assessment-strategies'],
     },
     // Classroom Management Videos
     {
@@ -3500,13 +4237,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Classroom Management for Student-Centered Learning',
       channel: 'Edutopia',
       videoId: 'Z9XQYxHPv5k',
-      description: 'Learn effective classroom management strategies for student-centered learning environments. Discover how to create positive classroom culture, establish routines, and manage active learning spaces effectively.',
+      description:
+        'Learn effective classroom management strategies for student-centered learning environments. Discover how to create positive classroom culture, establish routines, and manage active learning spaces effectively.',
       duration: '12:30',
       category: 'Classroom Management',
       pedagogicalMethods: ['Classroom Management'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['classroom management', 'student-centered', 'behavior management', 'routines'],
+      tags: [
+        'classroom management',
+        'student-centered',
+        'behavior management',
+        'routines',
+      ],
       difficulty: 'Intermediate',
       year: 2023,
       views: 234000,
@@ -3516,7 +4259,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Establishing routines and procedures',
         'Managing active learning spaces',
         'Preventive strategies',
-        'Responding to challenges'
+        'Responding to challenges',
       ],
       implementationSteps: [
         'Build positive relationships',
@@ -3524,9 +4267,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Create engaging activities',
         'Use preventive strategies',
         'Respond consistently',
-        'Reflect and adjust'
+        'Reflect and adjust',
       ],
-      relatedVideos: ['student-centered-learning', 'classroom-management']
+      relatedVideos: ['student-centered-learning', 'classroom-management'],
     },
     // Technology Integration Videos
     {
@@ -3534,13 +4277,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Meaningful Technology Integration in the Classroom',
       channel: 'Edutopia',
       videoId: 'd59eF1wT2IY',
-      description: 'Learn how to integrate technology meaningfully to enhance learning rather than replace traditional methods. Discover tools and strategies for using technology to support collaboration, creativity, and critical thinking.',
+      description:
+        'Learn how to integrate technology meaningfully to enhance learning rather than replace traditional methods. Discover tools and strategies for using technology to support collaboration, creativity, and critical thinking.',
       duration: '11:15',
       category: 'Technology Integration',
       pedagogicalMethods: ['Technology Integration', 'Blended Learning'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['technology integration', 'edtech', 'digital tools', '21st century skills'],
+      tags: [
+        'technology integration',
+        'edtech',
+        'digital tools',
+        '21st century skills',
+      ],
       difficulty: 'Intermediate',
       year: 2023,
       views: 312000,
@@ -3550,7 +4299,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Selecting appropriate tools',
         'Supporting collaboration',
         'Fostering creativity',
-        'Developing digital citizenship'
+        'Developing digital citizenship',
       ],
       implementationSteps: [
         'Identify learning objectives',
@@ -3558,9 +4307,9 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Plan for meaningful integration',
         'Teach digital citizenship',
         'Support student use',
-        'Evaluate effectiveness'
+        'Evaluate effectiveness',
       ],
-      relatedVideos: ['blended-learning', 'technology-integration']
+      relatedVideos: ['blended-learning', 'technology-integration'],
     },
     // Student-Centered Learning Videos
     {
@@ -3568,13 +4317,19 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       title: 'Student-Centered Learning: Empowering Learners',
       channel: 'Edutopia',
       videoId: 'rUvBUVnf8VQ',
-      description: 'Explore the principles and practices of student-centered learning. Learn how to shift from teacher-directed to student-driven instruction, giving students voice, choice, and ownership of their learning.',
+      description:
+        'Explore the principles and practices of student-centered learning. Learn how to shift from teacher-directed to student-driven instruction, giving students voice, choice, and ownership of their learning.',
       duration: '13:50',
       category: 'Student-Centered Learning',
       pedagogicalMethods: ['Student-Centered Learning'],
       gradeLevels: ['Elementary', 'Middle School', 'High School'],
       subjects: ['All Subjects'],
-      tags: ['student-centered', 'learner agency', 'voice and choice', 'empowerment'],
+      tags: [
+        'student-centered',
+        'learner agency',
+        'voice and choice',
+        'empowerment',
+      ],
       difficulty: 'Intermediate',
       year: 2022,
       views: 445000,
@@ -3584,7 +4339,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Giving students voice and choice',
         'Shifting teacher role',
         'Building learner agency',
-        'Creating student ownership'
+        'Creating student ownership',
       ],
       implementationSteps: [
         'Understand student-centered principles',
@@ -3592,18 +4347,25 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
         'Shift from teacher to facilitator',
         'Build student agency',
         'Create ownership opportunities',
-        'Reflect on student growth'
+        'Reflect on student growth',
       ],
-      relatedVideos: ['pbl-foundations', 'inquiry-basics']
+      relatedVideos: ['pbl-foundations', 'inquiry-basics'],
     },
-  ]
+  ];
 
   // Comprehensive content database for each method and type combination
-  const getMethodContent = (method: string, type: string): PedagogicalMethod | null => {
-    const contentDatabase: Record<string, Record<string, Partial<PedagogicalMethod>>> = {
+  const getMethodContent = (
+    method: string,
+    type: string
+  ): PedagogicalMethod | null => {
+    const contentDatabase: Record<
+      string,
+      Record<string, Partial<PedagogicalMethod>>
+    > = {
       'Project-Based Learning (PBL)': {
         'Student-Centered Approach': {
-          description: 'PBL as a student-centered approach empowers learners to drive their own learning through authentic, real-world projects. Students choose topics, design solutions, and take ownership of their educational journey.',
+          description:
+            'PBL as a student-centered approach empowers learners to drive their own learning through authentic, real-world projects. Students choose topics, design solutions, and take ownership of their educational journey.',
           keyPrinciples: [
             'Student voice and choice in project selection',
             'Authentic, real-world problem-solving',
@@ -3643,7 +4405,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Inquiry-Based Approach': {
-          description: 'PBL through an inquiry lens emphasizes questioning, investigation, and discovery. Students formulate research questions, gather evidence, and construct knowledge through systematic inquiry.',
+          description:
+            'PBL through an inquiry lens emphasizes questioning, investigation, and discovery. Students formulate research questions, gather evidence, and construct knowledge through systematic inquiry.',
           keyPrinciples: [
             'Question-driven learning and investigation',
             'Evidence-based reasoning and analysis',
@@ -3683,7 +4446,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Technology-Enhanced Approach': {
-          description: 'Digital PBL integrates technology tools to enhance collaboration, research, creation, and presentation. Students use digital platforms, multimedia tools, and online resources throughout the project.',
+          description:
+            'Digital PBL integrates technology tools to enhance collaboration, research, creation, and presentation. Students use digital platforms, multimedia tools, and online resources throughout the project.',
           keyPrinciples: [
             'Digital collaboration and communication tools',
             'Multimedia creation and presentation',
@@ -3723,7 +4487,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Collaborative Approach': {
-          description: 'Collaborative PBL emphasizes teamwork, peer learning, and collective problem-solving. Students work in diverse teams, leveraging each member\'s strengths to achieve shared goals.',
+          description:
+            "Collaborative PBL emphasizes teamwork, peer learning, and collective problem-solving. Students work in diverse teams, leveraging each member's strengths to achieve shared goals.",
           keyPrinciples: [
             'Interdependent team goals and roles',
             'Shared responsibility and accountability',
@@ -3763,7 +4528,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Assessment-Focused Approach': {
-          description: 'Assessment-driven PBL uses multiple, authentic assessments throughout the project. Students receive ongoing feedback, self-assess, and demonstrate learning through various assessment formats.',
+          description:
+            'Assessment-driven PBL uses multiple, authentic assessments throughout the project. Students receive ongoing feedback, self-assess, and demonstrate learning through various assessment formats.',
           keyPrinciples: [
             'Multiple assessment points throughout project',
             'Authentic, performance-based assessments',
@@ -3803,17 +4569,18 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Culturally Responsive Approach': {
-          description: 'Culturally responsive PBL honors students\' cultural backgrounds, experiences, and knowledge. Projects connect to students\' communities and incorporate diverse perspectives and ways of knowing.',
+          description:
+            "Culturally responsive PBL honors students' cultural backgrounds, experiences, and knowledge. Projects connect to students' communities and incorporate diverse perspectives and ways of knowing.",
           keyPrinciples: [
             'Honoring student cultural backgrounds and experiences',
-            'Connecting learning to students\' communities',
+            "Connecting learning to students' communities",
             'Incorporating diverse perspectives and voices',
             'Validating multiple ways of knowing',
             'Empowering students as cultural experts',
           ],
           implementationSteps: [
-            'Learn about students\' cultural backgrounds and interests',
-            'Design projects connected to students\' communities',
+            "Learn about students' cultural backgrounds and interests",
+            "Design projects connected to students' communities",
             'Incorporate culturally relevant resources and materials',
             'Invite community members and cultural experts',
             'Encourage students to share cultural knowledge',
@@ -3843,7 +4610,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Problem-Solving Approach': {
-          description: 'PBL focused on problem-solving emphasizes systematic approaches to identifying, analyzing, and solving complex problems. Students develop problem-solving frameworks and apply them to real challenges.',
+          description:
+            'PBL focused on problem-solving emphasizes systematic approaches to identifying, analyzing, and solving complex problems. Students develop problem-solving frameworks and apply them to real challenges.',
           keyPrinciples: [
             'Systematic problem identification and analysis',
             'Multiple solution pathways and approaches',
@@ -3883,7 +4651,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Experiential Approach': {
-          description: 'Experiential PBL emphasizes hands-on, active learning through direct experience. Students learn by doing, reflecting on experiences, and applying insights to new situations.',
+          description:
+            'Experiential PBL emphasizes hands-on, active learning through direct experience. Students learn by doing, reflecting on experiences, and applying insights to new situations.',
           keyPrinciples: [
             'Learning through direct experience and action',
             'Reflection on experience and learning',
@@ -3925,7 +4694,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       },
       'Inquiry-Based Learning': {
         'Student-Centered Approach': {
-          description: 'Student-centered inquiry learning empowers students to drive their own questions and investigations. Students choose what to explore, how to research, and how to present findings.',
+          description:
+            'Student-centered inquiry learning empowers students to drive their own questions and investigations. Students choose what to explore, how to research, and how to present findings.',
           keyPrinciples: [
             'Student-generated questions and curiosities',
             'Autonomous research and investigation',
@@ -3965,7 +4735,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Inquiry-Based Approach': {
-          description: 'Pure inquiry-based learning emphasizes the scientific method and research process. Students follow structured inquiry cycles: questioning, investigating, analyzing, and communicating findings.',
+          description:
+            'Pure inquiry-based learning emphasizes the scientific method and research process. Students follow structured inquiry cycles: questioning, investigating, analyzing, and communicating findings.',
           keyPrinciples: [
             'Systematic inquiry process and methodology',
             'Evidence-based reasoning and conclusions',
@@ -4005,7 +4776,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Technology-Enhanced Approach': {
-          description: 'Digital inquiry leverages technology for research, collaboration, and presentation. Students use online databases, digital tools, and multimedia platforms to conduct and share inquiries.',
+          description:
+            'Digital inquiry leverages technology for research, collaboration, and presentation. Students use online databases, digital tools, and multimedia platforms to conduct and share inquiries.',
           keyPrinciples: [
             'Digital research and information literacy',
             'Online collaboration and knowledge sharing',
@@ -4045,7 +4817,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Collaborative Approach': {
-          description: 'Collaborative inquiry emphasizes teamwork in research and investigation. Students work together to formulate questions, gather evidence, analyze data, and construct shared understanding.',
+          description:
+            'Collaborative inquiry emphasizes teamwork in research and investigation. Students work together to formulate questions, gather evidence, analyze data, and construct shared understanding.',
           keyPrinciples: [
             'Collaborative question development',
             'Shared research responsibilities',
@@ -4085,7 +4858,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Assessment-Focused Approach': {
-          description: 'Assessment-driven inquiry uses multiple checkpoints to monitor and guide the inquiry process. Students receive ongoing feedback and self-assess their research progress and understanding.',
+          description:
+            'Assessment-driven inquiry uses multiple checkpoints to monitor and guide the inquiry process. Students receive ongoing feedback and self-assess their research progress and understanding.',
           keyPrinciples: [
             'Formative assessment throughout inquiry',
             'Research process assessment',
@@ -4125,7 +4899,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Culturally Responsive Approach': {
-          description: 'Culturally responsive inquiry honors students\' cultural knowledge and ways of knowing. Students investigate topics relevant to their communities and incorporate cultural perspectives.',
+          description:
+            "Culturally responsive inquiry honors students' cultural knowledge and ways of knowing. Students investigate topics relevant to their communities and incorporate cultural perspectives.",
           keyPrinciples: [
             'Honoring cultural ways of knowing',
             'Community-relevant inquiry topics',
@@ -4134,7 +4909,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             'Connecting inquiry to cultural contexts',
           ],
           implementationSteps: [
-            'Learn about students\' cultural backgrounds',
+            "Learn about students' cultural backgrounds",
             'Design inquiry topics connected to communities',
             'Incorporate culturally relevant resources',
             'Invite cultural experts and community members',
@@ -4165,7 +4940,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Problem-Solving Approach': {
-          description: 'Problem-solving inquiry focuses on investigating and solving real problems. Students identify problems, research causes and solutions, and develop evidence-based recommendations.',
+          description:
+            'Problem-solving inquiry focuses on investigating and solving real problems. Students identify problems, research causes and solutions, and develop evidence-based recommendations.',
           keyPrinciples: [
             'Problem identification and analysis',
             'Evidence-based problem investigation',
@@ -4205,7 +4981,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Experiential Approach': {
-          description: 'Experiential inquiry emphasizes hands-on investigation and direct experience. Students learn through doing, observing, experimenting, and reflecting on experiences.',
+          description:
+            'Experiential inquiry emphasizes hands-on investigation and direct experience. Students learn through doing, observing, experimenting, and reflecting on experiences.',
           keyPrinciples: [
             'Learning through direct experience',
             'Hands-on investigation and experimentation',
@@ -4247,7 +5024,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       },
       'Flipped Classroom': {
         'Student-Centered Approach': {
-          description: 'Student-centered flipped learning empowers students to control their learning pace and path. Students choose when and how to engage with content, with class time focused on personalized support.',
+          description:
+            'Student-centered flipped learning empowers students to control their learning pace and path. Students choose when and how to engage with content, with class time focused on personalized support.',
           keyPrinciples: [
             'Student control over learning pace',
             'Personalized learning paths',
@@ -4287,7 +5065,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Technology-Enhanced Approach': {
-          description: 'The Technology-Enhanced Flipped Classroom empowers middle school students to learn foundational content through interactive digital media before class, then apply knowledge using advanced technology tools during class time. This approach develops digital literacy, critical thinking, and collaborative problem-solving skills while preparing students for a technology-rich world.',
+          description:
+            'The Technology-Enhanced Flipped Classroom empowers middle school students to learn foundational content through interactive digital media before class, then apply knowledge using advanced technology tools during class time. This approach develops digital literacy, critical thinking, and collaborative problem-solving skills while preparing students for a technology-rich world.',
           keyPrinciples: [
             'Interactive multimedia content delivery - Students engage with videos, simulations, and interactive modules',
             'Student-paced digital learning - Students control speed, repetition, and depth of content consumption',
@@ -4339,7 +5118,14 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             'Ensuring accessibility for all learners - Adapting technology for students with diverse needs and abilities',
           ],
           gradeLevels: ['Middle School', 'Grades 6-8'],
-          subjects: ['Mathematics', 'Science', 'Language Arts', 'Social Studies', 'STEM', 'All Subjects'],
+          subjects: [
+            'Mathematics',
+            'Science',
+            'Language Arts',
+            'Social Studies',
+            'STEM',
+            'All Subjects',
+          ],
           resources: [
             'ISTE Standards for Students and Educators',
             'Flipped Learning Network: Technology Integration Guides',
@@ -4388,7 +5174,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'International Baccalaureate (IB) MYP',
-              alignment: 'Approaches to Learning - Information and Media Literacy',
+              alignment:
+                'Approaches to Learning - Information and Media Literacy',
               standards: [
                 'ATL Skill: Information Literacy - Finding, interpreting, and evaluating digital information',
                 'ATL Skill: Media Literacy - Understanding and creating media using technology',
@@ -4451,7 +5238,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Pre-Class: Introduction Video and LMS Setup',
                   time: '15-20 minutes (homework)',
-                  description: 'Students watch introduction video explaining flipped classroom and complete interactive quiz. Students set up LMS accounts and explore platform features.',
+                  description:
+                    'Students watch introduction video explaining flipped classroom and complete interactive quiz. Students set up LMS accounts and explore platform features.',
                   questions: [
                     'What is a flipped classroom?',
                     'How will technology help you learn?',
@@ -4461,27 +5249,32 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'In-Class: LMS Navigation and Digital Tools Introduction',
                   time: '10 minutes',
-                  description: 'Review LMS together, demonstrate key features, and answer questions. Introduce digital tools students will use.',
+                  description:
+                    'Review LMS together, demonstrate key features, and answer questions. Introduce digital tools students will use.',
                 },
                 {
                   step: 'Quick Check: Understanding Pre-Class Content',
                   time: '5 minutes',
-                  description: 'Use interactive tool (Kahoot, Socrative) to check understanding of pre-class content. Review key concepts.',
+                  description:
+                    'Use interactive tool (Kahoot, Socrative) to check understanding of pre-class content. Review key concepts.',
                 },
                 {
                   step: 'Technology-Enhanced Application Activity',
                   time: '20 minutes',
-                  description: 'Students work in pairs using digital tools to apply concepts. Options: create digital mind map, design interactive presentation, solve problems using simulation, or create multimedia response.',
+                  description:
+                    'Students work in pairs using digital tools to apply concepts. Options: create digital mind map, design interactive presentation, solve problems using simulation, or create multimedia response.',
                 },
                 {
                   step: 'Share and Collaborate',
                   time: '10 minutes',
-                  description: 'Students share their digital creations with class using screen sharing or digital gallery walk. Peer feedback using digital tools.',
+                  description:
+                    'Students share their digital creations with class using screen sharing or digital gallery walk. Peer feedback using digital tools.',
                 },
                 {
                   step: 'Digital Reflection',
                   time: '5 minutes',
-                  description: 'Students complete digital reflection form: What did you learn? What technology tools did you use? What was challenging? What would you like to try next?',
+                  description:
+                    'Students complete digital reflection form: What did you learn? What technology tools did you use? What was challenging? What would you like to try next?',
                 },
               ],
               assessmentCheckpoints: [
@@ -4528,32 +5321,38 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Pre-Class: Interactive Science Content',
                   time: '20-25 minutes (homework)',
-                  description: 'Students explore PhET simulation or watch interactive video explaining scientific concept. Complete guided questions and make predictions.',
+                  description:
+                    'Students explore PhET simulation or watch interactive video explaining scientific concept. Complete guided questions and make predictions.',
                 },
                 {
                   step: 'In-Class: Concept Check and Virtual Lab Setup',
                   time: '10 minutes',
-                  description: 'Quick quiz on pre-class content. Introduce virtual lab platform and demonstrate features. Form lab groups.',
+                  description:
+                    'Quick quiz on pre-class content. Introduce virtual lab platform and demonstrate features. Form lab groups.',
                 },
                 {
                   step: 'Virtual Lab Investigation',
                   time: '25 minutes',
-                  description: 'Groups conduct virtual experiments, manipulate variables, and collect data. Students record observations and data digitally.',
+                  description:
+                    'Groups conduct virtual experiments, manipulate variables, and collect data. Students record observations and data digitally.',
                 },
                 {
                   step: 'Data Analysis and Visualization',
                   time: '15 minutes',
-                  description: 'Groups analyze data using spreadsheet tools, create graphs and charts, and identify patterns. Use digital collaboration tools to share findings.',
+                  description:
+                    'Groups analyze data using spreadsheet tools, create graphs and charts, and identify patterns. Use digital collaboration tools to share findings.',
                 },
                 {
                   step: 'Present Findings',
                   time: '15 minutes',
-                  description: 'Groups create brief digital presentations (slides, infographics) and share with class. Discuss patterns and conclusions.',
+                  description:
+                    'Groups create brief digital presentations (slides, infographics) and share with class. Discuss patterns and conclusions.',
                 },
                 {
                   step: 'Digital Lab Report',
                   time: '5 minutes',
-                  description: 'Students complete digital lab report template and submit through LMS. Include data, analysis, and conclusions.',
+                  description:
+                    'Students complete digital lab report template and submit through LMS. Include data, analysis, and conclusions.',
                 },
               ],
               assessmentCheckpoints: [
@@ -4600,32 +5399,38 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Pre-Class: Interactive Math Content',
                   time: '20-25 minutes (homework)',
-                  description: 'Students watch video lesson and practice problems on Khan Academy or similar platform. Complete interactive exercises with immediate feedback.',
+                  description:
+                    'Students watch video lesson and practice problems on Khan Academy or similar platform. Complete interactive exercises with immediate feedback.',
                 },
                 {
                   step: 'In-Class: Concept Review and Problem Introduction',
                   time: '10 minutes',
-                  description: 'Review key concepts using interactive presentation. Introduce complex problem that requires multiple steps and tools.',
+                  description:
+                    'Review key concepts using interactive presentation. Introduce complex problem that requires multiple steps and tools.',
                 },
                 {
                   step: 'Digital Problem-Solving',
                   time: '20 minutes',
-                  description: 'Students work in groups using digital tools: Desmos for graphing, GeoGebra for geometry, or coding to solve problems. Collaborate using digital whiteboards.',
+                  description:
+                    'Students work in groups using digital tools: Desmos for graphing, GeoGebra for geometry, or coding to solve problems. Collaborate using digital whiteboards.',
                 },
                 {
                   step: 'Code Creation for Problem-Solving',
                   time: '15 minutes',
-                  description: 'Groups create simple code (using Scratch or Python) to solve or visualize mathematical problems. Share code and test solutions.',
+                  description:
+                    'Groups create simple code (using Scratch or Python) to solve or visualize mathematical problems. Share code and test solutions.',
                 },
                 {
                   step: 'Share Solutions Digitally',
                   time: '10 minutes',
-                  description: 'Groups present solutions using screen sharing, digital presentations, or code demonstrations. Explain problem-solving process.',
+                  description:
+                    'Groups present solutions using screen sharing, digital presentations, or code demonstrations. Explain problem-solving process.',
                 },
                 {
                   step: 'Reflection and Extension',
                   time: '5 minutes',
-                  description: 'Students reflect: How did technology help solve problems? What coding concepts did you use? Submit reflection through LMS.',
+                  description:
+                    'Students reflect: How did technology help solve problems? What coding concepts did you use? Submit reflection through LMS.',
                 },
               ],
               assessmentCheckpoints: [
@@ -4654,7 +5459,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           questionTypes: [
             {
               type: 'Pre-Class Engagement Questions',
-              description: 'Help students interact with and understand digital content before class.',
+              description:
+                'Help students interact with and understand digital content before class.',
               examples: [
                 'What key points did you learn from the video?',
                 'What questions do you have about the content?',
@@ -4662,11 +5468,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What was confusing or unclear?',
                 'What would you like to explore further?',
               ],
-              purpose: 'Encourages active engagement with pre-class content and helps identify areas needing clarification.',
+              purpose:
+                'Encourages active engagement with pre-class content and helps identify areas needing clarification.',
             },
             {
               type: 'Technology Tool Questions',
-              description: 'Guide students in effectively using digital tools for learning.',
+              description:
+                'Guide students in effectively using digital tools for learning.',
               examples: [
                 'How can this tool help you solve the problem?',
                 'What features of this tool are most useful?',
@@ -4674,11 +5482,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What other tools could help with this task?',
                 'How does this tool compare to other methods?',
               ],
-              purpose: 'Develops digital tool literacy and helps students select appropriate technology.',
+              purpose:
+                'Develops digital tool literacy and helps students select appropriate technology.',
             },
             {
               type: 'Digital Collaboration Questions',
-              description: 'Promote effective online collaboration and communication.',
+              description:
+                'Promote effective online collaboration and communication.',
               examples: [
                 'How can we use digital tools to work together?',
                 'What is the best way to share our ideas online?',
@@ -4686,11 +5496,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What digital tools help us collaborate effectively?',
                 'How can we ensure everyone contributes online?',
               ],
-              purpose: 'Builds skills in digital collaboration and online teamwork.',
+              purpose:
+                'Builds skills in digital collaboration and online teamwork.',
             },
             {
               type: 'Critical Evaluation Questions',
-              description: 'Help students critically evaluate digital information and sources.',
+              description:
+                'Help students critically evaluate digital information and sources.',
               examples: [
                 'How do you know this digital information is reliable?',
                 'What makes a good online source?',
@@ -4698,11 +5510,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What biases might exist in this digital content?',
                 'How does this compare to other sources you found?',
               ],
-              purpose: 'Develops media literacy and critical thinking about digital content.',
+              purpose:
+                'Develops media literacy and critical thinking about digital content.',
             },
             {
               type: 'Digital Creation Questions',
-              description: 'Guide students in creating digital content and projects.',
+              description:
+                'Guide students in creating digital content and projects.',
               examples: [
                 'What digital tools can you use to create this?',
                 'How can you make your digital creation more engaging?',
@@ -4710,11 +5524,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'How can you organize your digital content effectively?',
                 'What makes a quality digital product?',
               ],
-              purpose: 'Encourages creative use of technology and development of digital creation skills.',
+              purpose:
+                'Encourages creative use of technology and development of digital creation skills.',
             },
             {
               type: 'Reflection and Metacognition Questions',
-              description: 'Help students think about their digital learning process.',
+              description:
+                'Help students think about their digital learning process.',
               examples: [
                 'How did technology help you learn today?',
                 'What digital skills did you develop?',
@@ -4722,13 +5538,15 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'How can you use these digital tools in other areas?',
                 'What would you do differently next time?',
               ],
-              purpose: 'Develops metacognitive awareness and helps students understand their digital learning.',
+              purpose:
+                'Develops metacognitive awareness and helps students understand their digital learning.',
             },
           ],
           activityExamples: [
             {
               name: 'Interactive Video Analysis with Edpuzzle',
-              description: 'Students watch interactive videos with embedded questions, then create their own video responses or explanations.',
+              description:
+                'Students watch interactive videos with embedded questions, then create their own video responses or explanations.',
               duration: '45-55 minutes (plus pre-class)',
               steps: [
                 'Teacher creates or curates video content in Edpuzzle',
@@ -4751,7 +5569,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'Virtual Field Trip and Digital Storytelling',
-              description: 'Students explore virtual locations, then create digital stories or presentations about their experience.',
+              description:
+                'Students explore virtual locations, then create digital stories or presentations about their experience.',
               duration: '60-70 minutes (plus pre-class)',
               steps: [
                 'Students explore virtual field trip (Google Earth, museum tours, historical sites) before class',
@@ -4774,7 +5593,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'Coding and Computational Thinking Challenge',
-              description: 'Students learn coding concepts through interactive platforms, then apply coding to solve problems.',
+              description:
+                'Students learn coding concepts through interactive platforms, then apply coding to solve problems.',
               duration: '70-80 minutes (plus pre-class)',
               steps: [
                 'Students complete coding tutorials (Code.org, Scratch) before class',
@@ -4797,7 +5617,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'Digital Research and Multimedia Presentation',
-              description: 'Students research topics using digital resources, then create multimedia presentations.',
+              description:
+                'Students research topics using digital resources, then create multimedia presentations.',
               duration: '80-90 minutes (plus pre-class)',
               steps: [
                 'Students watch content introduction video before class',
@@ -4820,7 +5641,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'Gamified Learning and Assessment',
-              description: 'Students learn through educational games, then create their own game-based assessments.',
+              description:
+                'Students learn through educational games, then create their own game-based assessments.',
               duration: '60-70 minutes (plus pre-class)',
               steps: [
                 'Students play educational games (Kahoot, Quizizz, educational apps) before class',
@@ -4843,7 +5665,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               name: 'Augmented Reality (AR) and Virtual Reality (VR) Exploration',
-              description: 'Students explore concepts using AR/VR tools, then create AR experiences or virtual models.',
+              description:
+                'Students explore concepts using AR/VR tools, then create AR experiences or virtual models.',
               duration: '70-80 minutes (plus pre-class)',
               steps: [
                 'Students explore AR/VR content related to topic before class',
@@ -4868,7 +5691,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           assessmentStrategies: [
             {
               type: 'Digital Engagement Assessment',
-              description: 'Evaluates student interaction with pre-class digital content and participation in online activities.',
+              description:
+                'Evaluates student interaction with pre-class digital content and participation in online activities.',
               rubric: {
                 criteria: [
                   'Pre-class content completion',
@@ -4893,7 +5717,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               type: 'Digital Product Assessment',
-              description: 'Evaluates student-created digital products: presentations, videos, code, multimedia projects.',
+              description:
+                'Evaluates student-created digital products: presentations, videos, code, multimedia projects.',
               rubric: {
                 criteria: [
                   'Content accuracy and depth',
@@ -4918,7 +5743,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               type: 'Digital Literacy Assessment',
-              description: 'Assesses student proficiency in using technology tools, evaluating digital information, and digital citizenship.',
+              description:
+                'Assesses student proficiency in using technology tools, evaluating digital information, and digital citizenship.',
               rubric: {
                 criteria: [
                   'Technology tool proficiency',
@@ -4943,7 +5769,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             },
             {
               type: 'Formative Technology Assessment',
-              description: 'Uses digital tools for ongoing assessment and immediate feedback during learning.',
+              description:
+                'Uses digital tools for ongoing assessment and immediate feedback during learning.',
               rubric: {
                 criteria: [
                   'Real-time understanding checks',
@@ -4956,7 +5783,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                   'Advanced: Excellent use of formative tools, applies feedback effectively, tracks progress independently, adapts learning, uses data for improvement',
                   'Proficient: Good use of formative tools, applies feedback, tracks progress, adapts with support, uses some data',
                   'Developing: Basic use of formative tools, applies feedback inconsistently, limited progress tracking, needs support adapting, minimal data use',
-                  'Beginning: Rarely uses formative tools, doesn\'t apply feedback, no progress tracking, doesn\'t adapt, doesn\'t use data',
+                  "Beginning: Rarely uses formative tools, doesn't apply feedback, no progress tracking, doesn't adapt, doesn't use data",
                 ],
               },
               tools: [
@@ -4993,7 +5820,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Assessment-Focused Approach': {
-          description: 'Assessment-driven flipped classroom uses frequent checks to monitor understanding and guide instruction. Students receive immediate feedback and teachers use data to personalize support.',
+          description:
+            'Assessment-driven flipped classroom uses frequent checks to monitor understanding and guide instruction. Students receive immediate feedback and teachers use data to personalize support.',
           keyPrinciples: [
             'Pre-class assessment of content understanding',
             'Data-driven in-class instruction',
@@ -5033,7 +5861,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Collaborative Approach': {
-          description: 'Collaborative flipped classroom emphasizes peer learning and group work. Students learn content individually but collaborate extensively during class time on application activities.',
+          description:
+            'Collaborative flipped classroom emphasizes peer learning and group work. Students learn content individually but collaborate extensively during class time on application activities.',
           keyPrinciples: [
             'Individual content learning',
             'Collaborative application activities',
@@ -5073,7 +5902,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Culturally Responsive Approach': {
-          description: 'Culturally responsive flipped classroom incorporates diverse perspectives and culturally relevant content. Students see themselves in the materials and connect learning to their communities.',
+          description:
+            'Culturally responsive flipped classroom incorporates diverse perspectives and culturally relevant content. Students see themselves in the materials and connect learning to their communities.',
           keyPrinciples: [
             'Culturally relevant content materials',
             'Diverse perspectives and voices',
@@ -5087,7 +5917,7 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             'Design culturally responsive activities',
             'Invite community members and experts',
             'Encourage students to share cultural knowledge',
-            'Connect learning to students\' communities',
+            "Connect learning to students' communities",
             'Celebrate diverse perspectives and contributions',
           ],
           benefits: [
@@ -5113,7 +5943,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Problem-Solving Approach': {
-          description: 'Problem-solving flipped classroom uses content learning to prepare students for complex problem-solving. Students learn concepts individually, then apply them collaboratively to solve problems.',
+          description:
+            'Problem-solving flipped classroom uses content learning to prepare students for complex problem-solving. Students learn concepts individually, then apply them collaboratively to solve problems.',
           keyPrinciples: [
             'Concept learning before problem-solving',
             'Application of concepts to problems',
@@ -5153,7 +5984,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Experiential Approach': {
-          description: 'Experiential flipped classroom combines content learning with hands-on experiences. Students learn concepts individually, then engage in experiential activities to deepen understanding.',
+          description:
+            'Experiential flipped classroom combines content learning with hands-on experiences. Students learn concepts individually, then engage in experiential activities to deepen understanding.',
           keyPrinciples: [
             'Concept learning through content',
             'Hands-on experiential activities',
@@ -5193,7 +6025,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           ],
         },
         'Inquiry-Based Approach': {
-          description: 'Inquiry-driven flipped classroom uses content to spark questions and investigations. Students learn foundational content, then engage in inquiry to explore deeper questions.',
+          description:
+            'Inquiry-driven flipped classroom uses content to spark questions and investigations. Students learn foundational content, then engage in inquiry to explore deeper questions.',
           keyPrinciples: [
             'Content learning as foundation',
             'Question-driven investigation',
@@ -5235,7 +6068,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
       },
       'Socratic Method': {
         'Student-Centered Approach': {
-          description: 'The Socratic Method, implemented through a student-centered approach, empowers middle school students to drive their own learning through thoughtful questioning, critical dialogue, and collaborative inquiry. Students take ownership of discussions, formulate their own questions, and construct knowledge through guided discovery rather than passive reception.',
+          description:
+            'The Socratic Method, implemented through a student-centered approach, empowers middle school students to drive their own learning through thoughtful questioning, critical dialogue, and collaborative inquiry. Students take ownership of discussions, formulate their own questions, and construct knowledge through guided discovery rather than passive reception.',
           keyPrinciples: [
             'Student-driven questioning and inquiry - Students generate and explore their own questions',
             'Teacher as facilitator, not lecturer - Educator guides dialogue without providing answers',
@@ -5253,12 +6087,12 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             'Introduce Socratic questioning types - Teach students the six types: Clarification, Assumption, Evidence, Perspective, Implication, and Question about Question. Use examples and practice exercises.',
             'Model Socratic dialogue with think-aloud strategies - Demonstrate how to ask probing questions, think through problems, and engage in respectful discourse. Show students the thinking process.',
             'Create safe spaces for student questioning - Build trust where students feel comfortable asking questions, challenging ideas, and exploring uncertainties without fear of judgment.',
-            'Design open-ended, thought-provoking prompts - Develop questions that have multiple valid answers, require deep thinking, and connect to students\' lives and interests.',
+            "Design open-ended, thought-provoking prompts - Develop questions that have multiple valid answers, require deep thinking, and connect to students' lives and interests.",
             'Facilitate student-led discussions with minimal intervention - Gradually step back as students take more ownership. Use strategic questions to guide rather than direct.',
             'Use wait time and silence strategically - Allow 3-5 seconds after questions for students to think. Embrace productive silence as thinking time.',
-            'Encourage peer-to-peer questioning - Students learn to ask each other probing questions, building on each other\'s ideas and challenging assumptions respectfully.',
+            "Encourage peer-to-peer questioning - Students learn to ask each other probing questions, building on each other's ideas and challenging assumptions respectfully.",
             'Document thinking processes and insights - Use journals, discussion notes, or digital tools to capture questions, insights, and evolving understanding.',
-            'Reflect on dialogue quality and learning outcomes - Regular debriefs on what worked, what didn\'t, and how to improve. Students assess their own participation and growth.',
+            "Reflect on dialogue quality and learning outcomes - Regular debriefs on what worked, what didn't, and how to improve. Students assess their own participation and growth.",
             'Gradually transfer facilitation to students - Train students to facilitate discussions, manage time, and guide questioning. Rotate facilitation roles.',
             'Assess through dialogue participation and critical thinking demonstrations - Use rubrics, portfolios, and observation to evaluate growth in questioning, reasoning, and collaboration.',
           ],
@@ -5281,11 +6115,18 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
             'Balancing student autonomy with learning objectives - Ensuring curriculum goals are met while honoring student inquiry',
             'Managing diverse participation levels - Some students may dominate while others remain silent',
             'Ensuring respectful discourse - Maintaining civil dialogue when students disagree',
-            'Assessment can be complex - Traditional tests don\'t capture dialogue-based learning',
+            "Assessment can be complex - Traditional tests don't capture dialogue-based learning",
             'Requires cultural sensitivity in diverse classrooms - Different cultural norms around questioning and discourse',
           ],
           gradeLevels: ['Middle School', 'Grades 6-8'],
-          subjects: ['Language Arts', 'Social Studies', 'Science', 'Philosophy', 'Ethics', 'All Subjects'],
+          subjects: [
+            'Language Arts',
+            'Social Studies',
+            'Science',
+            'Philosophy',
+            'Ethics',
+            'All Subjects',
+          ],
           resources: [
             'The Socratic Method: Teaching by Asking Instead of by Telling (Rick Garlikov)',
             'Socratic Seminars: Fostering Critical and Creative Thinking (National Paideia Center)',
@@ -5301,7 +6142,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           internationalFrameworks: [
             {
               name: 'International Baccalaureate (IB) MYP',
-              alignment: 'Approaches to Learning (ATL) Skills - Critical Thinking',
+              alignment:
+                'Approaches to Learning (ATL) Skills - Critical Thinking',
               standards: [
                 'ATL Skill: Critical Thinking - Analyzing and evaluating issues and ideas',
                 'ATL Skill: Communication - Using and interpreting a range of communication modes',
@@ -5391,16 +6233,18 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Opening: What Makes a Good Question?',
                   time: '10 minutes',
-                  description: 'Begin with a think-pair-share: "What makes a question powerful or interesting?" Students share examples of questions that made them think deeply.',
+                  description:
+                    'Begin with a think-pair-share: "What makes a question powerful or interesting?" Students share examples of questions that made them think deeply.',
                   questions: [
                     'What questions have stayed with you?',
-                    'What\'s the difference between a question that has one answer and one that makes you think?',
+                    "What's the difference between a question that has one answer and one that makes you think?",
                   ],
                 },
                 {
                   step: 'Introduce Six Types of Socratic Questions',
                   time: '15 minutes',
-                  description: 'Present each question type with examples. Use visual aids and have students identify examples from their own experience.',
+                  description:
+                    'Present each question type with examples. Use visual aids and have students identify examples from their own experience.',
                   questions: [
                     'Clarification: "What do you mean by...?" "Can you give an example?"',
                     'Assumption: "What assumptions are you making?" "What if we assumed the opposite?"',
@@ -5413,17 +6257,20 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Practice: Question Formulation',
                   time: '15 minutes',
-                  description: 'Present a scenario or statement. Students work in pairs to generate one question of each type. Share and discuss.',
+                  description:
+                    'Present a scenario or statement. Students work in pairs to generate one question of each type. Share and discuss.',
                 },
                 {
                   step: 'Mini Socratic Dialogue',
                   time: '10 minutes',
-                  description: 'Facilitate a short discussion using only questions. Students respond, then ask follow-up questions. Model respectful discourse.',
+                  description:
+                    'Facilitate a short discussion using only questions. Students respond, then ask follow-up questions. Model respectful discourse.',
                 },
                 {
                   step: 'Reflection and Closure',
                   time: '5 minutes',
-                  description: 'Students journal: "What did you learn about questioning today? How might this change how you learn?"',
+                  description:
+                    'Students journal: "What did you learn about questioning today? How might this change how you learn?"',
                 },
               ],
               assessmentCheckpoints: [
@@ -5468,32 +6315,38 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Pre-Seminar Preparation',
                   time: '20 minutes (homework or class time)',
-                  description: 'Students read the article, identify key questions, gather evidence, and prepare talking points. Complete preparation worksheet.',
+                  description:
+                    'Students read the article, identify key questions, gather evidence, and prepare talking points. Complete preparation worksheet.',
                 },
                 {
                   step: 'Seminar Setup and Norms Review',
                   time: '5 minutes',
-                  description: 'Review discussion norms, participation expectations, and seminar structure. Set up inner/outer circle if using.',
+                  description:
+                    'Review discussion norms, participation expectations, and seminar structure. Set up inner/outer circle if using.',
                 },
                 {
                   step: 'Opening Question',
                   time: '5 minutes',
-                  description: 'Teacher poses opening question. Students have 2 minutes of silent thinking time, then begin discussion.',
+                  description:
+                    'Teacher poses opening question. Students have 2 minutes of silent thinking time, then begin discussion.',
                 },
                 {
                   step: 'Sustained Dialogue',
                   time: '30-40 minutes',
-                  description: 'Students engage in discussion. Teacher facilitates minimally, using only questions. Students build on each other\'s ideas, ask probing questions, and explore the topic deeply.',
+                  description:
+                    "Students engage in discussion. Teacher facilitates minimally, using only questions. Students build on each other's ideas, ask probing questions, and explore the topic deeply.",
                 },
                 {
                   step: 'Closing Reflection',
                   time: '10 minutes',
-                  description: 'Students reflect on the discussion: What new insights emerged? What questions remain? How did their thinking change?',
+                  description:
+                    'Students reflect on the discussion: What new insights emerged? What questions remain? How did their thinking change?',
                 },
                 {
                   step: 'Post-Seminar Assessment',
                   time: '10 minutes',
-                  description: 'Students complete self-assessment and peer feedback. Teacher provides feedback on participation and critical thinking.',
+                  description:
+                    'Students complete self-assessment and peer feedback. Teacher provides feedback on participation and critical thinking.',
                 },
               ],
               assessmentCheckpoints: [
@@ -5538,27 +6391,32 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 {
                   step: 'Facilitation Training',
                   time: '10 minutes',
-                  description: 'Review facilitation skills: asking open questions, managing time, ensuring participation, redirecting when needed.',
+                  description:
+                    'Review facilitation skills: asking open questions, managing time, ensuring participation, redirecting when needed.',
                 },
                 {
                   step: 'Circle Setup',
                   time: '5 minutes',
-                  description: 'Divide into inner circle (discussants) and outer circle (observers). Rotate roles. Assign facilitator.',
+                  description:
+                    'Divide into inner circle (discussants) and outer circle (observers). Rotate roles. Assign facilitator.',
                 },
                 {
                   step: 'Student-Facilitated Discussion',
                   time: '25-30 minutes',
-                  description: 'Student facilitator leads discussion. Teacher observes and takes notes. Outer circle observes and prepares feedback.',
+                  description:
+                    'Student facilitator leads discussion. Teacher observes and takes notes. Outer circle observes and prepares feedback.',
                 },
                 {
                   step: 'Peer Observation and Feedback',
                   time: '10 minutes',
-                  description: 'Outer circle shares observations: What worked well? What questions were powerful? How could the discussion improve?',
+                  description:
+                    'Outer circle shares observations: What worked well? What questions were powerful? How could the discussion improve?',
                 },
                 {
                   step: 'Self-Assessment and Reflection',
                   time: '5 minutes',
-                  description: 'Students complete self-assessment on their participation and/or facilitation. Set goals for next time.',
+                  description:
+                    'Students complete self-assessment on their participation and/or facilitation. Set goals for next time.',
                 },
               ],
               assessmentCheckpoints: [
@@ -5586,7 +6444,8 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
           questionTypes: [
             {
               type: 'Clarification Questions',
-              description: 'Help students understand what they or others are saying, seeking definitions, examples, and explanations.',
+              description:
+                'Help students understand what they or others are saying, seeking definitions, examples, and explanations.',
               examples: [
                 'What do you mean by...?',
                 'Can you give me an example?',
@@ -5594,11 +6453,13 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What does this word mean in this context?',
                 'How does this relate to what we discussed earlier?',
               ],
-              purpose: 'Ensures understanding before moving forward. Helps students clarify their own thinking and communicate clearly.',
+              purpose:
+                'Ensures understanding before moving forward. Helps students clarify their own thinking and communicate clearly.',
             },
             {
               type: 'Assumption Questions',
-              description: 'Challenge students to identify and examine the assumptions underlying their statements and beliefs.',
+              description:
+                'Challenge students to identify and examine the assumptions underlying their statements and beliefs.',
               examples: [
                 'What assumptions are you making?',
                 'What if we assumed the opposite?',
@@ -5606,4 +6467,12 @@ The Socratic Method, while universal in principle, requires cultural adaptation 
                 'What would someone who disagrees assume?',
                 'How do your assumptions affect your conclusion?',
               ],
-              purpose: 'Develops critical thinking by making assumptions explicit and examining their validity.',
+              purpose:
+                'Develops critical thinking by making assumptions explicit and examining their validity.',
+            },
+          ],
+        },
+      },
+    };
+  };
+};
