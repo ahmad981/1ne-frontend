@@ -1,7 +1,6 @@
 import {
   Bot,
   Filter,
-  MessageSquare,
   Plus,
   Search,
   Sparkles,
@@ -9,14 +8,8 @@ import {
   Atom,
   Beaker,
   Palette,
-  BarChart3,
   Globe,
-  HeartPulse,
-  GraduationCap,
   Star,
-  Lightbulb,
-  ClipboardList,
-  Zap,
   Brain,
   Code,
   Briefcase,
@@ -24,6 +17,8 @@ import {
   Camera,
   Lock,
   CheckCircle2,
+  Shield,
+  Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -87,6 +82,18 @@ const subjectBots = {
       icon: BookOpen,
       rating: '4.7★',
     },
+    {
+      name: 'Advanced Knowledge and Skills Coach',
+      description: 'This tool will increase teachers\' knowledge and skills on modern pedagogical methods.',
+      icon: BookOpen,
+      rating: '4.9★',
+    },
+    {
+      name: 'UNEC Academic Development & Innovation',
+      description: 'Comprehensive program for syllabus design, assessment, digital literacy, AI integration, and student-centered teaching methods.',
+      icon: BookOpen,
+      rating: '5.0★',
+    },
   ],
   Mathematics: [
     {
@@ -140,6 +147,12 @@ const subjectBots = {
       description: 'Resume building, interview prep, professional skills, and industry insights.',
       icon: Briefcase,
       rating: '4.7★',
+    },
+    {
+      name: 'Marketing & Branding Strategist',
+      description: 'Marketing fundamentals, branding strategies, digital marketing, and market research.',
+      icon: Briefcase,
+      rating: '4.8★',
     },
   ],
   Arts: [
@@ -270,9 +283,12 @@ const SpecializedChatbots = () => {
                   </div>
                 ))}
               </div>
-              <button className="mt-6 rounded-full bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-500">
+              <Link
+                to="/dashboard/chatbots/general-teaching-assistant"
+                className="mt-6 inline-block rounded-full bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-500 transition"
+              >
                 Start chatting (FREE)
-              </button>
+              </Link>
             </div>
           </div>
         </div>
@@ -299,33 +315,120 @@ const SpecializedChatbots = () => {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
+        <div className="mt-6 grid gap-6 md:grid-cols-3">
           {largeLanguageModels.map((model, idx) => {
             const Icon = model.icon
+            const isGPT4 = model.name === 'GPT-4 Teaching Assistant'
+            const isClaude = model.name === 'Claude Education Pro'
+            const isGemini = model.name === 'Gemini Education Suite'
+            
             return (
               <div
                 key={idx}
-                className="group relative rounded-2xl border-2 border-gray-200 bg-white p-6 transition hover:border-indigo-300 hover:shadow-lg"
+                className={`group relative rounded-2xl border-2 transition-all duration-300 ${
+                  isGPT4
+                    ? 'border-amber-300 bg-gradient-to-br from-amber-50 via-white to-purple-50 shadow-xl hover:shadow-2xl hover:border-amber-400 p-7'
+                    : isClaude
+                    ? 'border-blue-300 bg-gradient-to-br from-blue-50 via-white to-purple-50 shadow-xl hover:shadow-2xl hover:border-blue-400 p-7'
+                    : isGemini
+                    ? 'border-emerald-300 bg-gradient-to-br from-emerald-50 via-white to-teal-50 shadow-xl hover:shadow-2xl hover:border-emerald-400 p-7'
+                    : 'border-gray-200 bg-white hover:border-indigo-300 hover:shadow-lg p-6'
+                }`}
               >
-                <div className="absolute right-4 top-4">
-                  <Lock className="h-5 w-5 text-gray-400" />
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <Icon className="h-6 w-6" />
-                </div>
-                <div className="mt-4">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{model.name}</h3>
-                    <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
-                      {model.rating}
-                    </span>
+                {!isGPT4 && !isClaude && !isGemini && (
+                  <div className="absolute right-4 top-4">
+                    <Lock className="h-5 w-5 text-gray-400" />
                   </div>
-                  <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-indigo-600">{model.model}</p>
-                  <p className="mt-2 text-sm text-gray-600">{model.description}</p>
+                )}
+                
+                {/* Icon Section */}
+                <div className={`flex h-14 w-14 items-center justify-center rounded-xl mb-4 ${
+                  isGPT4
+                    ? 'bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 shadow-lg ring-2 ring-amber-100'
+                    : isClaude
+                    ? 'bg-gradient-to-br from-blue-400 via-blue-500 to-purple-600 shadow-lg ring-2 ring-blue-100'
+                    : isGemini
+                    ? 'bg-gradient-to-br from-emerald-400 via-emerald-500 to-teal-600 shadow-lg ring-2 ring-emerald-100'
+                    : 'bg-indigo-100 text-indigo-600'
+                }`}>
+                  <Icon className={`h-7 w-7 ${(isGPT4 || isClaude || isGemini) ? 'text-white' : ''}`} />
                 </div>
-                <button className="mt-6 w-full rounded-full border-2 border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-100">
-                  Upgrade to access
-                </button>
+
+                {/* Content Section */}
+                <div className="space-y-3">
+                  {/* Title and Badges */}
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className={`text-xl font-bold ${(isGPT4 || isClaude || isGemini) ? 'text-gray-900' : 'text-gray-900'}`}>
+                        {model.name}
+                      </h3>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+                        {model.rating}
+                      </span>
+                      {isGPT4 && (
+                        <span className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                          <Star className="h-3.5 w-3.5" />
+                          PREMIUM
+                        </span>
+                      )}
+                      {isClaude && (
+                        <span className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                          <Shield className="h-3.5 w-3.5" />
+                          ETHICAL AI
+                        </span>
+                      )}
+                      {isGemini && (
+                        <span className="flex items-center gap-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
+                          <Globe className="h-3.5 w-3.5" />
+                          MULTILINGUAL
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p className={`text-sm leading-relaxed ${
+                    (isGPT4 || isClaude || isGemini) ? 'text-gray-700' : 'text-gray-600'
+                  }`}>
+                    {model.description}
+                  </p>
+
+                </div>
+
+                {/* Action Button */}
+                <div className="mt-6 pt-4 border-t border-gray-100">
+                  {isGPT4 ? (
+                    <Link
+                      to="/dashboard/chatbots/gpt4-teaching-assistant"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-amber-500 bg-gradient-to-r from-amber-500 to-amber-600 px-5 py-3 text-sm font-bold text-white hover:from-amber-600 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Start Chatting (Premium)
+                    </Link>
+                  ) : isClaude ? (
+                    <Link
+                      to="/dashboard/chatbots/claude-education-pro"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 text-sm font-bold text-white hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <Shield className="h-4 w-4" />
+                      Start Chatting (Premium)
+                    </Link>
+                  ) : isGemini ? (
+                    <Link
+                      to="/dashboard/chatbots/gemini-education-suite"
+                      className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      Start Chatting (Premium)
+                    </Link>
+                  ) : (
+                    <button className="w-full rounded-xl border-2 border-indigo-200 bg-indigo-50 px-5 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-100 transition">
+                      Upgrade to access
+                    </button>
+                  )}
+                </div>
               </div>
             )
           })}
@@ -382,14 +485,6 @@ const SpecializedChatbots = () => {
                     <p className="text-sm text-gray-600">{bots.length} specialized bots available</p>
                   </div>
                 </div>
-                {subject === 'English' && (
-                  <Link
-                    to="/dashboard/chatbots/core-academics"
-                    className="text-xs font-semibold uppercase tracking-wide text-primary-600 underline underline-offset-4 hover:text-primary-500"
-                  >
-                    Explore more
-                  </Link>
-                )}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -418,9 +513,151 @@ const SpecializedChatbots = () => {
                         </div>
                       </div>
                       <div className="mt-4 flex items-center justify-between">
-                        <button className="text-xs font-semibold text-primary-600 hover:text-primary-500">
-                          View details
-                        </button>
+                        {bot.name === 'Literacy Lab Coach' ? (
+                          <Link
+                            to="/dashboard/chatbots/literacy-lab-coach"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Literature Analysis Expert' ? (
+                          <Link
+                            to="/dashboard/chatbots/literature-analysis-expert"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Grammar & Writing Mentor' ? (
+                          <Link
+                            to="/dashboard/chatbots/grammar-writing-mentor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Advanced Knowledge and Skills Coach' ? (
+                          <Link
+                            to="/dashboard/chatbots/advanced-knowledge-skills-coach"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'UNEC Academic Development & Innovation' ? (
+                          <Link
+                            to="/dashboard/chatbots/unec-academic-development"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Adaptive Math Strategist' ? (
+                          <Link
+                            to="/dashboard/chatbots/adaptive-math-strategist"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Algebra & Geometry Tutor' ? (
+                          <Link
+                            to="/dashboard/chatbots/algebra-geometry-tutor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'STEM Inquiry Mentor' ? (
+                          <Link
+                            to="/dashboard/chatbots/stem-inquiry-mentor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Problem-Solving Coach' ? (
+                          <Link
+                            to="/dashboard/chatbots/problem-solving-coach"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Coding & Programming Tutor' ? (
+                          <Link
+                            to="/dashboard/chatbots/coding-programming-tutor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Visual Arts Studio Assistant' ? (
+                          <Link
+                            to="/dashboard/chatbots/visual-arts-studio-assistant"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Business Studies Mentor' ? (
+                          <Link
+                            to="/dashboard/chatbots/business-studies-mentor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Career Readiness Coach' ? (
+                          <Link
+                            to="/dashboard/chatbots/career-readiness-coach"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Lab Safety & Protocol Advisor' ? (
+                          <Link
+                            to="/dashboard/chatbots/lab-safety-protocol-advisor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Environmental Science Guide' ? (
+                          <Link
+                            to="/dashboard/chatbots/environmental-science-guide"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Music & Performance Coach' ? (
+                          <Link
+                            to="/dashboard/chatbots/music-performance-coach"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Drama & Theater Director' ? (
+                          <Link
+                            to="/dashboard/chatbots/drama-theater-director"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Digital Literacy Advisor' ? (
+                          <Link
+                            to="/dashboard/chatbots/digital-literacy-advisor"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'AI & Machine Learning Educator' ? (
+                          <Link
+                            to="/dashboard/chatbots/ai-machine-learning-educator"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : bot.name === 'Marketing & Branding Strategist' ? (
+                          <Link
+                            to="/dashboard/chatbots/marketing-branding-strategist"
+                            className="text-xs font-semibold text-primary-600 hover:text-primary-500"
+                          >
+                            View details
+                          </Link>
+                        ) : (
+                          <button className="text-xs font-semibold text-primary-600 hover:text-primary-500">
+                            View details
+                          </button>
+                        )}
                         <button className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-50">
                           Upgrade
                         </button>

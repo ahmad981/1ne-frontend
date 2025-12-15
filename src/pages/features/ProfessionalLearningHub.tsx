@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BookOpen,
   Play,
@@ -60,7 +61,7 @@ const tutorials = [
     title: 'Mastering the lesson planner template',
     type: 'Step-by-step walkthrough',
     duration: '12 min',
-    completed: true,
+    completed: false,
   },
   {
     title: 'Creating effective assessments',
@@ -100,6 +101,30 @@ const researchInsights = [
     summary: 'Evidence-backed approaches to building classroom community and addressing conflicts.',
     readTime: '8 min',
     topic: 'SEL & Behavior',
+  },
+  {
+    title: 'Growth mindset: Dweck\'s research in practice',
+    summary: 'How to cultivate a growth mindset in students and transform their approach to learning challenges.',
+    readTime: '6 min',
+    topic: 'Student motivation',
+  },
+  {
+    title: 'Cognitive load theory: Optimizing learning',
+    summary: 'Understanding how students process information and designing lessons that reduce cognitive overload.',
+    readTime: '7 min',
+    topic: 'Learning science',
+  },
+  {
+    title: 'Metacognition: Teaching students to think about thinking',
+    summary: 'Research-backed strategies for developing metacognitive skills that improve learning outcomes.',
+    readTime: '8 min',
+    topic: 'Learning strategies',
+  },
+  {
+    title: 'Scaffolding instruction: Vygotsky\'s zone of proximal development',
+    summary: 'Practical ways to provide just-right support that helps students reach their potential.',
+    readTime: '6 min',
+    topic: 'Instructional design',
   },
 ]
 
@@ -178,7 +203,69 @@ const progressStats = {
 }
 
 const ProfessionalLearningHub = () => {
+  const navigate = useNavigate()
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+
+  const handleCourseStart = (courseTitle: string) => {
+    const courseRoutes: Record<string, string> = {
+      'Quick wins: Classroom management essentials': '/dashboard/learning-hub/classroom-management',
+      'Formative assessment strategies that work': '/dashboard/learning-hub/assessment-strategies',
+      'Differentiation made simple': '/dashboard/learning-hub/differentiation-course',
+      'Engaging reluctant learners': '/dashboard/learning-hub/student-engagement-course',
+      'AI tools for lesson planning': '/dashboard/learning-hub/digital-literacy-course',
+    }
+    const route = courseRoutes[courseTitle]
+    if (route) {
+      navigate(route)
+    }
+  }
+
+  const handleTutorialWatch = (tutorialTitle: string) => {
+    const tutorialRoutes: Record<string, string> = {
+      'Mastering the lesson planner template': '/dashboard/learning-hub/lesson-planner-tutorial',
+      'Creating effective assessments': '/dashboard/learning-hub/assessment-tutorial',
+      'Real classroom: Differentiation in action': '/dashboard/learning-hub/differentiation-tutorial',
+    }
+    const route = tutorialRoutes[tutorialTitle]
+    if (route) {
+      navigate(route)
+    }
+  }
+
+  const handleResearchReadMore = (researchTitle: string) => {
+    const researchRoutes: Record<string, string> = {
+      "Hattie's Visible Learning: Effect sizes that matter": '/dashboard/learning-hub/evidence-based-teaching',
+      "Bloom's taxonomy in modern classrooms": '/dashboard/learning-hub/blooms-taxonomy',
+      'Formative assessment: What research says': '/dashboard/learning-hub/assessment-research',
+      'SEL & behavior: Restorative practices': '/dashboard/learning-hub/sel-behavior-research',
+      'Growth mindset: Dweck\'s research in practice': '/dashboard/learning-hub/growth-mindset-research',
+      'Cognitive load theory: Optimizing learning': '/dashboard/learning-hub/cognitive-load-research',
+      'Metacognition: Teaching students to think about thinking': '/dashboard/learning-hub/metacognition-research',
+      'Scaffolding instruction: Vygotsky\'s zone of proximal development': '/dashboard/learning-hub/scaffolding-research',
+    }
+    const route = researchRoutes[researchTitle]
+    if (route) {
+      navigate(route)
+    }
+  }
+
+  const handleStartPath = (skillName: string) => {
+    if (skillName === 'Student engagement techniques') {
+      navigate('/dashboard/learning-hub/student-engagement-path')
+    } else if (skillName === 'Advanced differentiation strategies') {
+      navigate('/dashboard/learning-hub/advanced-differentiation-path')
+    } else if (skillName === 'AI-assisted assessment design') {
+      navigate('/dashboard/learning-hub/ai-assessment-path')
+    }
+  }
+
+  const handleEnrollTrack = (trackTitle: string) => {
+    if (trackTitle === 'STEM Mastery') {
+      navigate('/dashboard/learning-hub/stem-mastery')
+    } else if (trackTitle === 'Literacy Expert') {
+      navigate('/dashboard/learning-hub/literacy-expert')
+    }
+  }
 
   return (
     <div className="space-y-10">
@@ -267,7 +354,10 @@ const ProfessionalLearningHub = () => {
                         </div>
                       )}
                     </div>
-                    <button className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100">
+                    <button
+                      onClick={() => handleCourseStart(course.title)}
+                      className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
+                    >
                       {course.progress === 0 ? 'Start' : course.progress === 100 ? 'Review' : 'Continue'}
                     </button>
                   </div>
@@ -307,7 +397,10 @@ const ProfessionalLearningHub = () => {
                   {tutorial.completed ? (
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                   ) : (
-                    <button className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100">
+                    <button
+                      onClick={() => handleTutorialWatch(tutorial.title)}
+                      className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
+                    >
                       Watch
                     </button>
                   )}
@@ -316,36 +409,6 @@ const ProfessionalLearningHub = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                  <FileText className="h-5 w-5 text-purple-500" /> Research insights library
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Simplified, teacher-friendly summaries of top educational research — evidence-backed teaching in
-                  minutes.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              {researchInsights.map((insight) => (
-                <div
-                  key={insight.title}
-                  className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-purple-200 hover:shadow-sm"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-purple-600">{insight.topic}</p>
-                  <h3 className="mt-2 text-sm font-semibold text-gray-900">{insight.title}</h3>
-                  <p className="mt-2 text-xs text-gray-600">{insight.summary}</p>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-gray-500">{insight.readTime} read</span>
-                    <button className="text-xs font-semibold text-purple-600 hover:text-purple-500">Read more</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
 
         <aside className="space-y-6">
@@ -376,7 +439,12 @@ const ProfessionalLearningHub = () => {
                   <p className="mt-1 text-xs text-gray-600">{rec.reason}</p>
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-gray-500">{rec.estimatedTime}</span>
-                    <button className="text-xs font-semibold text-amber-600 hover:text-amber-500">Start path</button>
+                    <button
+                      onClick={() => handleStartPath(rec.skill)}
+                      className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition"
+                    >
+                      Start path
+                    </button>
                   </div>
                 </div>
               ))}
@@ -420,6 +488,43 @@ const ProfessionalLearningHub = () => {
         </aside>
       </section>
 
+      {/* Research insights library - Full width section */}
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+              <FileText className="h-5 w-5 text-purple-500" /> Research insights library
+            </h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Simplified, teacher-friendly summaries of top educational research — evidence-backed teaching in
+              minutes.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {researchInsights.map((insight) => (
+            <div
+              key={insight.title}
+              className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-purple-200 hover:shadow-sm"
+            >
+              <p className="text-xs font-semibold uppercase tracking-wide text-purple-600">{insight.topic}</p>
+              <h3 className="mt-2 text-sm font-semibold text-gray-900">{insight.title}</h3>
+              <p className="mt-2 text-xs text-gray-600">{insight.summary}</p>
+              <div className="mt-3 flex items-center justify-between">
+                <span className="text-xs text-gray-500">{insight.readTime} read</span>
+                <button
+                  onClick={() => handleResearchReadMore(insight.title)}
+                  className="text-xs font-semibold text-purple-600 hover:text-purple-500 transition"
+                >
+                  Read more
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <div>
@@ -457,6 +562,7 @@ const ProfessionalLearningHub = () => {
                 <span>{track.duration}</span>
               </div>
               <button
+                onClick={() => handleEnrollTrack(track.title)}
                 className={`mt-4 w-full rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
                   track.enrolled
                     ? 'bg-indigo-600 text-white hover:bg-indigo-500'
