@@ -1,6 +1,8 @@
 import { TemplateListParams } from './types'
 
-const DEFAULT_BASE_URL = 'http://localhost:8000/api'
+// Default to IPv4 loopback to avoid IPv6 (::1) resolution issues on Windows
+// when the backend is bound to 127.0.0.1. Users can override via VITE_API_URL.
+const DEFAULT_BASE_URL = 'http://127.0.0.1:8000/api'
 const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
 
 export class ApiError extends Error {
@@ -43,33 +45,53 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const { query, body, headers, ...rest } = options
   const url = buildUrl(path, query)
 
-  const response = await fetch(url, {
-    ...rest,
-    headers: {
-      Accept: 'application/json',
-      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      ...headers,
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  })
+  console.log('[apiRequest] 🔵 Making request to:', url)
+  console.log('[apiRequest] 🔵 Options:', { method: rest.method || 'GET', headers })
 
-  let payload: unknown = null
-  const contentType = response.headers.get('content-type')
+  try {
+    const response = await fetch(url, {
+      ...rest,
+      headers: {
+        Accept: 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...headers,
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    })
+    
+    console.log('[apiRequest] 📥 Response status:', response.status, response.statusText)
 
-  if (contentType && contentType.includes('application/json')) {
-    payload = await response.json()
-  } else {
-    payload = await response.text()
+    let payload: unknown = null
+    const contentType = response.headers.get('content-type')
+
+    if (contentType && contentType.includes('application/json')) {
+      payload = await response.json()
+    } else {
+      payload = await response.text()
+    }
+
+    if (!response.ok) {
+      const message = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
+        ? String((payload as Record<string, unknown>).detail)
+        : response.statusText || 'Request failed'
+      throw new ApiError(response.status, message, payload)
+    }
+
+    return payload as T
+  } catch (error) {
+    // Re-throw ApiError as-is
+    if (error instanceof ApiError) {
+      throw error
+    }
+    
+    // Handle network errors
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(`Network error: Unable to reach server at ${url}. Please check if the backend is running.`)
+    }
+    
+    // Re-throw other errors
+    throw error
   }
-
-  if (!response.ok) {
-    const message = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
-      ? String((payload as Record<string, unknown>).detail)
-      : response.statusText || 'Request failed'
-    throw new ApiError(response.status, message, payload)
-  }
-
-  return payload as T
 }
 
 export const normalizeTemplateParams = (params: TemplateListParams): Record<string, string | number> => {
