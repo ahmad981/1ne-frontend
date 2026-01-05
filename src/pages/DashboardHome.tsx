@@ -23,60 +23,60 @@ const DashboardHome = () => {
       label: 'Plan a Lesson',
       description: 'Generate a standards-aligned lesson outline in minutes.',
       icon: PenTool,
-      path: '/dashboard/templates/general-lesson-planner',
+      path: '/templates/general-lesson-planner',
     },
     {
       label: 'Create an Assessment',
       description: 'Build formative or summative checks for understanding.',
       icon: FileCheck2,
-      path: '/dashboard/templates/summative-assessment-builder',
+      path: '/templates/summative-assessment-builder',
     },
     {
       label: 'Design a STEM Lab',
       description: 'Craft hands-on STEM experiences tailored to your class.',
       icon: FlaskConical,
-      path: '/dashboard/templates/experiment-idea-generator',
+      path: '/templates/experiment-idea-generator',
     },
   ]
 
   const featureWorkflows = [
     {
-      path: '/dashboard/templates',
+      path: '/templates',
       icon: FileText,
       title: 'Templates Library',
       description: 'Access a wide range of teaching templates and resources.',
       color: 'bg-blue-500',
     },
     {
-      path: '/dashboard/chatbots',
+      path: '/chatbots',
       icon: MessageSquare,
       title: 'Specialized Chatbots',
       description: 'Interact with AI chatbots designed for specific teaching needs.',
       color: 'bg-green-500',
     },
     {
-      path: '/dashboard/youtube-quiz',
+      path: '/youtube-quiz',
       icon: Youtube,
       title: 'YouTube Quiz Generator',
       description: 'Create engaging quizzes from YouTube videos automatically.',
       color: 'bg-red-500',
     },
     {
-      path: '/dashboard/pixgen',
+      path: '/pixgen',
       icon: Image,
       title: 'PixGen (AI Media Studio)',
       description: 'Generate and edit images with AI-powered tools.',
       color: 'bg-purple-500',
     },
     {
-      path: '/dashboard/learning-hub',
+      path: '/learning-hub',
       icon: BookOpen,
       title: 'Professional Learning Hub',
       description: 'Access professional development resources and courses.',
       color: 'bg-orange-500',
     },
     {
-      path: '/dashboard/history',
+      path: '/history',
       icon: History,
       title: 'History & Personalization',
       description: 'View your activity history and personalize your experience.',
@@ -89,19 +89,19 @@ const DashboardHome = () => {
       title: 'Homework Assignment Creator',
       description: 'Differentiate take-home practice with voice and choice.',
       icon: PenSquare,
-      path: '/dashboard/templates/activity-planner',
+      path: '/templates/activity-planner',
     },
     {
       title: 'Activities for SEL',
       description: 'Support social-emotional growth with ready-to-use routines.',
       icon: HeartHandshake,
-      path: '/dashboard/templates',
+      path: '/templates',
     },
     {
       title: 'Data & Statistics Scenario Builder',
       description: 'Bring data literacy to life with authentic case studies.',
       icon: BarChart3,
-      path: '/dashboard/templates/data-statistics-scenario-builder',
+      path: '/templates/data-statistics-scenario-builder',
     },
   ]
 
@@ -141,13 +141,13 @@ const DashboardHome = () => {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
-                to="/dashboard/templates"
+                to="/templates"
                 className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-primary-600 shadow-sm transition hover:bg-primary-50"
               >
                 Browse Templates
               </Link>
               <Link
-                to="/dashboard/chatbots"
+                to="/chatbots"
                 className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Ask a Teaching Coach
@@ -217,7 +217,7 @@ const DashboardHome = () => {
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-semibold text-gray-900">Quick actions</h2>
-          <Link to="/dashboard/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
+          <Link to="/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
             View all workflows
           </Link>
         </div>
@@ -283,7 +283,7 @@ const DashboardHome = () => {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold text-gray-900">Recommended for you</h2>
-            <Link to="/dashboard/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
+            <Link to="/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
               Browse more
             </Link>
           </div>

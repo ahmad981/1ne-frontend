@@ -19,6 +19,7 @@ export class ApiError extends Error {
 interface RequestOptions extends RequestInit {
   query?: Record<string, string | number | boolean | undefined>
   body?: unknown
+  timeout?: number // Timeout in milliseconds (default: 30000 = 30 seconds)
 }
 
 const toQueryString = (query?: Record<string, string | number | boolean | undefined>) => {
@@ -42,15 +43,34 @@ const buildUrl = (path: string, query?: Record<string, string | number | boolean
 }
 
 export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { query, body, headers, ...rest } = options
+  const { query, body, headers, timeout = 30000, signal: providedSignal, ...rest } = options
   const url = buildUrl(path, query)
 
   console.log('[apiRequest] 🔵 Making request to:', url)
-  console.log('[apiRequest] 🔵 Options:', { method: rest.method || 'GET', headers })
+  console.log('[apiRequest] 🔵 Options:', { method: rest.method || 'GET', headers, timeout })
+
+  // Create AbortController for timeout if not already provided
+  const abortController = new AbortController()
+  const timeoutId = setTimeout(() => {
+    console.warn('[apiRequest] ⏰ Request timeout after', timeout, 'ms')
+    abortController.abort()
+  }, timeout)
+
+  // Combine provided signal with timeout signal
+  const combinedSignal = providedSignal 
+    ? (() => {
+        const combined = new AbortController()
+        // If either signal aborts, abort the combined signal
+        providedSignal.addEventListener('abort', () => combined.abort())
+        abortController.signal.addEventListener('abort', () => combined.abort())
+        return combined.signal
+      })()
+    : abortController.signal
 
   try {
     const response = await fetch(url, {
       ...rest,
+      signal: combinedSignal,
       headers: {
         Accept: 'application/json',
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -58,6 +78,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
+    
+    // Clear timeout on successful response start
+    clearTimeout(timeoutId)
     
     console.log('[apiRequest] 📥 Response status:', response.status, response.statusText)
 
@@ -79,14 +102,30 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
     return payload as T
   } catch (error) {
+    // Clear timeout in case of error
+    clearTimeout(timeoutId)
+    
     // Re-throw ApiError as-is
     if (error instanceof ApiError) {
       throw error
     }
     
+    // Handle abort/timeout errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      if (abortController.signal.aborted && !providedSignal?.aborted) {
+        throw new Error(`Request timeout: The request took longer than ${timeout}ms to complete. The server may be slow or unreachable.`)
+      }
+      throw new Error('Request was cancelled')
+    }
+    
     // Handle network errors
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      throw new Error(`Network error: Unable to reach server at ${url}. Please check if the backend is running.`)
+    if (error instanceof TypeError) {
+      if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
+        throw new Error(`Network error: Unable to reach server at ${url}. Please check if the backend is running on port 8000.`)
+      }
+      if (error.message.includes('network') || error.message.includes('connection')) {
+        throw new Error(`Connection error: Cannot connect to server. Please verify the backend is running and accessible.`)
+      }
     }
     
     // Re-throw other errors

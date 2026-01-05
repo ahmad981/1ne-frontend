@@ -495,7 +495,7 @@ const StudentEngagementPath = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub')}
+                onClick={() => navigate('/learning-hub')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -797,14 +797,14 @@ const StudentEngagementPath = () => {
                               <button
                                 onClick={() => {
                                   const moduleRoutes: Record<string, string> = {
-                                    'gamification-basics': '/dashboard/learning-hub/gamification-fundamentals',
-                                    'points-badges-leaderboards': '/dashboard/learning-hub/points-badges-leaderboards',
-                                    'inquiry-hooks': '/dashboard/learning-hub/inquiry-learning-hooks',
-                                    'quest-based-learning': '/dashboard/learning-hub/quest-based-learning',
-                                    'collaborative-games': '/dashboard/learning-hub/collaborative-game-mechanics',
-                                    'adaptive-gamification': '/dashboard/learning-hub/adaptive-gamification',
-                                    'assessment-games': '/dashboard/learning-hub/gamified-assessment',
-                                    'advanced-inquiry': '/dashboard/learning-hub/advanced-inquiry-frameworks',
+                                    'gamification-basics': '/learning-hub/gamification-fundamentals',
+                                    'points-badges-leaderboards': '/learning-hub/points-badges-leaderboards',
+                                    'inquiry-hooks': '/learning-hub/inquiry-learning-hooks',
+                                    'quest-based-learning': '/learning-hub/quest-based-learning',
+                                    'collaborative-games': '/learning-hub/collaborative-game-mechanics',
+                                    'adaptive-gamification': '/learning-hub/adaptive-gamification',
+                                    'assessment-games': '/learning-hub/gamified-assessment',
+                                    'advanced-inquiry': '/learning-hub/advanced-inquiry-frameworks',
                                   }
                                   
                                   const route = moduleRoutes[module.id]
@@ -959,7 +959,7 @@ const StudentEngagementPath = () => {
               Start Learning Path
             </button>
             <button
-              onClick={() => navigate('/dashboard/learning-hub')}
+              onClick={() => navigate('/learning-hub')}
               className="rounded-full border-2 border-white px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition"
             >
               Explore More Paths

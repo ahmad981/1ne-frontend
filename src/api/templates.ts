@@ -182,7 +182,8 @@ export const alignTemplatesByCode = (standardCode: string) => {
 }
 
 export const executeTemplate = (slug: string, data: Record<string, unknown>, regenerate: number = 0) => {
-  return apiRequest<TemplateExecuteResponse>(`/templates/${slug}/execute`, {
+  // Backend endpoint: POST /api/v1/templates/{slug}/execute
+  return apiRequest<TemplateExecuteResponse>(`/v1/templates/${slug}/execute`, {
     method: 'POST',
     query: { regenerate },
     body: { data },

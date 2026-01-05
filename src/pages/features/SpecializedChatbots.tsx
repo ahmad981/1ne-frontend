@@ -284,7 +284,7 @@ const SpecializedChatbots = () => {
                 ))}
               </div>
               <Link
-                to="/dashboard/chatbots/general-teaching-assistant"
+                to="/chatbots/general-teaching-assistant"
                 className="mt-6 inline-block rounded-full bg-green-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-green-500 transition"
               >
                 Start chatting (FREE)
@@ -401,7 +401,7 @@ const SpecializedChatbots = () => {
                 <div className="mt-6 pt-4 border-t border-gray-100">
                   {isGPT4 ? (
                     <Link
-                      to="/dashboard/chatbots/gpt4-teaching-assistant"
+                      to="/chatbots/gpt4-teaching-assistant"
                       className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-amber-500 bg-gradient-to-r from-amber-500 to-amber-600 px-5 py-3 text-sm font-bold text-white hover:from-amber-600 hover:to-amber-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
                       <Sparkles className="h-4 w-4" />
@@ -409,7 +409,7 @@ const SpecializedChatbots = () => {
                     </Link>
                   ) : isClaude ? (
                     <Link
-                      to="/dashboard/chatbots/claude-education-pro"
+                      to="/chatbots/claude-education-pro"
                       className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-500 to-purple-600 px-5 py-3 text-sm font-bold text-white hover:from-blue-600 hover:to-purple-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
                       <Shield className="h-4 w-4" />
@@ -417,7 +417,7 @@ const SpecializedChatbots = () => {
                     </Link>
                   ) : isGemini ? (
                     <Link
-                      to="/dashboard/chatbots/gemini-education-suite"
+                      to="/chatbots/gemini-education-suite"
                       className="w-full inline-flex items-center justify-center gap-2 rounded-xl border-2 border-emerald-500 bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3 text-sm font-bold text-white hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
                       <Sparkles className="h-4 w-4" />
@@ -515,140 +515,140 @@ const SpecializedChatbots = () => {
                       <div className="mt-4 flex items-center justify-between">
                         {bot.name === 'Literacy Lab Coach' ? (
                           <Link
-                            to="/dashboard/chatbots/literacy-lab-coach"
+                            to="/chatbots/literacy-lab-coach"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Literature Analysis Expert' ? (
                           <Link
-                            to="/dashboard/chatbots/literature-analysis-expert"
+                            to="/chatbots/literature-analysis-expert"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Grammar & Writing Mentor' ? (
                           <Link
-                            to="/dashboard/chatbots/grammar-writing-mentor"
+                            to="/chatbots/grammar-writing-mentor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Advanced Knowledge and Skills Coach' ? (
                           <Link
-                            to="/dashboard/chatbots/advanced-knowledge-skills-coach"
+                            to="/chatbots/advanced-knowledge-skills-coach"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'UNEC Academic Development & Innovation' ? (
                           <Link
-                            to="/dashboard/chatbots/unec-academic-development"
+                            to="/chatbots/unec-academic-development"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Adaptive Math Strategist' ? (
                           <Link
-                            to="/dashboard/chatbots/adaptive-math-strategist"
+                            to="/chatbots/adaptive-math-strategist"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Algebra & Geometry Tutor' ? (
                           <Link
-                            to="/dashboard/chatbots/algebra-geometry-tutor"
+                            to="/chatbots/algebra-geometry-tutor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'STEM Inquiry Mentor' ? (
                           <Link
-                            to="/dashboard/chatbots/stem-inquiry-mentor"
+                            to="/chatbots/stem-inquiry-mentor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Problem-Solving Coach' ? (
                           <Link
-                            to="/dashboard/chatbots/problem-solving-coach"
+                            to="/chatbots/problem-solving-coach"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Coding & Programming Tutor' ? (
                           <Link
-                            to="/dashboard/chatbots/coding-programming-tutor"
+                            to="/chatbots/coding-programming-tutor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Visual Arts Studio Assistant' ? (
                           <Link
-                            to="/dashboard/chatbots/visual-arts-studio-assistant"
+                            to="/chatbots/visual-arts-studio-assistant"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Business Studies Mentor' ? (
                           <Link
-                            to="/dashboard/chatbots/business-studies-mentor"
+                            to="/chatbots/business-studies-mentor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Career Readiness Coach' ? (
                           <Link
-                            to="/dashboard/chatbots/career-readiness-coach"
+                            to="/chatbots/career-readiness-coach"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Lab Safety & Protocol Advisor' ? (
                           <Link
-                            to="/dashboard/chatbots/lab-safety-protocol-advisor"
+                            to="/chatbots/lab-safety-protocol-advisor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Environmental Science Guide' ? (
                           <Link
-                            to="/dashboard/chatbots/environmental-science-guide"
+                            to="/chatbots/environmental-science-guide"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Music & Performance Coach' ? (
                           <Link
-                            to="/dashboard/chatbots/music-performance-coach"
+                            to="/chatbots/music-performance-coach"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Drama & Theater Director' ? (
                           <Link
-                            to="/dashboard/chatbots/drama-theater-director"
+                            to="/chatbots/drama-theater-director"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Digital Literacy Advisor' ? (
                           <Link
-                            to="/dashboard/chatbots/digital-literacy-advisor"
+                            to="/chatbots/digital-literacy-advisor"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'AI & Machine Learning Educator' ? (
                           <Link
-                            to="/dashboard/chatbots/ai-machine-learning-educator"
+                            to="/chatbots/ai-machine-learning-educator"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details
                           </Link>
                         ) : bot.name === 'Marketing & Branding Strategist' ? (
                           <Link
-                            to="/dashboard/chatbots/marketing-branding-strategist"
+                            to="/chatbots/marketing-branding-strategist"
                             className="text-xs font-semibold text-primary-600 hover:text-primary-500"
                           >
                             View details

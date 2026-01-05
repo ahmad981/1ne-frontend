@@ -1,6 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
+import { useDispatch } from 'react-redux'
+import { useStoreData } from '../hooks/useStoreData'
+import { logoutUser, logoutUserAPI } from '../redux/features/auth/authSlice'
+import { sideMenuRoutes } from '../routes/sideMenuConfig'
+import WorkspaceSwitcher from './workspace/WorkspaceSwitcher'
+import ActiveWorkspaceIndicator from './workspace/ActiveWorkspaceIndicator'
 import {
   LayoutDashboard,
   FileText,
@@ -53,106 +58,63 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const messagesTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const notificationsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const location = useLocation()
-  const { user, logout } = useAuth()
+  const { user, role } = useStoreData()
+  const dispatch = useDispatch()
   const navigate = useNavigate()
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
 
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
+  const handleLogout = async () => {
+    try {
+      if (user?.refresh_token) {
+        await dispatch(logoutUserAPI(user.refresh_token))
+      }
+      dispatch(logoutUser())
+      navigate('/login')
+    } catch (err) {
+      // Even if API fails, clear local state
+      dispatch(logoutUser())
+      navigate('/login')
+    }
   }
 
-  const menuItems: MenuItem[] = [
-    {
-      path: '/dashboard',
-      icon: LayoutDashboard,
-      label: 'Dashboard',
-      iconColor: 'text-primary-600',
-      iconBg: 'bg-primary-50',
-    },
-    {
-      path: '/dashboard/templates',
-      icon: FileText,
-      label: 'Templates Library',
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-50',
-    },
-    {
-      path: '/dashboard/chatbots',
-      icon: MessageSquare,
-      label: 'Specialized Chatbots',
-      iconColor: 'text-emerald-600',
-      iconBg: 'bg-emerald-50',
-    },
-    {
-      path: '/dashboard/youtube-quiz',
-      icon: Youtube,
-      label: 'YouTube Quiz Generator',
-      iconColor: 'text-rose-600',
-      iconBg: 'bg-rose-50',
-    },
-    {
-      path: '/dashboard/pixgen',
-      icon: Image,
-      label: 'PixGen (AI Media Studio)',
-      iconColor: 'text-violet-600',
-      iconBg: 'bg-violet-50',
-    },
-    {
-      path: '/dashboard/learning-hub',
-      icon: BookOpen,
-      label: 'Professional Learning Hub',
-      iconColor: 'text-amber-600',
-      iconBg: 'bg-amber-50',
-    },
-    {
-      path: '/dashboard/personalization',
-      icon: Settings,
-      label: 'Personalization',
-      iconColor: 'text-purple-600',
-      iconBg: 'bg-purple-50',
-    },
-    {
-      path: '/dashboard/administration',
-      icon: Shield,
-      label: 'Administration',
-      iconColor: 'text-indigo-600',
-      iconBg: 'bg-indigo-50',
-      subItems: [
-        {
-          path: '/dashboard/administration/reporting',
-          label: 'Reporting',
-          icon: BarChart3,
-        },
-        {
-          path: '/dashboard/administration/assessment',
-          label: 'Assessment',
-          icon: ClipboardCheck,
-        },
-      ],
-    },
-    {
-      path: '/dashboard/history',
-      icon: History,
-      label: 'History',
-      iconColor: 'text-slate-600',
-      iconBg: 'bg-slate-50',
-    },
-    {
-      path: '/dashboard/profile',
-      icon: User,
-      label: 'Profile',
-      iconColor: 'text-pink-500',
-      iconBg: 'bg-pink-50',
-    },
-    {
-      path: '/dashboard/settings',
-      icon: Settings,
-      label: 'Settings',
-      iconColor: 'text-gray-600',
-      iconBg: 'bg-gray-100',
-    },
-  ]
+  // Icon color mapping function
+  const getIconColor = (index: number) => {
+    const colors = [
+      { color: 'text-primary-600', bg: 'bg-primary-50' },
+      { color: 'text-blue-600', bg: 'bg-blue-50' },
+      { color: 'text-emerald-600', bg: 'bg-emerald-50' },
+      { color: 'text-rose-600', bg: 'bg-rose-50' },
+      { color: 'text-violet-600', bg: 'bg-violet-50' },
+      { color: 'text-amber-600', bg: 'bg-amber-50' },
+      { color: 'text-purple-600', bg: 'bg-purple-50' },
+      { color: 'text-indigo-600', bg: 'bg-indigo-50' },
+      { color: 'text-slate-600', bg: 'bg-slate-50' },
+      { color: 'text-pink-500', bg: 'bg-pink-50' },
+      { color: 'text-gray-600', bg: 'bg-gray-100' },
+    ]
+    return colors[index % colors.length]
+  }
+
+  // Transform sideMenuConfig to MenuItem structure
+  // Default to 'teacher' role if role is null but user is authenticated
+  // This handles cases where backend returns roles: null
+  const effectiveRole = role || (user?.token ? 'teacher' : '')
+  const sideMenuConfig = sideMenuRoutes(effectiveRole)
+  const menuItems: MenuItem[] = sideMenuConfig.map((item, index) => {
+    const iconColors = getIconColor(index)
+    return {
+      path: item.path,
+      icon: item.icon,
+      label: item.text,
+      iconColor: iconColors.color,
+      iconBg: iconColors.bg,
+      subItems: item.child?.map((childItem) => ({
+        path: childItem.path,
+        label: childItem.text,
+        icon: childItem.icon,
+      })),
+    }
+  })
 
   const isActive = (path: string) => {
     if (path === '/dashboard') {
@@ -327,7 +289,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <div className="lg:pl-64">
         {/* Top Header Bar with Profile Dropdown */}
         <div className="hidden lg:block fixed top-0 right-0 left-64 h-16 bg-white border-b border-gray-200 z-30">
-          <div className="h-full px-6 flex items-center justify-end gap-4">
+          <div className="h-full px-6 flex items-center justify-between">
+            {/* Left side - Workspace indicator and switcher */}
+            <div className="flex items-center gap-4">
+              <ActiveWorkspaceIndicator />
+              <WorkspaceSwitcher />
+            </div>
+
+            {/* Right side - Token counter, messages, notifications, profile */}
+            <div className="flex items-center gap-4">
             {/* Token Counter */}
             <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2">
               <div className="flex items-center gap-2">
@@ -628,6 +598,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   </button>
                 </div>
               )}
+            </div>
             </div>
           </div>
         </div>

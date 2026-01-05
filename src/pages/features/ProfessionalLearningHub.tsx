@@ -208,11 +208,11 @@ const ProfessionalLearningHub = () => {
 
   const handleCourseStart = (courseTitle: string) => {
     const courseRoutes: Record<string, string> = {
-      'Quick wins: Classroom management essentials': '/dashboard/learning-hub/classroom-management',
-      'Formative assessment strategies that work': '/dashboard/learning-hub/assessment-strategies',
-      'Differentiation made simple': '/dashboard/learning-hub/differentiation-course',
-      'Engaging reluctant learners': '/dashboard/learning-hub/student-engagement-course',
-      'AI tools for lesson planning': '/dashboard/learning-hub/digital-literacy-course',
+      'Quick wins: Classroom management essentials': '/learning-hub/classroom-management',
+      'Formative assessment strategies that work': '/learning-hub/assessment-strategies',
+      'Differentiation made simple': '/learning-hub/differentiation-course',
+      'Engaging reluctant learners': '/learning-hub/student-engagement-course',
+      'AI tools for lesson planning': '/learning-hub/digital-literacy-course',
     }
     const route = courseRoutes[courseTitle]
     if (route) {
@@ -222,9 +222,9 @@ const ProfessionalLearningHub = () => {
 
   const handleTutorialWatch = (tutorialTitle: string) => {
     const tutorialRoutes: Record<string, string> = {
-      'Mastering the lesson planner template': '/dashboard/learning-hub/lesson-planner-tutorial',
-      'Creating effective assessments': '/dashboard/learning-hub/assessment-tutorial',
-      'Real classroom: Differentiation in action': '/dashboard/learning-hub/differentiation-tutorial',
+      'Mastering the lesson planner template': '/learning-hub/lesson-planner-tutorial',
+      'Creating effective assessments': '/learning-hub/assessment-tutorial',
+      'Real classroom: Differentiation in action': '/learning-hub/differentiation-tutorial',
     }
     const route = tutorialRoutes[tutorialTitle]
     if (route) {
@@ -234,14 +234,14 @@ const ProfessionalLearningHub = () => {
 
   const handleResearchReadMore = (researchTitle: string) => {
     const researchRoutes: Record<string, string> = {
-      "Hattie's Visible Learning: Effect sizes that matter": '/dashboard/learning-hub/evidence-based-teaching',
-      "Bloom's taxonomy in modern classrooms": '/dashboard/learning-hub/blooms-taxonomy',
-      'Formative assessment: What research says': '/dashboard/learning-hub/assessment-research',
-      'SEL & behavior: Restorative practices': '/dashboard/learning-hub/sel-behavior-research',
-      'Growth mindset: Dweck\'s research in practice': '/dashboard/learning-hub/growth-mindset-research',
-      'Cognitive load theory: Optimizing learning': '/dashboard/learning-hub/cognitive-load-research',
-      'Metacognition: Teaching students to think about thinking': '/dashboard/learning-hub/metacognition-research',
-      'Scaffolding instruction: Vygotsky\'s zone of proximal development': '/dashboard/learning-hub/scaffolding-research',
+      "Hattie's Visible Learning: Effect sizes that matter": '/learning-hub/evidence-based-teaching',
+      "Bloom's taxonomy in modern classrooms": '/learning-hub/blooms-taxonomy',
+      'Formative assessment: What research says': '/learning-hub/assessment-research',
+      'SEL & behavior: Restorative practices': '/learning-hub/sel-behavior-research',
+      'Growth mindset: Dweck\'s research in practice': '/learning-hub/growth-mindset-research',
+      'Cognitive load theory: Optimizing learning': '/learning-hub/cognitive-load-research',
+      'Metacognition: Teaching students to think about thinking': '/learning-hub/metacognition-research',
+      'Scaffolding instruction: Vygotsky\'s zone of proximal development': '/learning-hub/scaffolding-research',
     }
     const route = researchRoutes[researchTitle]
     if (route) {
@@ -251,19 +251,19 @@ const ProfessionalLearningHub = () => {
 
   const handleStartPath = (skillName: string) => {
     if (skillName === 'Student engagement techniques') {
-      navigate('/dashboard/learning-hub/student-engagement-path')
+      navigate('/learning-hub/student-engagement-path')
     } else if (skillName === 'Advanced differentiation strategies') {
-      navigate('/dashboard/learning-hub/advanced-differentiation-path')
+      navigate('/learning-hub/advanced-differentiation-path')
     } else if (skillName === 'AI-assisted assessment design') {
-      navigate('/dashboard/learning-hub/ai-assessment-path')
+      navigate('/learning-hub/ai-assessment-path')
     }
   }
 
   const handleEnrollTrack = (trackTitle: string) => {
     if (trackTitle === 'STEM Mastery') {
-      navigate('/dashboard/learning-hub/stem-mastery')
+      navigate('/learning-hub/stem-mastery')
     } else if (trackTitle === 'Literacy Expert') {
-      navigate('/dashboard/learning-hub/literacy-expert')
+      navigate('/learning-hub/literacy-expert')
     }
   }
 

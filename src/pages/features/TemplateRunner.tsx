@@ -1481,7 +1481,7 @@ const TemplateRunner = () => {
         <div className="text-center space-y-4">
           <p className="text-sm text-gray-600">{error ?? 'Template not found.'}</p>
           <button
-            onClick={() => navigate('/dashboard/templates')}
+            onClick={() => navigate('/templates')}
             className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -1499,7 +1499,7 @@ const TemplateRunner = () => {
         <nav className="mb-6">
           <ol className="flex items-center gap-2 text-sm text-gray-600">
             <li>
-              <Link to="/dashboard/templates" className="hover:text-gray-900">
+              <Link to="/templates" className="hover:text-gray-900">
                 Templates
               </Link>
             </li>

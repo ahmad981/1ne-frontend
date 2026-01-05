@@ -275,7 +275,7 @@ const TemplatesLibrary = () => {
   const renderTemplateCard = (template: TemplateResponse) => {
     const handleOpen = () => {
       if (!template.slug) return
-      navigate(`/dashboard/templates/${template.slug}`)
+      navigate(`/templates/${template.slug}`)
     }
 
     const isFavorite = favoriteStates.get(template.id) ?? template.is_favorite ?? false
