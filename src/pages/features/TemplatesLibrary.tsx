@@ -32,12 +32,10 @@ type TemplateFilterFormState = {
 }
 
 type AttributeFieldKey = 'subject' | 'gradeBand' | 'bloom' | 'kind'
-import {
-  useFrameworks,
-  useTemplatesSearch,
-} from '../../hooks/useTemplates'
 import { useNavigate } from 'react-router-dom'
-import { toggleTemplateFavorite } from '../../api/templates'
+import { useSelector, useDispatch } from 'react-redux'
+import { fetchTemplates, toggleTemplateFavorite } from '../../redux/features/templates/templatesSlice'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 const DEFAULT_FILTERS: TemplateListParams = {
   sort: 'title',
@@ -46,10 +44,23 @@ const DEFAULT_FILTERS: TemplateListParams = {
 
 const TemplatesLibrary = () => {
   const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const { toast } = useSnackbar()
+  
+  // Redux selectors
+  const user = useSelector((state: any) => state?.auth?.user)
+  const isRehydrated = useSelector((state: any) => state?._persist?.rehydrated)
+  const templates = useSelector((state: any) => state?.templates?.templates || [])
+  const favorites = useSelector((state: any) => state?.templates?.favorites || [])
+  const loading = useSelector((state: any) => state?.templates?.loading || false)
+  const error = useSelector((state: any) => state?.templates?.error)
+  const total = useSelector((state: any) => state?.templates?.total || 0)
+  
+  // Check if user is authenticated
+  const isAuthenticated = !!user?.token
+  
   const [filters, setFilters] = useState<TemplateListParams>(DEFAULT_FILTERS)
   const [showFilters, setShowFilters] = useState(false)
-  const [favoriteStates, setFavoriteStates] = useState<Map<string, boolean>>(new Map())
-  const [togglingFavorites, setTogglingFavorites] = useState<Set<string>>(new Set())
   const [formState, setFormState] = useState<TemplateFilterFormState>({
     q: '',
     subject: '',
@@ -62,42 +73,45 @@ const TemplatesLibrary = () => {
     pageSize: DEFAULT_FILTERS.pageSize ?? 6,
   })
 
-  console.log('[TemplatesLibrary] 🔵 Component rendered with filters:', filters)
-  
-  const templatesState = useTemplatesSearch(filters)
-  const frameworksState = useFrameworks()
+  // Track previous user ID to detect user changes (login/logout/switch user)
+  const prevUserIdRef = useRef(user?.id)
 
-  const templates = templatesState.data?.items ?? []
-  const total = templatesState.data?.total ?? 0
-
-  // Initialize favorite states from template data
+  // Fetch templates when filters change - but wait for Redux rehydration
+  // This ensures auth token is available if user is logged in
   useEffect(() => {
-    const newFavoriteStates = new Map<string, boolean>()
-    templates.forEach(template => {
-      if (template.is_favorite !== undefined) {
-        newFavoriteStates.set(template.id, template.is_favorite)
-      }
-    })
-    setFavoriteStates(prev => {
-      const updated = new Map(prev)
-      newFavoriteStates.forEach((value, key) => {
-        updated.set(key, value)
+    // Wait for Redux persist to rehydrate before fetching
+    // This ensures auth token is available if user is logged in
+    if (isRehydrated !== false) {
+      dispatch(fetchTemplates(filters) as any)
+    }
+  }, [dispatch, filters, isRehydrated])
+
+  // Refetch templates when user changes (login/logout/switch user)
+  // This ensures favorites are shown for the correct user
+  useEffect(() => {
+    const currentUserId = user?.id
+    const prevUserId = prevUserIdRef.current
+    
+    // Check if user ID changed (user logged in, logged out, or switched accounts)
+    const userIdChanged = currentUserId !== prevUserId
+    
+    if (userIdChanged) {
+      console.log('[TemplatesLibrary] User changed, refetching templates for correct favorites', {
+        prevUserId,
+        currentUserId,
+        isAuthenticated,
       })
-      return updated
-    })
-  }, [templates])
-
-  // Debug logging
-  useEffect(() => {
-    console.log('[TemplatesLibrary] 📊 State update:', {
-      loading: templatesState.loading,
-      error: templatesState.error,
-      total,
-      templatesCount: templates.length,
-      hasData: !!templatesState.data,
-      filters: filters
-    })
-  }, [templatesState.loading, templatesState.error, total, templates.length, templatesState.data, filters])
+      
+      // Update ref
+      prevUserIdRef.current = currentUserId
+      
+      // Refetch templates to get correct favorites for the current user
+      // Only refetch if user is authenticated (don't refetch on logout, templates will be cleared)
+      if (isAuthenticated && currentUserId) {
+        dispatch(fetchTemplates(filters) as any)
+      }
+    }
+  }, [dispatch, user?.id, isAuthenticated, filters]) // Refetch when user ID or auth state changes
 
   const attributeFields: Array<{ label: string; key: AttributeFieldKey; placeholder: string }> = [
     { label: 'Subject', key: 'subject', placeholder: 'e.g., math' },
@@ -250,26 +264,57 @@ const TemplatesLibrary = () => {
   const handleFavoriteToggle = async (templateId: string, e: React.MouseEvent) => {
     e.stopPropagation()
     
-    if (togglingFavorites.has(templateId)) return
-    
-    setTogglingFavorites(prev => new Set(prev).add(templateId))
-    try {
-      const result = await toggleTemplateFavorite(templateId)
-      setFavoriteStates(prev => {
-        const updated = new Map(prev)
-        updated.set(templateId, result.is_favorite)
-        return updated
-      })
-    } catch (error) {
-      console.error('Error toggling favorite:', error)
-      // Optionally show error toast
-    } finally {
-      setTogglingFavorites(prev => {
-        const updated = new Set(prev)
-        updated.delete(templateId)
-        return updated
-      })
+    // Check if user is authenticated - show error immediately if not
+    if (!isAuthenticated) {
+      toast.error('Please log in to add favorites')
+      return
     }
+    
+    // Dispatch Redux thunk - auth token automatically included by axios interceptor
+    dispatch(toggleTemplateFavorite(templateId) as any)
+      .unwrap()
+      .then((result: any) => {
+        // Show success feedback
+        toast.success(
+          result.is_favorite 
+            ? 'Template added to favorites' 
+            : 'Template removed from favorites'
+        )
+      })
+      .catch((error: any) => {
+        console.error('[TemplatesLibrary] Error toggling favorite:', error)
+        
+        // Show user-friendly error message
+        let errorMessage = 'Failed to update favorite. Please try again.'
+        
+        if (error?.code === 'AUTH_REQUIRED' || error?.message?.includes('log in')) {
+          errorMessage = 'Please log in to add favorites'
+        } else if (error?.status === 401) {
+          errorMessage = 'Your session has expired. Please log in again.'
+        } else if (error?.status === 404) {
+          errorMessage = 'Template not found.'
+        } else if (error?.message) {
+          if (error.message.includes('Network error') || error.message.includes('Failed to fetch')) {
+            errorMessage = 'Connection error. Please check your internet connection and try again.'
+          } else if (error.message.includes('timeout')) {
+            errorMessage = 'Request timed out. Please try again.'
+          } else {
+            errorMessage = error.message
+          }
+        }
+        
+        toast.error(errorMessage)
+        
+        // Log detailed error for debugging
+        console.error('[TemplatesLibrary] Favorite toggle failed:', {
+          templateId,
+          error: error?.message,
+          code: error?.code,
+          status: error?.status,
+          userAuthenticated: isAuthenticated,
+          userId: user?.id,
+        })
+      })
   }
 
   const renderTemplateCard = (template: TemplateResponse) => {
@@ -278,8 +323,8 @@ const TemplatesLibrary = () => {
       navigate(`/templates/${template.slug}`)
     }
 
-    const isFavorite = favoriteStates.get(template.id) ?? template.is_favorite ?? false
-    const isToggling = togglingFavorites.has(template.id)
+    // Get favorite status from Redux state
+    const isFavorite = favorites.includes(template.id) || template.is_favorite || false
 
     const { icon: Icon, color, bgColor } = getTemplateIcon(template)
     const isHot = template.is_hot || false
@@ -303,18 +348,20 @@ const TemplatesLibrary = () => {
               Hot
             </span>
           )}
-          <button
-            onClick={(e) => handleFavoriteToggle(template.id, e)}
-            disabled={isToggling}
-            className={`rounded-full p-1.5 transition hover:bg-gray-100 ${
-              isFavorite 
-                ? 'text-yellow-500 fill-yellow-500' 
-                : 'text-gray-400 hover:text-yellow-500'
-            } ${isToggling ? 'opacity-50 cursor-not-allowed' : ''}`}
-            aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
-          >
-            <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
-          </button>
+          {/* Only show favorite button if user is authenticated */}
+          {isAuthenticated && (
+            <button
+              onClick={(e) => handleFavoriteToggle(template.id, e)}
+              className={`rounded-full p-1.5 transition hover:bg-gray-100 ${
+                isFavorite 
+                  ? 'text-yellow-500 fill-yellow-500' 
+                  : 'text-gray-400 hover:text-yellow-500'
+              }`}
+              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              <Star className={`h-4 w-4 ${isFavorite ? 'fill-current' : ''}`} />
+            </button>
+          )}
         </div>
 
         {/* Icon - Now with dynamic colors based on category */}
@@ -465,25 +512,28 @@ const TemplatesLibrary = () => {
             )}
           </button>
 
-          <button
-            type="button"
-            onClick={() => {
-              setFavoriteFilter(prev => prev === true ? undefined : true)
-            }}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-              favoriteFilter === true
-                ? 'bg-yellow-100 text-yellow-700 border border-yellow-300 shadow-sm'
-                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-            }`}
-          >
-            <Star className={`h-4 w-4 ${favoriteFilter === true ? 'text-yellow-600 fill-yellow-600' : 'text-gray-400'}`} />
-            Favorites
-            {favoriteFilter === true && (
-              <span className="ml-1 rounded-full bg-yellow-200 px-1.5 py-0.5 text-xs font-semibold text-yellow-800">
-                Active
-              </span>
-            )}
-          </button>
+          {/* Only show favorites filter if user is authenticated */}
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => {
+                setFavoriteFilter(prev => prev === true ? undefined : true)
+              }}
+              className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+                favoriteFilter === true
+                  ? 'bg-yellow-100 text-yellow-700 border border-yellow-300 shadow-sm'
+                  : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <Star className={`h-4 w-4 ${favoriteFilter === true ? 'text-yellow-600 fill-yellow-600' : 'text-gray-400'}`} />
+              Favorites
+              {favoriteFilter === true && (
+                <span className="ml-1 rounded-full bg-yellow-200 px-1.5 py-0.5 text-xs font-semibold text-yellow-800">
+                  Active
+                </span>
+              )}
+            </button>
+          )}
 
           {(hotFilter !== undefined || favoriteFilter !== undefined) && (
             <button
@@ -593,19 +643,19 @@ const TemplatesLibrary = () => {
             </div>
           )}
 
-          {templatesState.loading && (
+          {loading && (
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-300 py-10 text-sm text-gray-500">
               <Loader2 className="mr-2 h-5 w-5 animate-spin text-indigo-500" /> Loading templates…
             </div>
           )}
 
-          {templatesState.error && !templatesState.loading && (
+          {error && !loading && (
             <div className="rounded-2xl border border-red-200 bg-red-50/70 p-4">
               <div className="flex items-start gap-3">
                 <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-red-800 mb-1">Error Loading Templates</p>
-                  <p className="text-sm text-red-700 mb-3">{templatesState.error}</p>
+                  <p className="text-sm text-red-700 mb-3">{error}</p>
                   <div className="text-xs text-red-600 bg-red-100/50 rounded-lg p-3">
                     <p className="font-semibold mb-2">Troubleshooting Steps:</p>
                     <ul className="list-disc list-inside space-y-1 ml-2">
@@ -620,9 +670,9 @@ const TemplatesLibrary = () => {
             </div>
           )}
 
-          {!templatesState.loading && !templates.length && !templatesState.error && (
+          {!loading && !templates.length && !error && (
             <div className="rounded-2xl border border-gray-200 bg-white px-6 py-10 text-center text-sm text-gray-600">
-              No templates match those filters yet. Seed data includes math expressions so try subject “math”.
+              No templates match those filters yet. Seed data includes math expressions so try subject "math".
             </div>
           )}
 

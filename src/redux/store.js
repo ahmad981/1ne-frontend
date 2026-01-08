@@ -8,6 +8,7 @@ import authSlice from './features/auth/authSlice';
 import signupSlice from './features/auth/signupSlice';
 import membershipSlice from './features/membership/membershipSlice';
 import snackbarReducer from './features/snackbarSlice/snackbarSlice';
+import templatesReducer from './features/templates/templatesSlice';
 
 // Define the persist configuration
 const persistConfig = {
@@ -22,6 +23,7 @@ const rootReducer = combineReducers({
   signup: signupSlice,
   membership: membershipSlice,
   snackbar: snackbarReducer,
+  templates: templatesReducer,
 });
 
 // Create a persisted reducer
@@ -37,3 +39,7 @@ export const store = configureStore({
 // Create a persistor
 export const persistor = persistStore(store);
 
+// Set store reference in http.js for axios interceptor
+// This allows axios to access Redux state for auth token
+import { setStoreReference } from './http';
+setStoreReference(store);

@@ -191,13 +191,15 @@ export const executeTemplate = (slug: string, data: Record<string, unknown>, reg
 }
 
 // Favorite functions
-export const toggleTemplateFavorite = async (templateId: string): Promise<{ is_favorite: boolean }> => {
+// Note: Auth token is automatically included by apiRequest if user is logged in
+// Session ID is sent as fallback for unauthenticated users
+export const toggleTemplateFavorite = async (templateId: string): Promise<{ is_favorite: boolean; message?: string }> => {
   const sessionId = getSessionId()
   
   return apiRequest<{ is_favorite: boolean; message: string }>(`/v1/templates/${templateId}/favorite/toggle`, {
     method: 'POST',
     headers: {
-      'X-Session-Id': sessionId,
+      'X-Session-Id': sessionId, // Always send session ID as fallback
     },
   })
 }

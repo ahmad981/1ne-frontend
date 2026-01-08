@@ -13,9 +13,33 @@ const axiosInstance = axios.create({
   },
 });
 
-// Request interceptor for logging
+// Store reference for accessing auth token (set after store creation)
+let storeRef = null;
+
+// Function to set store reference (called from store.js after store creation)
+export const setStoreReference = (store) => {
+  storeRef = store;
+};
+
+// Request interceptor - auto-include auth token from Redux store
 axiosInstance.interceptors.request.use(
   (config) => {
+    // Get auth token from Redux store if available
+    if (storeRef) {
+      try {
+        const state = storeRef.getState();
+        const token = state?.auth?.user?.token;
+
+        // Automatically include auth token if available
+        if (token && !config.headers.Authorization) {
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        // Handle gracefully if state access fails
+        console.warn('[Axios] Could not get auth token from store:', error);
+      }
+    }
+
     console.log(`[Axios] ${config.method?.toUpperCase()} ${config.url}`);
     return config;
   },

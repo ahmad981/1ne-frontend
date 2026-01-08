@@ -32,6 +32,21 @@ const toQueryString = (query?: Record<string, string | number | boolean | undefi
   return params
 }
 
+// Helper to get auth token from Redux persisted state (synced with store)
+const getAuthToken = (): string | null => {
+  try {
+    const persistedState = localStorage.getItem('persist:root')
+    if (persistedState) {
+      const parsed = JSON.parse(persistedState)
+      const authState = parsed?.auth ? JSON.parse(parsed.auth) : null
+      return authState?.user?.token || null
+    }
+  } catch (error) {
+    console.warn('[getAuthToken] Failed to parse persisted state:', error)
+  }
+  return null
+}
+
 const buildUrl = (path: string, query?: Record<string, string | number | boolean | undefined>): string => {
   const normalizedPath = path.startsWith('http') ? path : `${API_BASE_URL}/${path.replace(/^\//, '')}`
   const url = new URL(normalizedPath)
@@ -67,15 +82,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
       })()
     : abortController.signal
 
+  // Get auth token if available (for authenticated requests)
+  const authToken = getAuthToken()
+  
+  // Build headers - automatically include Authorization if token exists
+  // Custom headers passed in will override these defaults
+  const requestHeaders: HeadersInit = {
+    Accept: 'application/json',
+    ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
+    ...headers, // Custom headers override defaults
+  }
+
   try {
     const response = await fetch(url, {
       ...rest,
       signal: combinedSignal,
-      headers: {
-        Accept: 'application/json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-        ...headers,
-      },
+      headers: requestHeaders,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
     
@@ -94,6 +117,31 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
 
     if (!response.ok) {
+      // Handle 401 Unauthorized - token may be expired
+      if (response.status === 401) {
+        // Clear auth token from localStorage if present
+        try {
+          const persistedState = localStorage.getItem('persist:root')
+          if (persistedState) {
+            const parsed = JSON.parse(persistedState)
+            if (parsed?.auth) {
+              const authState = JSON.parse(parsed.auth)
+              if (authState?.user?.token) {
+                // Token is expired/invalid, clear it
+                authState.user.token = null
+                authState.user = null
+                authState.isAuthenticated = false
+                parsed.auth = JSON.stringify(authState)
+                localStorage.setItem('persist:root', JSON.stringify(parsed))
+                console.warn('[apiRequest] ⚠️ Token expired, cleared from storage')
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[apiRequest] Failed to clear expired token:', error)
+        }
+      }
+      
       const message = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
         ? String((payload as Record<string, unknown>).detail)
         : response.statusText || 'Request failed'
