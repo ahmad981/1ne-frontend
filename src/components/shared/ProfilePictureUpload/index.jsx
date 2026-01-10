@@ -188,15 +188,15 @@ export const ProfilePictureUpload = ({
           >
             {/* Avatar */}
             <div className='relative'>
-              <CustomAvatar
-                userName={firstName}
-                hideUsername={true}
-                avatarClass={`${avatarSize} transition-all duration-200 ${
-                  isHovered && !disabled ? 'ring-2 ring-primary ring-offset-2 scale-105' : ''
-                } ${isUploading ? 'opacity-70' : ''}`}
-                noUrlNameClass='text-3xl md:text-4xl leading-none'
-                url={displayImageUrl}
-              />
+              <div className={`${avatarSize} ${isHovered && !disabled ? 'ring-2 ring-primary ring-offset-2 scale-105' : ''} ${isUploading ? 'opacity-70' : ''} transition-all duration-200 rounded-full overflow-hidden border-2 border-gray-200`}>
+                <CustomAvatar
+                  userName={firstName || 'User'}
+                  hideUsername={true}
+                  avatarClass="w-full h-full"
+                  noUrlNameClass='text-3xl md:text-4xl leading-none font-semibold'
+                  url={displayImageUrl}
+                />
+              </div>
               
               {/* Loading Overlay */}
               {isUploading && (

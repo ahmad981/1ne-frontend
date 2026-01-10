@@ -45,6 +45,8 @@ const teacherMenu = [
 
 const superAdminMenu = [
   { path: '/administration', text: 'Administration', icon: Shield },
+  { path: '/profile', text: 'Profile', icon: User },
+  { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
 const orgAdminMenu = [

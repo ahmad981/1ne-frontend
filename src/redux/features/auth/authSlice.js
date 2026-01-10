@@ -22,15 +22,36 @@ const getPrimaryRole = (roles) => {
     parent: 6,
   };
   
+  // Extract role name - handle both object format (from API) and string format
+  const getRoleName = (role) => {
+    if (typeof role === 'string') {
+      return role;
+    }
+    if (role?.name) {
+      // Handle enum/object: role.name.value or role.name directly, or if it's an object with value property
+      if (typeof role.name === 'string') {
+        return role.name;
+      }
+      // Handle enum objects (RoleName enum from backend)
+      return role.name?.value || role.name?.toString() || '';
+    }
+    return '';
+  };
+  
   // Sort by priority and return the highest priority role
   const sortedRoles = roles
-    .map((role) => ({
-      ...role,
-      priority: rolePriority[role.name] || 999,
-    }))
+    .map((role) => {
+      const roleName = getRoleName(role);
+      return {
+        ...role,
+        roleName: roleName,
+        priority: rolePriority[roleName] || 999,
+      };
+    })
+    .filter((role) => role.roleName && rolePriority[role.roleName] !== undefined)
     .sort((a, b) => a.priority - b.priority);
   
-  return sortedRoles[0]?.name || null;
+  return sortedRoles[0]?.roleName || null;
 };
 
 // Helper function to handle API errors consistently
@@ -254,15 +275,56 @@ export const resendVerification = createAsyncThunk(
 // Get Profile Details API Function
 export const getProfileDetails = createAsyncThunk(
   'auth/getProfileDetails',
-  async (params = {}, { rejectWithValue }) => {
+  async (params = {}, { rejectWithValue, getState }) => {
     try {
-      console.log('Get profile details attempt');
-      const { data } = await axios.get(endPoints.profileDetails);
-      console.log('Get profile details response received');
-      return data;
+      console.log('[getProfileDetails] Starting profile fetch...');
+      console.log('[getProfileDetails] Endpoint:', endPoints.profileDetails);
+      
+      // Check if we have a token
+      const state = getState();
+      const token = state?.auth?.user?.token;
+      console.log('[getProfileDetails] Token available:', !!token);
+      
+      const response = await axios.get(endPoints.profileDetails);
+      console.log('[getProfileDetails] ✅ Response received:', response);
+      console.log('[getProfileDetails] ✅ Response data:', response.data);
+      
+      if (!response.data) {
+        console.warn('[getProfileDetails] ⚠️ Response data is empty');
+        return rejectWithValue('No data received from server');
+      }
+      
+      return response.data;
     } catch (error) {
-      console.error('Get profile details error:', error);
-      return rejectWithValue(handleApiError(error));
+      console.error('[getProfileDetails] ❌ Error details:', {
+        message: error.message,
+        response: error.response,
+        status: error.response?.status,
+        data: error.response?.data,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          baseURL: error.config?.baseURL,
+          headers: error.config?.headers,
+        }
+      });
+      
+      // More detailed error handling
+      let errorMessage = 'Failed to load profile';
+      if (error.response) {
+        // Server responded with error status
+        errorMessage = error.response?.data?.detail || 
+                      error.response?.data?.message || 
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        // Request made but no response received
+        errorMessage = 'No response from server. Please check if the backend is running.';
+      } else {
+        // Error setting up the request
+        errorMessage = error.message || 'Failed to make request';
+      }
+      
+      return rejectWithValue(errorMessage);
     }
   }
 );
@@ -313,6 +375,16 @@ export const authSlice = createSlice({
       state.loginChallenge = null;
       state.memberships = [];
       state.activeMembership = null;
+    },
+    updateUserEmail: (state, action) => {
+      if (state.user) {
+        state.user.email = action.payload.email;
+        state.user.email_verified = action.payload.email_verified || false;
+      }
+      if (state.profileDetails) {
+        state.profileDetails.email = action.payload.email;
+        state.profileDetails.email_verified = action.payload.email_verified || false;
+      }
     },
     clearTempSession: (state) => {
       state.user = null;
@@ -568,8 +640,31 @@ export const authSlice = createSlice({
       })
       .addCase(getProfileDetails.fulfilled, (state, action) => {
         state.loading = false;
-        state.profileDetails = action.payload;
-        state.error = null;
+        try {
+          // Store complete profile data - backend returns UserProfile directly
+          const profileData = action.payload || null;
+          state.profileDetails = profileData;
+          
+          // Update user role if roles are present in profile
+          if (profileData?.roles && Array.isArray(profileData.roles) && profileData.roles.length > 0) {
+            try {
+              const primaryRole = getPrimaryRole(profileData.roles);
+              if (primaryRole && state.user) {
+                state.user.role = primaryRole;
+                state.user.roles = profileData.roles;
+              }
+            } catch (roleError) {
+              console.error('[getProfileDetails.fulfilled] Error extracting role:', roleError);
+              // Continue without updating role if extraction fails
+            }
+          }
+          
+          state.error = null;
+        } catch (error) {
+          console.error('[getProfileDetails.fulfilled] Error processing profile data:', error);
+          state.profileDetails = action.payload || null; // Still store the data even if processing fails
+          state.error = null; // Don't set error state, just log it
+        }
       })
       .addCase(getProfileDetails.rejected, (state, action) => {
         state.loading = false;
@@ -582,17 +677,29 @@ export const authSlice = createSlice({
       })
       .addCase(updateProfile.fulfilled, (state, action) => {
         state.loading = false;
-        const userData = action.payload;
-        const primaryRole = getPrimaryRole(userData?.roles || []);
-        
-        if (state.user) {
-          state.user.first_name = userData?.first_name;
-          state.user.last_name = userData?.last_name;
-          state.user.full_name = `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim();
-          state.user.phone = userData?.phone;
-          state.user.username = userData?.username;
-          state.user.roles = userData?.roles || [];
-          state.user.role = primaryRole;
+        // Response could be direct user data or nested in data property
+        const userData = action.payload?.user || action.payload || action.payload?.data;
+        if (userData) {
+          const primaryRole = getPrimaryRole(userData?.roles || []);
+          
+          // Update user state
+          if (state.user) {
+            state.user.first_name = userData.first_name || state.user.first_name;
+            state.user.last_name = userData.last_name || state.user.last_name;
+            state.user.full_name = userData.full_name || `${userData.first_name || ''} ${userData.last_name || ''}`.trim();
+            state.user.phone = userData.phone !== undefined ? userData.phone : state.user.phone;
+            state.user.username = userData.username !== undefined ? userData.username : state.user.username;
+            state.user.email = userData.email || state.user.email;
+            state.user.roles = userData.roles || state.user.roles || [];
+            state.user.role = primaryRole || state.user.role;
+          }
+          
+          // Update profileDetails state with complete profile data
+          state.profileDetails = {
+            ...state.profileDetails,
+            ...userData,
+            profile_picture_url: userData.profile_picture_url !== undefined ? userData.profile_picture_url : state.profileDetails?.profile_picture_url,
+          };
         }
         state.error = null;
       })
@@ -616,7 +723,7 @@ export const authSlice = createSlice({
   },
 });
 
-export const { logoutUser, clearTempSession, clearLoginChallenge, setMemberships, setActiveMembership } = authSlice.actions;
+export const { logoutUser, clearTempSession, clearLoginChallenge, setMemberships, setActiveMembership, updateUserEmail } = authSlice.actions;
 
 export default authSlice.reducer;
 

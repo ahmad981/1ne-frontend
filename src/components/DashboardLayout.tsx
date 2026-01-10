@@ -1,8 +1,28 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useDispatch } from 'react-redux'
+import { useDispatch, useSelector } from 'react-redux'
 import { useStoreData } from '../hooks/useStoreData'
-import { logoutUser, logoutUserAPI } from '../redux/features/auth/authSlice'
+import { logoutUser, logoutUserAPI, getProfileDetails } from '../redux/features/auth/authSlice'
+import { CustomAvatar } from './shared'
+import { baseURL } from '../redux/constant'
+
+// Click outside handler hook
+const useClickOutside = (ref: React.RefObject<HTMLElement>, handler: (event: MouseEvent | TouchEvent) => void) => {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+    document.addEventListener('mousedown', listener);
+    document.addEventListener('touchstart', listener);
+    return () => {
+      document.removeEventListener('mousedown', listener);
+      document.removeEventListener('touchstart', listener);
+    };
+  }, [ref, handler]);
+};
 import { sideMenuRoutes } from '../routes/sideMenuConfig'
 import WorkspaceSwitcher from './workspace/WorkspaceSwitcher'
 import ActiveWorkspaceIndicator from './workspace/ActiveWorkspaceIndicator'
@@ -49,6 +69,50 @@ interface DashboardLayoutProps {
   children: React.ReactNode
 }
 
+// Helper function to format role name professionally
+const formatRoleName = (role: string | null | undefined): string => {
+  if (!role) return '';
+  
+  const roleStr = typeof role === 'string' ? role : role.toString();
+  
+  // Map role names to display format
+  const roleMap: Record<string, string> = {
+    'super_admin': 'Super Admin',
+    'org_admin': 'Organization Admin',
+    'organization_admin': 'Organization Admin',
+    'school_admin': 'School Admin',
+    'institution_admin': 'Institution Admin',
+    'teacher': 'Teacher',
+    'student': 'Student',
+    'parent': 'Parent',
+  };
+  
+  return roleMap[roleStr.toLowerCase()] || roleStr
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
+// Helper function to get role badge color
+const getRoleBadgeColor = (role: string | null | undefined): string => {
+  if (!role) return 'bg-gray-100 text-gray-700';
+  
+  const roleStr = typeof role === 'string' ? role : role.toString().toLowerCase();
+  
+  const colorMap: Record<string, string> = {
+    'super_admin': 'bg-purple-100 text-purple-700',
+    'org_admin': 'bg-blue-100 text-blue-700',
+    'organization_admin': 'bg-blue-100 text-blue-700',
+    'school_admin': 'bg-indigo-100 text-indigo-700',
+    'institution_admin': 'bg-indigo-100 text-indigo-700',
+    'teacher': 'bg-green-100 text-green-700',
+    'student': 'bg-amber-100 text-amber-700',
+    'parent': 'bg-teal-100 text-teal-700',
+  };
+  
+  return colorMap[roleStr] || 'bg-gray-100 text-gray-700';
+};
+
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -62,6 +126,68 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const dispatch = useDispatch()
   const navigate = useNavigate()
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
+  const { profileDetails } = useSelector((state: any) => state.auth)
+  const profileDropdownRef = useRef<HTMLDivElement>(null)
+  
+  // Get user role from profileDetails or user state - handle enum format
+  const getUserRole = (): string | null => {
+    try {
+      // Try profileDetails roles first
+      if (profileDetails?.roles && Array.isArray(profileDetails.roles) && profileDetails.roles.length > 0) {
+        const firstRole = profileDetails.roles[0];
+        if (firstRole?.name) {
+          // Handle enum format: role.name.value or role.name directly
+          if (typeof firstRole.name === 'string') {
+            return firstRole.name;
+          }
+          const roleValue = firstRole.name?.value || firstRole.name?.toString() || '';
+          return roleValue || null;
+        }
+      }
+      // Fallback to user.role or role from useStoreData
+      return user?.role || role || null;
+    } catch (error) {
+      console.error('Error getting user role:', error);
+      return null;
+    }
+  };
+  
+  // Safely get formatted role and badge color
+  let formattedRole = '';
+  let roleBadgeColor = 'bg-gray-100 text-gray-700';
+  try {
+    const userRole = getUserRole();
+    if (userRole) {
+      formattedRole = formatRoleName(userRole);
+      roleBadgeColor = getRoleBadgeColor(userRole);
+    }
+  } catch (error) {
+    console.error('Error formatting role:', error);
+  }
+  
+  // Load profile details on mount and when user changes
+  useEffect(() => {
+    if (user?.token) {
+      // Always refresh profile details to ensure we have latest data
+      dispatch(getProfileDetails())
+    }
+  }, [user?.token, user?.id, dispatch])
+
+  // Close dropdown when clicking outside
+  // Delay to allow Link navigation to happen first
+  useClickOutside(profileDropdownRef, (event) => {
+    // Don't close if clicking on a Link inside the dropdown
+    const target = event.target as HTMLElement;
+    if (target.closest('a') && target.closest('[class*="z-[100]"]')) {
+      return;
+    }
+    if (profileDropdownOpen) {
+      // Small delay to allow navigation to complete
+      setTimeout(() => {
+        setProfileDropdownOpen(false);
+      }, 150);
+    }
+  })
 
   const handleLogout = async () => {
     try {
@@ -539,61 +665,158 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 </div>
               )}
             </div>
-            <div
-              className="relative"
-              onMouseEnter={() => setProfileDropdownOpen(true)}
-              onMouseLeave={() => setProfileDropdownOpen(false)}
-            >
-              <button className="flex items-center space-x-3 rounded-xl px-3 py-2 transition hover:bg-primary-50/40">
-                <div className="relative h-10 w-10 overflow-hidden rounded-full">
-                  <img
-                    src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80"
-                    alt="Profile"
-                    className="h-full w-full object-cover"
-                  />
+            <div className="relative" ref={profileDropdownRef}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setProfileDropdownOpen(!profileDropdownOpen);
+                }}
+                className="flex items-center space-x-3 rounded-xl px-3 py-2 transition hover:bg-primary-50/40 cursor-pointer"
+              >
+                <div className="relative h-10 w-10 overflow-hidden rounded-full flex-shrink-0">
+                  {(() => {
+                    // Construct profile picture URL - only use if it's a valid URL
+                    let profilePictureUrl = null;
+                    if (profileDetails?.profile_picture_url) {
+                      const urlValue = profileDetails.profile_picture_url;
+                      if (urlValue && urlValue.trim() !== '') {
+                        if (urlValue.startsWith('http')) {
+                          profilePictureUrl = urlValue;
+                        } else if (urlValue.startsWith('/')) {
+                          profilePictureUrl = `${baseURL}${urlValue}`;
+                        } else {
+                          profilePictureUrl = `${baseURL}/static/profile_pictures/${urlValue}`;
+                        }
+                      }
+                    } else if (user?.profile_picture_url) {
+                      const urlValue = user.profile_picture_url;
+                      if (urlValue && urlValue.trim() !== '') {
+                        if (urlValue.startsWith('http')) {
+                          profilePictureUrl = urlValue;
+                        } else if (urlValue.startsWith('/')) {
+                          profilePictureUrl = `${baseURL}${urlValue}`;
+                        } else {
+                          profilePictureUrl = `${baseURL}/static/profile_pictures/${urlValue}`;
+                        }
+                      }
+                    }
+                    
+                    // Get full name for avatar initials
+                    const fullNameForInitials = profileDetails?.full_name 
+                      || (profileDetails?.first_name || profileDetails?.last_name 
+                        ? `${profileDetails.first_name || ''} ${profileDetails.last_name || ''}`.trim()
+                        : null)
+                      || profileDetails?.username
+                      || user?.full_name
+                      || (user?.first_name || user?.last_name
+                        ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                        : null)
+                      || user?.username
+                      || profileDetails?.email?.split('@')[0]
+                      || user?.email?.split('@')[0]
+                      || 'User';
+                    
+                    return (
+                      <CustomAvatar
+                        userName={fullNameForInitials}
+                        url={profilePictureUrl}
+                        avatarClass="w-10 h-10"
+                        noUrlNameClass="text-base font-semibold"
+                        hideUsername={true}
+                      />
+                    );
+                  })()}
                 </div>
                 <ChevronDown className="w-4 h-4 text-primary-500" />
               </button>
 
               {/* Dropdown Menu */}
               {profileDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                <div 
+                  className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[100]"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   {/* User Info */}
                   <div className="px-4 py-3 border-b border-gray-200">
-                    <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {(() => {
+                        // Priority: username > full_name > first_name + last_name (NOT email)
+                        const displayName = profileDetails?.username 
+                          || profileDetails?.full_name
+                          || (profileDetails?.first_name || profileDetails?.last_name 
+                            ? `${profileDetails.first_name || ''} ${profileDetails.last_name || ''}`.trim() 
+                            : null)
+                          || user?.username
+                          || user?.full_name
+                          || (user?.first_name || user?.last_name
+                            ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                            : null);
+                        
+                        // Only fallback to email if no name is available
+                        return displayName || profileDetails?.email || user?.email || 'User';
+                      })()}
+                    </p>
+                    <p className="text-xs text-gray-500 truncate mt-0.5">
+                      {profileDetails?.email || user?.email || ''}
+                    </p>
+                    {formattedRole && formattedRole.trim() && (
+                      <div className="mt-2">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${roleBadgeColor || 'bg-gray-100 text-gray-700'}`}>
+                          {formattedRole}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Menu Items */}
-                  <button
-                    onClick={() => {
-                      setProfileDropdownOpen(false)
-                      // TODO: Navigate to profile page
+                  <Link
+                    to="/profile"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Navigate immediately, close dropdown after
+                      setTimeout(() => {
+                        setProfileDropdownOpen(false);
+                      }, 100);
                     }}
-                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
-                    <User className="w-4 h-4" />
+                    <User className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm">Profile</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setProfileDropdownOpen(false)
-                      // TODO: Navigate to settings page
+                  </Link>
+                  <Link
+                    to="/settings"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Navigate immediately, close dropdown after
+                      setTimeout(() => {
+                        setProfileDropdownOpen(false);
+                      }, 100);
                     }}
-                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
-                    <Settings className="w-4 h-4" />
+                    <Settings className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm">Settings</span>
-                  </button>
+                  </Link>
                   <div className="border-t border-gray-200 my-1"></div>
                   <button
-                    onClick={() => {
-                      setProfileDropdownOpen(false)
-                      handleLogout()
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setProfileDropdownOpen(false);
+                      handleLogout();
                     }}
-                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200"
+                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative"
                   >
-                    <LogOut className="w-4 h-4" />
+                    <LogOut className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm">Sign out</span>
                   </button>
                 </div>
@@ -604,12 +827,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
         </div>
 
         {/* Mobile Profile Button */}
-        <div className="lg:hidden fixed top-3 right-4 z-50">
-          <div
-            className="relative"
-            onMouseEnter={() => setProfileDropdownOpen(true)}
-            onMouseLeave={() => setProfileDropdownOpen(false)}
-          >
+        <div className="lg:hidden fixed top-3 right-4 z-50" ref={profileDropdownRef}>
+          <div className="relative">
             <div className="mb-3 flex items-center justify-end gap-2">
               <button className="flex h-10 w-10 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-500 transition hover:border-primary-200 hover:text-primary-600">
                 <Mail className="h-5 w-5" />
@@ -619,55 +838,147 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
               </button>
             </div>
             <button
-              onClick={() => setProfileDropdownOpen(!profileDropdownOpen)}
-              className="h-11 w-11 overflow-hidden rounded-full"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setProfileDropdownOpen(!profileDropdownOpen);
+              }}
+              className="h-11 w-11 overflow-hidden rounded-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 cursor-pointer flex-shrink-0"
             >
-              <img
-                src="https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&q=80"
-                alt="Profile"
-                className="h-full w-full object-cover"
-              />
+              {(() => {
+                // Construct profile picture URL - only use if it's a valid URL
+                let profilePictureUrl = null;
+                if (profileDetails?.profile_picture_url) {
+                  const urlValue = profileDetails.profile_picture_url;
+                  if (urlValue && urlValue.trim() !== '') {
+                    if (urlValue.startsWith('http')) {
+                      profilePictureUrl = urlValue;
+                    } else if (urlValue.startsWith('/')) {
+                      profilePictureUrl = `${baseURL}${urlValue}`;
+                    } else {
+                      profilePictureUrl = `${baseURL}/static/profile_pictures/${urlValue}`;
+                    }
+                  }
+                } else if (user?.profile_picture_url) {
+                  // Fallback to user state if profileDetails not loaded yet
+                  const urlValue = user.profile_picture_url;
+                  if (urlValue && urlValue.trim() !== '') {
+                    if (urlValue.startsWith('http')) {
+                      profilePictureUrl = urlValue;
+                    } else if (urlValue.startsWith('/')) {
+                      profilePictureUrl = `${baseURL}${urlValue}`;
+                    } else {
+                      profilePictureUrl = `${baseURL}/static/profile_pictures/${urlValue}`;
+                    }
+                  }
+                }
+                
+                // Get full name for avatar initials - prioritize actual name fields
+                const fullNameForInitials = profileDetails?.full_name 
+                  || (profileDetails?.first_name || profileDetails?.last_name 
+                    ? `${profileDetails.first_name || ''} ${profileDetails.last_name || ''}`.trim()
+                    : null)
+                  || profileDetails?.username
+                  || user?.full_name
+                  || (user?.first_name || user?.last_name
+                    ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                    : null)
+                  || user?.username
+                  || profileDetails?.email?.split('@')[0]
+                  || user?.email?.split('@')[0]
+                  || 'User';
+                
+                return (
+                  <CustomAvatar
+                    userName={fullNameForInitials}
+                    url={profilePictureUrl}
+                    avatarClass="w-11 h-11"
+                    noUrlNameClass="text-lg font-semibold"
+                    hideUsername={true}
+                  />
+                );
+              })()}
             </button>
 
             {/* Mobile Dropdown Menu */}
             {profileDropdownOpen && (
-              <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+              <div 
+                className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-[100]"
+                onClick={(e) => e.stopPropagation()}
+              >
                 {/* User Info */}
                 <div className="px-4 py-3 border-b border-gray-200">
-                  <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                  <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+                  <p className="text-sm font-medium text-gray-900">
+                    {(() => {
+                      // Priority: username > full_name > first_name + last_name (NOT email)
+                      const displayName = profileDetails?.username 
+                        || profileDetails?.full_name
+                        || (profileDetails?.first_name || profileDetails?.last_name 
+                          ? `${profileDetails.first_name || ''} ${profileDetails.last_name || ''}`.trim() 
+                          : null)
+                        || user?.username
+                        || user?.full_name
+                        || (user?.first_name || user?.last_name
+                          ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                          : null);
+                      
+                      // Only fallback to email if no name is available
+                      return displayName || profileDetails?.email || user?.email || 'User';
+                    })()}
+                  </p>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {profileDetails?.email || user?.email || ''}
+                  </p>
                 </div>
 
                 {/* Menu Items */}
-                <button
-                  onClick={() => {
-                    setProfileDropdownOpen(false)
-                    // TODO: Navigate to profile page
+                <Link
+                  to="/profile"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate immediately, close dropdown after
+                    setTimeout(() => {
+                      setProfileDropdownOpen(false);
+                    }, 100);
                   }}
-                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                 >
-                  <User className="w-4 h-4" />
+                  <User className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm">Profile</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setProfileDropdownOpen(false)
-                    // TODO: Navigate to settings page
+                </Link>
+                <Link
+                  to="/settings"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    // Navigate immediately, close dropdown after
+                    setTimeout(() => {
+                      setProfileDropdownOpen(false);
+                    }, 100);
                   }}
-                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200"
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                  }}
+                  className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                 >
-                  <Settings className="w-4 h-4" />
+                  <Settings className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm">Settings</span>
-                </button>
+                </Link>
                 <div className="border-t border-gray-200 my-1"></div>
                 <button
-                  onClick={() => {
-                    setProfileDropdownOpen(false)
-                    handleLogout()
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setProfileDropdownOpen(false);
+                    handleLogout();
                   }}
-                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200"
+                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative"
                 >
-                  <LogOut className="w-4 h-4" />
+                  <LogOut className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm">Sign out</span>
                 </button>
               </div>

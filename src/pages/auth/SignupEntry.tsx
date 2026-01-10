@@ -16,7 +16,7 @@ const SignupEntry: React.FC = () => {
     },
     {
       id: 'institution',
-      title: 'Institution Admin',
+      title: 'Institution',
       description: 'Create and manage a single institution',
       icon: Building2,
       path: '/signup/institution',
@@ -24,7 +24,7 @@ const SignupEntry: React.FC = () => {
     },
     {
       id: 'organization',
-      title: 'Organization Admin',
+      title: 'Organization',
       description: 'Create an organization and manage multiple institutions',
       icon: Users,
       path: '/signup/organization',

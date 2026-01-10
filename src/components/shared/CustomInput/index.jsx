@@ -42,7 +42,7 @@ export const CustomInput = ({
 
   return (
     <div className={'relative w-full'}>
-      {label && !title && (
+      {label && !title && !icon && (
         <label
           className={`absolute left-3 text-xs ${
             required ? '-top-[12px]' : '-top-[8px]'
@@ -54,19 +54,23 @@ export const CustomInput = ({
           {required && <span className='text-danger text-[16px] ml-1'>*</span>}
         </label>
       )}
-      {(icon || title) && (
-        <div className='flex gap-0.5 items-center mb-1'>
-          <div className='flex items-center gap-1 text-sm font-medium text-secondary-dark '>
-            {icon}
-          </div>
-          <p
-            className={`text-[14px] 
-           text-nowrap  px-1 transition-all duration-200
-            ${error ? 'text-danger' : 'text-secondary-dark'}
-          `}
-          >
-            {title}
-          </p>
+      {(icon || title || (label && icon)) && (
+        <div className='flex items-center gap-2 mb-2'>
+          {icon && (
+            <div className='flex items-center text-secondary-dark'>
+              {icon}
+            </div>
+          )}
+          {(title || (label && icon)) && (
+            <label
+              className={`text-sm font-medium transition-all duration-200
+                ${error ? 'text-danger' : 'text-secondary-dark'}
+              `}
+            >
+              {title || label}
+              {required && <span className='text-danger text-[16px] ml-1'>*</span>}
+            </label>
+          )}
         </div>
       )}
 

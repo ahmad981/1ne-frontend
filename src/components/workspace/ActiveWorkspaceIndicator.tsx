@@ -7,12 +7,21 @@ import { Building2, Users, User } from 'lucide-react';
 const ActiveWorkspaceIndicator: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
   const { activeMembership, memberships } = useSelector((state: any) => state.membership);
+  const user = useSelector((state: any) => state?.auth?.user);
+  
+  // Hide for super admin - they don't need workspace indicator
+  const isSuperAdmin = user?.role === 'super_admin';
 
   useEffect(() => {
-    if (memberships.length === 0) {
+    if (!isSuperAdmin && memberships.length === 0) {
       dispatch(fetchMemberships());
     }
-  }, [dispatch, memberships.length]);
+  }, [dispatch, memberships.length, isSuperAdmin]);
+
+  // Hide for super admin
+  if (isSuperAdmin) {
+    return null;
+  }
 
   if (!activeMembership && memberships.length === 0) {
     return null;

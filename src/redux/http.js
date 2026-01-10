@@ -40,7 +40,19 @@ axiosInstance.interceptors.request.use(
       }
     }
 
-    console.log(`[Axios] ${config.method?.toUpperCase()} ${config.url}`);
+    // Don't override Content-Type for FormData - let browser set it with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
+    const fullUrl = config.baseURL 
+      ? `${config.baseURL}${config.url.startsWith('/') ? '' : '/'}${config.url}`
+      : config.url;
+    console.log(`[Axios] ${config.method?.toUpperCase()} ${fullUrl}`);
+    console.log(`[Axios] Headers:`, {
+      Authorization: config.headers.Authorization ? 'Bearer ***' : 'None',
+      'Content-Type': config.headers['Content-Type'] || 'None',
+    });
     return config;
   },
   (error) => {
@@ -106,8 +118,17 @@ axiosInstance.interceptors.response.use(
       return Promise.reject(offlineError);
     }
 
-    // Handle 401 Unauthorized - logout user
+    // Handle 401 Unauthorized - logout user (but NOT for password change errors)
+    // Password change endpoint returns 401 for wrong password, which is a validation error, not auth error
     if (error?.response?.status === 401) {
+      const requestUrl = error?.config?.url || '';
+      
+      // Don't logout on password change errors - these are validation errors, not auth errors
+      if (requestUrl.includes('/change-password') || requestUrl.includes('/change_password')) {
+        // Just reject the error, don't logout
+        return Promise.reject(error);
+      }
+      
       try {
         // Use dynamic import with timeout protection to prevent hanging
         let timeoutId;

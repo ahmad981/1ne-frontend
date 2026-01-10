@@ -34,11 +34,29 @@ export const CustomAvatar = ({
     setImageError(true);
   };
 
+  // Always show avatar - either image or initials
+  const showImage = url && !imageError;
+  const initial = (() => {
+    if (!userName || userName.trim() === '') return 'U';
+    // Get first letter of first word (first name or username)
+    const firstWord = userName.trim().split(' ')[0];
+    return firstWord.charAt(0).toUpperCase();
+  })();
+
+  // Professional background color - using primary blue (#0284c7) or fallback to blue-500
+  const avatarBgColor = showImage ? 'transparent' : '#0284c7'; // primary-600 from tailwind config
+
   const avatar = (
     <div
-      className={`w-[30px] h-[30px] rounded-full flex items-center justify-center bg-primary overflow-hidden flex-shrink-0 ${avatarClass}`}
+      className={`rounded-full flex items-center justify-center overflow-hidden flex-shrink-0 ${showImage ? '' : 'bg-primary-600'} ${avatarClass || 'w-[30px] h-[30px]'}`}
+      style={{
+        ...(avatarClass ? {} : { width: '30px', height: '30px' }),
+        backgroundColor: showImage ? 'transparent' : '#0284c7', // Force blue background when no image
+        minWidth: avatarClass ? undefined : '30px',
+        minHeight: avatarClass ? undefined : '30px',
+      }}
     >
-      {url && !imageError ? (
+      {showImage ? (
         <img
           key={imageKey}
           src={url}
@@ -48,8 +66,20 @@ export const CustomAvatar = ({
           loading="lazy"
         />
       ) : (
-        <span className={`text-[14px] leading-none text-white ${noUrlNameClass}`}>
-          {userName?.charAt(0).toUpperCase() || 'U'}
+        <span 
+          className="text-white font-semibold leading-none"
+          style={{ 
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: '100%',
+            height: '100%',
+            userSelect: 'none',
+            lineHeight: '1',
+            fontSize: avatarClass ? (noUrlNameClass ? undefined : '14px') : '14px',
+          }}
+        >
+          {initial}
         </span>
       )}
     </div>

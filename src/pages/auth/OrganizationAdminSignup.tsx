@@ -108,10 +108,10 @@ const OrganizationAdminSignup: React.FC = () => {
 
     try {
       const result = await dispatch(signup(signupData)).unwrap();
+      // Store tokens if they exist, but don't navigate yet - show success modal first
       if (result.tokens) {
         localStorage.setItem('access_token', result.tokens.access_token);
         localStorage.setItem('refresh_token', result.tokens.refresh_token);
-        navigate('/dashboard');
       }
     } catch (err) {
       console.error('Signup error:', err);
@@ -125,8 +125,11 @@ const OrganizationAdminSignup: React.FC = () => {
           <h2 className="text-2xl font-bold text-green-600 mb-4">Signup Successful!</h2>
           <p className="text-gray-600 mb-4">Your organization has been created successfully.</p>
           <button
-            onClick={() => navigate('/login')}
-            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700"
+            onClick={() => {
+              // Navigate to login page
+              navigate('/login');
+            }}
+            className="w-full bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 transition-colors"
           >
             Go to Login
           </button>
@@ -138,7 +141,7 @@ const OrganizationAdminSignup: React.FC = () => {
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl w-full bg-white rounded-lg shadow-md p-8">
-        <h2 className="text-2xl font-bold text-gray-900 mb-6">Organization Admin Signup</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Organization Signup</h2>
 
         <div className="mb-4">
           <div className="flex items-center">
@@ -168,7 +171,7 @@ const OrganizationAdminSignup: React.FC = () => {
 
         {step === 1 && (
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold mb-4">Admin Account Information</h3>
+            <h3 className="text-lg font-semibold mb-4">Account Information</h3>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <input
