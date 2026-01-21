@@ -43,3 +43,8 @@ export const persistor = persistStore(store);
 // This allows axios to access Redux state for auth token
 import { setStoreReference } from './http';
 setStoreReference(store);
+
+// Set store reference in api/client.ts for fetch API client
+// This allows the new API client to access Redux state for auth token (same as axios)
+import { setStoreReference as setApiClientStoreReference } from '../api/client';
+setApiClientStoreReference(store);

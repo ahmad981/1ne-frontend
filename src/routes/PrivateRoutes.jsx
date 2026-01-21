@@ -18,7 +18,14 @@ const PrivateRoutes = () => {
 
   // Wait until redux-persist finishes rehydration to avoid false redirects
   if (!isRehydrated) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
   }
 
   if (token) {

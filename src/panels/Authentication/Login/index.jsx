@@ -16,8 +16,20 @@ import TenantSelection from '../../../components/auth/TenantSelection';
 export const Login = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
-  const { toast } = useSnackbar();
-  const { loginChallenge, user } = useSelector((state) => state.auth);
+  
+  // Hooks must be called unconditionally
+  const snackbarHook = useSnackbar();
+  const toast = snackbarHook?.toast || {
+    success: () => {},
+    error: (msg) => console.error('[Login Error]:', msg),
+    warning: () => {},
+    info: () => {},
+  };
+  
+  // Safe Redux state access with fallbacks
+  const authState = useSelector((state) => state?.auth) || {};
+  const { loginChallenge, user } = authState;
+  const isRehydrated = useSelector((state) => state?._persist?.rehydrated) ?? false;
 
   const [formData, setFormData] = useState({
     email: '',
@@ -28,11 +40,52 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
+  // Show loading state while Redux is rehydrating
+  if (!isRehydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // CRITICAL: If user is already authenticated, redirect immediately
+  // This prevents login page from showing after successful login
+  useEffect(() => {
+    if (user?.token && isRehydrated) {
+      // User is already logged in - redirect to dashboard immediately
+      const userRole = user?.role || '';
+      const firstPath = getFirstRouteByRole(userRole) || '/dashboard';
+      console.log('[Login] User already authenticated, redirecting to:', firstPath);
+      navigate(firstPath, { replace: true });
+    }
+  }, [user, isRehydrated, navigate]);
+
+  // CRITICAL: Don't render login form if user is already authenticated
+  // This prevents the login page from showing briefly after successful login
+  if (user?.token && isRehydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Redirecting...</p>
+        </div>
+      </div>
+    );
+  }
+
   // Clear challenge when component unmounts
   useEffect(() => {
     return () => {
-      if (loginChallenge) {
-        dispatch(clearLoginChallenge());
+      try {
+        if (loginChallenge) {
+          dispatch(clearLoginChallenge());
+        }
+      } catch (error) {
+        console.error('[Login] Error clearing challenge:', error);
       }
     };
   }, [dispatch, loginChallenge]);
@@ -149,11 +202,10 @@ export const Login = () => {
         
         console.log('[Login] Login successful, role:', role, 'navigating to:', firstPath);
         
-        // Wait for Redux state to update before navigating
-        // This ensures PrivateRoutes can see the user in Redux state
-        setTimeout(() => {
-          navigate(firstPath, { replace: true });
-        }, 150);
+        // Navigate immediately - Redux state is already updated by the reducer
+        // The useEffect above will handle redirect if user is already authenticated
+        // Use replace: true to avoid login page appearing in browser history
+        navigate(firstPath, { replace: true });
       } else if (result?.meta?.requestStatus === 'rejected') {
         // Request was rejected - extract error message
         setLoading(false);
@@ -175,14 +227,18 @@ export const Login = () => {
         
         console.error('[Login] Showing error:', errorMessage);
         setLoginError(errorMessage);
-        toast.error(errorMessage);
+        if (toast?.error) {
+          toast.error(errorMessage);
+        }
       } else {
         // Unknown status - this shouldn't happen but handle it
         setLoading(false);
         console.error('[Login] Unknown request status:', result?.meta?.requestStatus, result);
         const unknownError = 'Login failed. Please try again.';
         setLoginError(unknownError);
-        toast.error(unknownError);
+        if (toast?.error) {
+          toast.error(unknownError);
+        }
       }
     } catch (err) {
       setLoading(false);
@@ -203,7 +259,9 @@ export const Login = () => {
       
       console.error('[Login] Showing exception error:', errorMessage);
       setLoginError(errorMessage);
-      toast.error(errorMessage);
+      if (toast?.error) {
+        toast.error(errorMessage);
+      }
     }
   };
 
@@ -243,8 +301,14 @@ export const Login = () => {
           navigate(firstPath || '/dashboard', { replace: true });
         }}
         onError={(error) => {
-          toast.error(error);
-          dispatch(clearLoginChallenge());
+          if (toast?.error) {
+            toast.error(error);
+          }
+          try {
+            dispatch(clearLoginChallenge());
+          } catch (err) {
+            console.error('[Login] Error clearing challenge:', err);
+          }
         }}
       />
     );

@@ -17,6 +17,7 @@ import {
   GraduationCap,
   Users,
   Lightbulb,
+  Crown,
 } from 'lucide-react';
 
 const teacherMenu = [
@@ -40,6 +41,7 @@ const teacherMenu = [
   { path: '/analytics', text: 'Analytics', icon: BarChart3 },
   { path: '/use-cases', text: 'Explore Use Cases', icon: Lightbulb },
   { path: '/profile', text: 'Profile', icon: User },
+  { path: '/subscription', text: 'Subscription', icon: Crown },
   { path: '/settings', text: 'Settings', icon: Settings },
 ];
 

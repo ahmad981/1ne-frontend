@@ -118,6 +118,7 @@ import Reporting from '../pages/features/Reporting';
 import Assessment from '../pages/features/Assessment';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
+import Subscription from '../pages/Subscription';
 import ExploreUseCases from '../pages/ExploreUseCases';
 
 export const commonRoutes = [
@@ -141,6 +142,15 @@ export const commonRoutes = [
     element: (
       <DashboardLayout>
         <Profile />
+      </DashboardLayout>
+    ),
+  },
+  {
+    path: '/subscription',
+    moduleName: 'Subscription',
+    element: (
+      <DashboardLayout>
+        <Subscription />
       </DashboardLayout>
     ),
   },

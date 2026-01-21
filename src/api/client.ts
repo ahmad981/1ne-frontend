@@ -32,8 +32,128 @@ const toQueryString = (query?: Record<string, string | number | boolean | undefi
   return params
 }
 
-// Helper to get auth token from Redux persisted state (synced with store)
+// Store reference for accessing auth token from Redux (same as http.js)
+let storeRef: any = null
+
+// Function to set store reference (called from store.js after store creation)
+export const setStoreReference = (store: any) => {
+  storeRef = store
+}
+
+// Helper to check if token is expired (JWT tokens contain exp claim)
+function isTokenExpired(token: string): boolean {
+  try {
+    // JWT tokens are base64url encoded with 3 parts: header.payload.signature
+    const parts = token.split('.')
+    if (parts.length !== 3) {
+      return true // Invalid token format
+    }
+    
+    // Decode payload (second part)
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    
+    // Check if token has expiration claim
+    if (!payload.exp) {
+      return false // No expiration claim - assume valid (shouldn't happen in our system)
+    }
+    
+    // Check if token is expired (exp is in seconds since epoch)
+    const expirationTime = payload.exp * 1000 // Convert to milliseconds
+    const currentTime = Date.now()
+    
+    // Add 60 second buffer to refresh before actual expiration
+    const bufferTime = 60 * 1000 // 60 seconds
+    
+    return currentTime >= (expirationTime - bufferTime)
+  } catch (error) {
+    console.warn('[isTokenExpired] Failed to check token expiration:', error)
+    return true // Assume expired if we can't decode
+  }
+}
+
+// Helper to try refreshing the token
+async function tryRefreshToken(): Promise<boolean> {
+  try {
+    const persistedState = localStorage.getItem('persist:root')
+    if (!persistedState) return false
+    
+    const parsed = JSON.parse(persistedState)
+    const authState = parsed?.auth ? JSON.parse(parsed.auth) : null
+    const refreshToken = authState?.user?.refresh_token
+    
+    if (!refreshToken) {
+      console.warn('[apiRequest] No refresh token available')
+      return false
+    }
+    
+    // Call refresh token API (API_BASE_URL already includes /api, so we need /auth/refresh not /v1/auth/refresh)
+    const refreshUrl = buildUrl('/auth/refresh')
+    const refreshResponse = await fetch(refreshUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    })
+    
+    if (!refreshResponse.ok) {
+      console.warn('[apiRequest] Token refresh failed')
+      return false
+    }
+    
+    const refreshData = await refreshResponse.json()
+    
+    if (refreshData?.access_token) {
+      // Update token in localStorage
+      authState.user.token = refreshData.access_token
+      if (refreshData.refresh_token) {
+        authState.user.refresh_token = refreshData.refresh_token
+      }
+      parsed.auth = JSON.stringify(authState)
+      localStorage.setItem('persist:root', JSON.stringify(parsed))
+      
+      // Update Redux store if available
+      if (storeRef) {
+        try {
+          const state = storeRef.getState()
+          if (state?.auth?.user) {
+            state.auth.user.token = refreshData.access_token
+            if (refreshData.refresh_token) {
+              state.auth.user.refresh_token = refreshData.refresh_token
+            }
+          }
+        } catch (e) {
+          console.warn('[apiRequest] Could not update Redux store:', e)
+        }
+      }
+      
+      console.log('[apiRequest] ✅ Token refreshed successfully')
+      return true
+    }
+    
+    return false
+  } catch (error) {
+    console.error('[apiRequest] Error refreshing token:', error)
+    return false
+  }
+}
+
+// Helper to get auth token from Redux store (same way as Redux axios does)
 const getAuthToken = (): string | null => {
+  // First try: Get from Redux store directly (most reliable, same as http.js)
+  if (storeRef) {
+    try {
+      const state = storeRef.getState()
+      const token = state?.auth?.user?.token
+      if (token) {
+        return token
+      }
+    } catch (error) {
+      console.warn('[getAuthToken] Could not get token from Redux store:', error)
+    }
+  }
+  
+  // Fallback: Get from localStorage (for cases where store not yet initialized)
   try {
     const persistedState = localStorage.getItem('persist:root')
     if (persistedState) {
@@ -47,7 +167,7 @@ const getAuthToken = (): string | null => {
   return null
 }
 
-const buildUrl = (path: string, query?: Record<string, string | number | boolean | undefined>): string => {
+export const buildUrl = (path: string, query?: Record<string, string | number | boolean | undefined>): string => {
   const normalizedPath = path.startsWith('http') ? path : `${API_BASE_URL}/${path.replace(/^\//, '')}`
   const url = new URL(normalizedPath)
   const params = toQueryString(query)
@@ -83,7 +203,31 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     : abortController.signal
 
   // Get auth token if available (for authenticated requests)
-  const authToken = getAuthToken()
+  let authToken = getAuthToken()
+  
+  // CRITICAL: Check if token is expired BEFORE making the request
+  // This prevents 401 errors by refreshing proactively
+  if (authToken && isTokenExpired(authToken)) {
+    console.warn('[apiRequest] ⚠️ Token is expired or about to expire, attempting refresh...')
+    const refreshSuccess = await tryRefreshToken()
+    
+    if (refreshSuccess) {
+      // Get new token after refresh
+      authToken = getAuthToken()
+      console.log('[apiRequest] ✅ Token refreshed proactively, new token:', authToken ? authToken.substring(0, 20) + '...' : 'MISSING')
+    } else {
+      console.warn('[apiRequest] ⚠️ Token refresh failed, will proceed with expired token (will retry on 401)')
+      // Continue with expired token - will retry refresh on 401 error
+    }
+  }
+  
+  // Debug logging for auth token
+  if (!authToken) {
+    console.warn('[apiRequest] ⚠️ No auth token found')
+    console.warn('[apiRequest] ⚠️ Make sure you are logged in')
+  } else {
+    console.log('[apiRequest] ✅ Auth token:', authToken.substring(0, 20) + '...')
+  }
   
   // Build headers - automatically include Authorization if token exists
   // Custom headers passed in will override these defaults
@@ -93,6 +237,11 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     ...(authToken ? { 'Authorization': `Bearer ${authToken}` } : {}),
     ...headers, // Custom headers override defaults
   }
+  
+  console.log('[apiRequest] 📤 Request headers:', {
+    'Content-Type': requestHeaders['Content-Type'],
+    'Authorization': authToken ? `${authToken.substring(0, 20)}...` : 'None',
+  })
 
   try {
     const response = await fetch(url, {
@@ -119,7 +268,49 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (!response.ok) {
       // Handle 401 Unauthorized - token may be expired
       if (response.status === 401) {
-        // Clear auth token from localStorage if present
+        console.error('[apiRequest] ❌ 401 Unauthorized - Authentication failed')
+        console.error('[apiRequest] Response:', payload)
+        console.error('[apiRequest] Token was:', authToken ? `${authToken.substring(0, 30)}...` : 'MISSING')
+        
+        // Try to refresh token if refresh_token is available
+        const shouldRetry = await tryRefreshToken()
+        
+        if (shouldRetry) {
+          console.log('[apiRequest] 🔄 Token refreshed, retrying request...')
+          // Get new token
+          const newToken = getAuthToken()
+          if (newToken) {
+            // Retry the request with new token
+            const retryHeaders: HeadersInit = {
+              ...requestHeaders,
+              'Authorization': `Bearer ${newToken}`
+            }
+            
+            const retryResponse = await fetch(url, {
+              ...rest,
+              signal: combinedSignal,
+              headers: retryHeaders,
+              body: body !== undefined ? JSON.stringify(body) : undefined,
+            })
+            
+            clearTimeout(timeoutId)
+            
+            const retryContentType = retryResponse.headers.get('content-type')
+            const retryPayload = retryContentType && retryContentType.includes('application/json')
+              ? await retryResponse.json()
+              : await retryResponse.text()
+            
+            if (retryResponse.ok) {
+              return retryPayload as T
+            } else {
+              // Retry failed, use the retry response as the error
+              const error = new ApiError(retryResponse.status, `Request failed after token refresh: ${(retryPayload as any)?.detail || retryResponse.statusText}`, retryPayload)
+              throw error
+            }
+          }
+        }
+        
+        // If refresh failed or no refresh token, clear auth and throw error
         try {
           const persistedState = localStorage.getItem('persist:root')
           if (persistedState) {
@@ -134,6 +325,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
                 parsed.auth = JSON.stringify(authState)
                 localStorage.setItem('persist:root', JSON.stringify(parsed))
                 console.warn('[apiRequest] ⚠️ Token expired, cleared from storage')
+                console.warn('[apiRequest] 💡 Please log in again')
               }
             }
           }

@@ -1,5 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
+import { flushSync } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
+import * as chatbotApi from '../../api/chatbots'
+import * as subscriptionApi from '../../api/subscriptions'
+// @ts-ignore - useSnackbar is a JS file
+import { useSnackbar } from '../../hooks/useSnackbar'
 import {
   ArrowLeft,
   Send,
@@ -51,6 +56,7 @@ import {
   Bookmark,
   ChevronRight,
   Globe,
+  Lock,
 } from 'lucide-react'
 
 export interface Message {
@@ -63,7 +69,8 @@ export interface Message {
 interface Conversation {
   id: string
   title: string
-  messages: Message[]
+  messages?: Message[] // Optional - lazy loaded from API
+  message_count?: number // From API list response
   createdAt: Date
   updatedAt: Date
 }
@@ -73,6 +80,10 @@ const GeneralTeachingAssistantChat = () => {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  // CRITICAL: Separate state for streaming content (like templates use formattedContent)
+  // This ensures word-by-word updates without React batching array updates
+  const [streamingContent, setStreamingContent] = useState<string>('')
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null)
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null)
@@ -92,11 +103,19 @@ const GeneralTeachingAssistantChat = () => {
   const [isListening, setIsListening] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(false)
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const isRecordingRef = useRef(false)
   const [responseLength, setResponseLength] = useState<'short' | 'medium' | 'long'>('medium')
   const [webSearchEnabled, setWebSearchEnabled] = useState(false)
   const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [showLengthMenu, setShowLengthMenu] = useState(false)
   const [customPrompts, setCustomPrompts] = useState<string[]>([])
+  const [showCustomPromptsModal, setShowCustomPromptsModal] = useState(false)
+  const [newCustomPrompt, setNewCustomPrompt] = useState('')
+  const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium' | 'enterprise'>('free')
+  const [quota, setQuota] = useState<subscriptionApi.QuotaSummary | null>(null)
+  const [featureAccess, setFeatureAccess] = useState<Record<string, boolean>>({})
+  const { toast } = useSnackbar()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -104,194 +123,596 @@ const GeneralTeachingAssistantChat = () => {
   const documentInputRef = useRef<HTMLInputElement>(null)
   const allFilesInputRef = useRef<HTMLInputElement>(null)
 
-  // Load conversations from localStorage on mount
+  const CHATBOT_SLUG = 'general-teaching-assistant'
+
+  // Load subscription and quota info - only on mount and when needed
   useEffect(() => {
-    const savedConversations = localStorage.getItem('general-teaching-assistant-conversations')
-    const savedCurrentId = localStorage.getItem('general-teaching-assistant-current-conversation')
-    
-    if (savedConversations) {
-      const parsed = JSON.parse(savedConversations).map((conv: any) => ({
-        ...conv,
-        messages: conv.messages.map((msg: any) => ({
-          ...msg,
-          timestamp: new Date(msg.timestamp),
-        })),
-        createdAt: new Date(conv.createdAt),
-        updatedAt: new Date(conv.updatedAt),
-      }))
-      setConversations(parsed)
-      
-      if (savedCurrentId && parsed.find((c: Conversation) => c.id === savedCurrentId)) {
-        setCurrentConversationId(savedCurrentId)
-        const currentConv = parsed.find((c: Conversation) => c.id === savedCurrentId)
-        if (currentConv) {
-          setMessages(currentConv.messages)
+    const loadSubscriptionInfo = async () => {
+      try {
+        const [subscription, features, quotaData] = await Promise.all([
+          subscriptionApi.getMySubscription().catch(() => null),
+          subscriptionApi.getMyFeatures().catch(() => null),
+          subscriptionApi.getQuotaSummary().catch(() => null),
+        ])
+
+        if (subscription) {
+          setSubscriptionTier(subscription.tier)
         }
+
+        if (features) {
+          const accessMap: Record<string, boolean> = {}
+          features.features.forEach((f) => {
+            accessMap[f.feature_key] = f.is_enabled
+          })
+          setFeatureAccess(accessMap)
+        }
+
+        if (quotaData) {
+          setQuota(quotaData)
+        }
+      } catch (error) {
+        console.error('Error loading subscription info:', error)
       }
+    }
+
+    // Load once on mount
+    loadSubscriptionInfo()
+
+    // Only refresh when window regains focus (user comes back to tab)
+    // This catches upgrades without excessive polling
+    const handleFocus = () => {
+      loadSubscriptionInfo()
+    }
+    
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('focus', handleFocus)
     }
   }, [])
 
-  // Save conversations to localStorage whenever they change
+  // Load conversations list from API on mount (metadata only - ChatGPT-like approach)
   useEffect(() => {
-    if (conversations.length > 0) {
-      localStorage.setItem('general-teaching-assistant-conversations', JSON.stringify(conversations))
+    const loadConversations = async () => {
+      try {
+        // Only load conversation list (metadata) - no messages
+        const apiConversations = await chatbotApi.listConversations(CHATBOT_SLUG)
+        
+        // Convert to component format (metadata only, no messages)
+        const formattedConversations: Conversation[] = apiConversations.map((conv) => ({
+          id: conv.id,
+          title: conv.title || 'Untitled Conversation',
+          messages: undefined, // Lazy loaded when selected
+          message_count: conv.message_count,
+          createdAt: new Date(conv.created_at),
+          updatedAt: new Date(conv.updated_at),
+        }))
+        
+        setConversations(formattedConversations)
+        
+        // If there's a saved current conversation ID, load it
+        const savedCurrentId = localStorage.getItem('general-teaching-assistant-current-conversation')
+        if (savedCurrentId && formattedConversations.some((c) => c.id === savedCurrentId)) {
+          setCurrentConversationId(savedCurrentId)
+          // Lazy load messages for this conversation
+          loadConversationMessages(savedCurrentId)
+        }
+      } catch (error) {
+        console.error('Error loading conversations:', error)
+        setConversations([])
+      }
     }
-  }, [conversations])
+
+    loadConversations()
+  }, [])
+
+  // Helper to lazy-load messages for a conversation
+  const loadConversationMessages = async (conversationId: string) => {
+    try {
+      const detail = await chatbotApi.getConversation(conversationId)
+      const loadedMessages: Message[] = detail.messages.map((msg) => ({
+        id: msg.id,
+        role: msg.role as 'user' | 'assistant',
+        content: msg.content,
+        timestamp: new Date(msg.created_at),
+      }))
+      setMessages(loadedMessages)
+      
+      // Update conversation in list with messages (cache for current session only)
+      setConversations((prev) => {
+        const existingConv = prev.find((c) => c.id === conversationId)
+        if (existingConv) {
+          return prev.map((conv) =>
+            conv.id === conversationId
+              ? { ...conv, messages: loadedMessages, message_count: loadedMessages.length }
+              : conv
+          )
+        } else {
+          // Conversation not in list yet (new conversation) - add it
+          return [
+            {
+              id: conversationId,
+              title: detail.title || 'Untitled Conversation',
+              messages: loadedMessages,
+              message_count: loadedMessages.length,
+              createdAt: new Date(detail.created_at),
+              updatedAt: new Date(detail.updated_at),
+            },
+            ...prev,
+          ]
+        }
+      })
+    } catch (error) {
+      console.error(`Error loading conversation messages ${conversationId}:`, error)
+      toast.error('Failed to load conversation messages')
+    }
+  }
+
+  // Clean up old localStorage data (one-time migration)
+  useEffect(() => {
+    try {
+      // Remove old localStorage conversation storage (API is source of truth now)
+      localStorage.removeItem('general-teaching-assistant-conversations')
+    } catch (error) {
+      // Ignore errors during cleanup
+    }
+  }, [])
 
   // Save current conversation ID
   useEffect(() => {
-    if (currentConversationId) {
-      localStorage.setItem('general-teaching-assistant-current-conversation', currentConversationId)
+    try {
+      if (currentConversationId) {
+        localStorage.setItem('general-teaching-assistant-current-conversation', currentConversationId)
+      }
+    } catch (error) {
+      console.error('Error saving current conversation ID to localStorage:', error)
     }
   }, [currentConversationId])
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    try {
+      // Use requestAnimationFrame to ensure DOM is ready
+      const scrollTimeout = setTimeout(() => {
+        try {
+          if (messagesEndRef.current) {
+            messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
+          }
+        } catch (scrollError) {
+          // Fallback to instant scroll if smooth fails
+          try {
+            messagesEndRef.current?.scrollIntoView()
+          } catch (e) {
+            console.error('Error scrolling to bottom:', e)
+          }
+        }
+      }, 100)
+      return () => clearTimeout(scrollTimeout)
+    } catch (error) {
+      console.error('Error in scroll effect:', error)
+    }
   }, [messages, isLoading])
 
   // Auto-resize textarea
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+    try {
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto'
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
+      }
+    } catch (error) {
+      console.error('Error resizing textarea:', error)
     }
   }, [inputValue])
 
   // Close action menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as HTMLElement
-      if (messageActionMenu && !target.closest('.message-action-menu')) {
-        setMessageActionMenu(null)
-      }
-      if (showUploadMenu && !target.closest('.upload-menu-container')) {
-        setShowUploadMenu(false)
-      }
-      if (showModeMenu && !target.closest('.mode-menu-container')) {
-        setShowModeMenu(false)
-      }
-      if (showActionsMenu && !target.closest('.actions-menu-container')) {
-        setShowActionsMenu(false)
-      }
-      if (showLengthMenu && !target.closest('.length-menu-container')) {
-        setShowLengthMenu(false)
+      try {
+        const target = event.target as HTMLElement
+        if (messageActionMenu && !target.closest('.message-action-menu')) {
+          setMessageActionMenu(null)
+        }
+        if (showUploadMenu && !target.closest('.upload-menu-container')) {
+          setShowUploadMenu(false)
+        }
+        if (showModeMenu && !target.closest('.mode-menu-container')) {
+          setShowModeMenu(false)
+        }
+        if (showActionsMenu && !target.closest('.actions-menu-container')) {
+          setShowActionsMenu(false)
+        }
+        if (showLengthMenu && !target.closest('.length-menu-container')) {
+          setShowLengthMenu(false)
+        }
+      } catch (error) {
+        console.error('Error in handleClickOutside:', error)
       }
     }
 
-    if (messageActionMenu || showUploadMenu || showModeMenu || showActionsMenu || showLengthMenu) {
-      document.addEventListener('mousedown', handleClickOutside)
+    const shouldAddListener = messageActionMenu || showUploadMenu || showModeMenu || showActionsMenu || showLengthMenu
+
+    if (shouldAddListener) {
+      // Use capture phase to ensure we catch the event
+      document.addEventListener('mousedown', handleClickOutside, true)
       return () => {
-        document.removeEventListener('mousedown', handleClickOutside)
+        try {
+          document.removeEventListener('mousedown', handleClickOutside, true)
+        } catch (error) {
+          console.error('Error removing click outside listener:', error)
+        }
       }
     }
   }, [messageActionMenu, showUploadMenu, showModeMenu, showActionsMenu, showLengthMenu])
 
   // Auto-focus edit textarea when editing
   useEffect(() => {
-    if (editingMessageId && editTextareaRef.current) {
-      editTextareaRef.current.focus()
-      editTextareaRef.current.style.height = 'auto'
-      editTextareaRef.current.style.height = `${editTextareaRef.current.scrollHeight}px`
+    try {
+      if (editingMessageId && editTextareaRef.current) {
+        editTextareaRef.current.focus()
+        editTextareaRef.current.style.height = 'auto'
+        editTextareaRef.current.style.height = `${editTextareaRef.current.scrollHeight}px`
+      }
+    } catch (error) {
+      console.error('Error focusing edit textarea:', error)
     }
   }, [editingMessageId, editInputValue])
 
   const generateConversationTitle = (firstMessage: string): string => {
-    const words = firstMessage.split(' ').slice(0, 6).join(' ')
-    return words.length > 50 ? words.substring(0, 50) + '...' : words
+    try {
+      if (!firstMessage || typeof firstMessage !== 'string') {
+        return 'New Conversation'
+      }
+      const words = firstMessage.split(' ').slice(0, 6).join(' ')
+      return words.length > 50 ? words.substring(0, 50) + '...' : words
+    } catch (error) {
+      console.error('Error generating conversation title:', error)
+      return 'New Conversation'
+    }
   }
 
   const createNewConversation = () => {
     setCurrentConversationId(null)
     setMessages([])
     setInputValue('')
+    localStorage.removeItem('general-teaching-assistant-current-conversation')
   }
 
-  const saveConversation = (newMessages: Message[]) => {
-    if (newMessages.length === 0) return
-
-    const now = new Date()
-    const title = generateConversationTitle(newMessages[0].content)
-
-    if (currentConversationId) {
-      // Update existing conversation
-      setConversations((prev) =>
-        prev.map((conv) =>
-          conv.id === currentConversationId
-            ? {
-                ...conv,
-                messages: newMessages,
-                title: newMessages.length > 1 ? title : conv.title,
-                updatedAt: now,
-              }
-            : conv
-        )
-      )
-    } else {
-      // Create new conversation
-      const newId = `conv-${Date.now()}`
-      const newConversation: Conversation = {
-        id: newId,
-        title,
-        messages: newMessages,
-        createdAt: now,
-        updatedAt: now,
+  // Update conversation list after sending message (metadata only - messages from API)
+  const refreshConversationInList = async (conversationId: string) => {
+    try {
+      // Refresh conversation list to get updated metadata
+      const apiConversations = await chatbotApi.listConversations(CHATBOT_SLUG)
+      const updatedConv = apiConversations.find((c) => c.id === conversationId)
+      
+      if (updatedConv) {
+        setConversations((prev) => {
+          const existingConv = prev.find((c) => c.id === conversationId)
+          if (existingConv) {
+            // Update existing conversation metadata
+            return prev.map((conv) =>
+              conv.id === conversationId
+                ? {
+                    ...conv,
+                    title: updatedConv.title || conv.title,
+                    message_count: updatedConv.message_count,
+                    updatedAt: new Date(updatedConv.updated_at),
+                    // Preserve cached messages if they exist
+                    messages: conv.messages,
+                  }
+                : conv
+            )
+          } else {
+            // New conversation - add to list
+            const newConv: Conversation = {
+              id: conversationId,
+              title: updatedConv.title || 'Untitled Conversation',
+              messages: undefined, // Lazy loaded when selected
+              message_count: updatedConv.message_count,
+              createdAt: new Date(updatedConv.created_at),
+              updatedAt: new Date(updatedConv.updated_at),
+            }
+            return [newConv, ...prev]
+          }
+        })
       }
-      setConversations((prev) => [newConversation, ...prev])
-      setCurrentConversationId(newId)
+    } catch (error) {
+      console.error('Error refreshing conversation in list:', error)
     }
   }
+
+  // Store timeout ref for cleanup
+  const generationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
+  const [thinkingState, setThinkingState] = useState<string | null>(null)
 
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
 
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: 'user',
-      content: inputValue.trim(),
-      timestamp: new Date(),
-    }
-
-    const newMessages = [...messages, userMessage]
-    setMessages(newMessages)
-    setInputValue('')
-    setIsLoading(true)
-    setCanStopGeneration(true)
-
-    // Save conversation after user message
-    saveConversation(newMessages)
-
-    // Simulate API call - TODO: Replace with actual API call
-    const timeoutId = setTimeout(() => {
-      const responseContent = generateMockResponse(userMessage.content)
-      const assistantMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
-        role: 'assistant',
-        content: responseContent,
+    try {
+      const userMessage: Message = {
+        id: `msg-${Date.now()}`,
+        role: 'user',
+        content: inputValue.trim(),
         timestamp: new Date(),
       }
 
-      const updatedMessages = [...newMessages, assistantMessage]
-      setMessages(updatedMessages)
+      const newMessages = [...messages, userMessage]
+      setMessages(newMessages)
+      setInputValue('')
+      setIsLoading(true)
+      setCanStopGeneration(true)
+      setThinkingState(null)
+
+      // Clear any existing timeout and abort controller
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current)
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+
+      // Create new abort controller for this request
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
+
+      // Don't create empty message - wait for first content chunk (prevents duplicate empty block)
+      const assistantMessageId = `msg-${Date.now() + 1}`
+      let assistantMessageCreated = false
+
+      // Try streaming first, fallback to regular API if not supported
+      try {
+        // Track streamed content (like templates use accumulatedContentRef)
+        let streamedContent = ''
+        
+        let conversationId = currentConversationId
+        let finalResponse: chatbotApi.SendMessageResponse | null = null
+
+      // Try streaming endpoint
+      try {
+        const streamGenerator = chatbotApi.sendMessageStream(
+          CHATBOT_SLUG,
+          {
+            message: userMessage.content,
+            conversation_id: currentConversationId || undefined,
+            bot_mode: botMode,
+            response_length: responseLength,
+            web_search: webSearchEnabled && featureAccess.web_search,
+          },
+          abortController.signal
+        )
+
+          let hasReceivedContent = false
+          
+          for await (const chunk of streamGenerator) {
+            if (abortController.signal.aborted) {
+              break
+            }
+
+            if (chunk.type === 'thinking') {
+              // Skip thinking state for faster response (like GPT)
+            } else if (chunk.type === 'content') {
+              // CRITICAL: Process content chunk immediately (word-by-word like GPT)
+              // EXACTLY like templates: accumulate chunk immediately, update state immediately
+              const chunkText = chunk.content || ''
+              if (chunkText) {
+                hasReceivedContent = true
+                // Accumulate chunk (like templates accumulate markdown)
+                streamedContent += chunkText
+                setThinkingState(null) // Clear thinking state when content arrives
+                
+                // CRITICAL: Update streaming content state immediately (like templates)
+                // Templates update formattedContent directly - this ensures word-by-word streaming
+                // We use a separate state for streaming content to avoid React batching array updates
+                if (!assistantMessageCreated) {
+                  assistantMessageCreated = true
+                  setStreamingMessageId(assistantMessageId)
+                  // Create placeholder message - content will be shown via streamingContent state
+                  setMessages((prev) => {
+                    const assistantMessage: Message = {
+                      id: assistantMessageId,
+                      role: 'assistant',
+                      content: '', // Empty - content shown via streamingContent
+                      timestamp: new Date(),
+                    }
+                    return [...prev, assistantMessage]
+                  })
+                }
+                
+                // CRITICAL: Update streaming content directly (like templates)
+                // Use flushSync to force immediate render for word-by-word display
+                // Templates update state directly - we do the same but with flushSync for safety
+                flushSync(() => {
+                  setStreamingContent(streamedContent)
+                })
+                
+                // Auto-scroll on next frame (non-blocking, smooth)
+                requestAnimationFrame(() => {
+                  messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+                })
+              }
+            } else if (chunk.type === 'done') {
+              // Streaming complete
+              finalResponse = chunk.data
+              if (chunk.data?.conversation_id) {
+                conversationId = String(chunk.data.conversation_id)
+              }
+              break
+            } else if (chunk.type === 'error') {
+              throw new Error(chunk.data?.detail || 'Streaming error')
+            }
+          }
+
+          // If streaming worked, finalize the message
+          if (streamedContent && hasReceivedContent) {
+            const finalContent = streamedContent
+            
+            // CRITICAL: Finalize message - move streaming content to message
+            setMessages((prev) => {
+              // Check if message already exists
+              const existingMsg = prev.find((msg) => msg.id === assistantMessageId)
+              if (existingMsg) {
+                // Update existing message with final content
+                return prev.map((msg) => {
+                  if (msg.id === assistantMessageId) {
+                    return {
+                      ...msg,
+                      id: finalResponse?.assistant_message?.id || assistantMessageId,
+                      content: finalContent,
+                      timestamp: finalResponse?.assistant_message?.created_at 
+                        ? new Date(finalResponse.assistant_message.created_at)
+                        : new Date(),
+                    }
+                  }
+                  return msg
+                })
+              } else {
+                // Create new message with final content
+                const assistantMessage: Message = {
+                  id: finalResponse?.assistant_message?.id || assistantMessageId,
+                  role: 'assistant',
+                  content: finalContent,
+                  timestamp: finalResponse?.assistant_message?.created_at 
+                    ? new Date(finalResponse.assistant_message.created_at)
+                    : new Date(),
+                }
+                return [...prev, assistantMessage]
+              }
+            })
+            
+            // Clear streaming state and finalize message
+            setStreamingContent('')
+            setStreamingMessageId(null)
+            setIsLoading(false)
+            setCanStopGeneration(false)
+            setThinkingState(null)
+
+            // Update conversation ID if new conversation was created
+            if (conversationId && conversationId !== currentConversationId) {
+              setCurrentConversationId(conversationId)
+              localStorage.setItem('general-teaching-assistant-current-conversation', conversationId)
+              
+              // Refresh conversation list to include new conversation
+              refreshConversationInList(conversationId)
+            } else if (conversationId) {
+              // Refresh existing conversation metadata
+              refreshConversationInList(conversationId)
+            }
+            
+            // Update quota
+            try {
+              const quotaData = await subscriptionApi.getQuotaSummary()
+              setQuota(quotaData)
+            } catch (error) {
+              console.error('Error updating quota:', error)
+            }
+            
+            // Play audio if enabled
+            if (audioEnabled && featureAccess.audio_transcription) {
+              speakText(streamedContent)
+            }
+
+            generationTimeoutRef.current = null
+            abortControllerRef.current = null
+            return
+          }
+        } catch (streamError: any) {
+          // CRITICAL: Don't fall back - streaming MUST work
+          // If streaming fails, show error to user
+          if (streamError.name === 'AbortError') {
+            setIsLoading(false)
+            setCanStopGeneration(false)
+            setThinkingState(null)
+            // Clear streaming state
+            setStreamingContent('')
+            setStreamingMessageId(null)
+            return
+          }
+          console.error('Streaming failed:', streamError)
+          setIsLoading(false)
+          setCanStopGeneration(false)
+          setThinkingState(null)
+          setStreamingContent('')
+          setStreamingMessageId(null)
+          toast.error(streamError?.detail || streamError?.message || 'Failed to stream response. Please try again.')
+          return
+        }
+        
+        // Update conversation ID if new conversation was created
+        if (response.conversation_id !== currentConversationId) {
+          setCurrentConversationId(response.conversation_id)
+          localStorage.setItem('general-teaching-assistant-current-conversation', response.conversation_id)
+          
+          // Refresh conversation list to include new conversation
+          refreshConversationInList(response.conversation_id)
+        } else if (response.conversation_id) {
+          // Refresh existing conversation metadata
+          refreshConversationInList(response.conversation_id)
+        }
+        
+        // Update quota
+        try {
+          const quotaData = await subscriptionApi.getQuotaSummary()
+          setQuota(quotaData)
+        } catch (error) {
+          console.error('Error updating quota:', error)
+        }
+        
+        // Play audio if enabled (premium feature)
+        if (audioEnabled && featureAccess.audio_transcription) {
+          speakText(assistantMessage.content)
+        }
+        
+        generationTimeoutRef.current = null
+      } catch (error: any) {
+        console.error('Error sending message:', error)
+        setIsLoading(false)
+        setCanStopGeneration(false)
+        
+        // Show error message
+        if (error instanceof Error) {
+          toast.error(error.message || 'Failed to send message. Please try again.')
+        } else if ((error as any)?.status === 403) {
+          toast.error('Premium subscription required for this feature.')
+        } else if ((error as any)?.status === 429) {
+          toast.error('Rate limit exceeded. Please try again later.')
+        } else {
+          toast.error('Failed to send message. Please try again.')
+        }
+      }
+
+      // Timeout ref is no longer needed with async/await, but kept for compatibility
+      generationTimeoutRef.current = null
+    } catch (error) {
+      console.error('Error sending message:', error)
       setIsLoading(false)
       setCanStopGeneration(false)
-      saveConversation(updatedMessages)
-      
-      // Play audio if enabled
-      if (audioEnabled) {
-        speakText(responseContent)
-      }
-    }, 1500)
-
-    // Store timeout ID for stop functionality
-    ;(window as any).currentGenerationTimeout = timeoutId
+    }
   }
 
   const handleStopGeneration = () => {
-    if ((window as any).currentGenerationTimeout) {
-      clearTimeout((window as any).currentGenerationTimeout)
+    try {
+      // Abort streaming request
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+        abortControllerRef.current = null
+      }
+      
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current)
+        generationTimeoutRef.current = null
+      }
+      if ((window as any).currentGenerationTimeout) {
+        clearTimeout((window as any).currentGenerationTimeout)
+        ;(window as any).currentGenerationTimeout = null
+      }
       setIsLoading(false)
       setCanStopGeneration(false)
+      setThinkingState(null)
+      // Clear streaming state
+      setStreamingContent('')
+      setStreamingMessageId(null)
+    } catch (error) {
+      console.error('Error stopping generation:', error)
     }
   }
 
@@ -320,7 +741,11 @@ const GeneralTeachingAssistantChat = () => {
       setMessages(finalMessages)
       setEditingMessageId(null)
       setEditInputValue('')
-      saveConversation(finalMessages)
+      
+      // Refresh conversation metadata
+      if (currentConversationId) {
+        refreshConversationInList(currentConversationId)
+      }
     }
   }
 
@@ -335,48 +760,87 @@ const GeneralTeachingAssistantChat = () => {
       const updatedMessages = messages.filter((m) => m.id !== messageId)
       setMessages(updatedMessages)
       setMessageActionMenu(null)
-      saveConversation(updatedMessages)
+      
+      // Refresh conversation metadata
+      if (currentConversationId) {
+        refreshConversationInList(currentConversationId)
+      }
     }
   }
 
   const handleRegenerateResponse = async () => {
-    // Find the last assistant message
-    const lastAssistantIndex = messages.map((m) => m.role).lastIndexOf('assistant')
-    if (lastAssistantIndex === -1) return
+    try {
+      // Get current messages
+      const currentMessages = messages
+      
+      // Find the last assistant message
+      const lastAssistantIndex = currentMessages.map((m) => m.role).lastIndexOf('assistant')
+      if (lastAssistantIndex === -1) return
 
-    // Get the user message before the assistant response
-    const userMessage = messages[lastAssistantIndex - 1]
-    if (!userMessage) return
+      // Get the user message before the assistant response
+      const userMessage = currentMessages[lastAssistantIndex - 1]
+      if (!userMessage) return
 
-    // Remove the last assistant message
-    const messagesUpToUser = messages.slice(0, lastAssistantIndex)
-    setMessages(messagesUpToUser)
-    setIsLoading(true)
-    setCanStopGeneration(true)
+      // Remove the last assistant message
+      const messagesUpToUser = currentMessages.slice(0, lastAssistantIndex)
+      setMessages(messagesUpToUser)
+      setIsLoading(true)
+      setCanStopGeneration(true)
 
-    // Regenerate response
-    const timeoutId = setTimeout(() => {
-      const responseContent = generateMockResponse(userMessage.content)
-      const newAssistantMessage: Message = {
-        id: `msg-${Date.now()}`,
-        role: 'assistant',
-        content: responseContent,
-        timestamp: new Date(),
+      // Regenerate response using API
+      try {
+        const response = await chatbotApi.sendMessage(CHATBOT_SLUG, {
+          message: userMessage.content,
+          conversation_id: currentConversationId || undefined,
+          bot_mode: botMode,
+          response_length: responseLength,
+          web_search: webSearchEnabled && featureAccess.web_search,
+        })
+
+        const newAssistantMessage: Message = {
+          id: response.assistant_message.id,
+          role: 'assistant',
+          content: response.assistant_message.content,
+          timestamp: new Date(response.assistant_message.created_at),
+        }
+
+        const updatedMessages = [...messagesUpToUser, newAssistantMessage]
+        setMessages(updatedMessages)
+        setIsLoading(false)
+        setCanStopGeneration(false)
+        
+        // Refresh conversation metadata
+        if (response.conversation_id) {
+          refreshConversationInList(response.conversation_id)
+        }
+        
+        // Update quota
+        try {
+          const quotaData = await subscriptionApi.getQuotaSummary()
+          setQuota(quotaData)
+        } catch (error) {
+          console.error('Error updating quota:', error)
+        }
+        
+          // Play audio if enabled (available for all users)
+          if (audioEnabled) {
+            speakText(newAssistantMessage.content)
+          }
+      } catch (error: any) {
+        console.error('Error regenerating response:', error)
+        setIsLoading(false)
+        setCanStopGeneration(false)
+        if (error instanceof Error) {
+          toast.error(error.message || 'Failed to regenerate response.')
+        } else {
+          toast.error('Failed to regenerate response. Please try again.')
+        }
       }
-
-      const updatedMessages = [...messagesUpToUser, newAssistantMessage]
-      setMessages(updatedMessages)
+    } catch (error) {
+      console.error('Error in handleRegenerateResponse:', error)
       setIsLoading(false)
       setCanStopGeneration(false)
-      saveConversation(updatedMessages)
-      
-      // Play audio if enabled
-      if (audioEnabled) {
-        speakText(responseContent)
-      }
-    }, 1500)
-
-    ;(window as any).currentGenerationTimeout = timeoutId
+    }
   }
 
   const handleFeedback = (messageId: string, type: 'like' | 'dislike') => {
@@ -414,13 +878,24 @@ const GeneralTeachingAssistantChat = () => {
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    setAttachedFiles((prev) => [...prev, ...files])
-    setShowUploadMenu(false)
-    // Reset input values
-    if (imageInputRef.current) imageInputRef.current.value = ''
-    if (documentInputRef.current) documentInputRef.current.value = ''
-    if (allFilesInputRef.current) allFilesInputRef.current.value = ''
+    try {
+      // Check if user has access to file attachments (premium feature)
+      if (!featureAccess.file_attachments) {
+        toast.info('File attachments are available with Premium. Upgrade to access.')
+        e.target.value = '' // Reset file input
+        return
+      }
+
+      const files = Array.from(e.target.files || [])
+      setAttachedFiles((prev) => [...prev, ...files])
+      setShowUploadMenu(false)
+      // Reset input values
+      if (imageInputRef.current) imageInputRef.current.value = ''
+      if (documentInputRef.current) documentInputRef.current.value = ''
+      if (allFilesInputRef.current) allFilesInputRef.current.value = ''
+    } catch (error) {
+      console.error('Error handling file select:', error)
+    }
   }
 
   const handleRemoveFile = (index: number) => {
@@ -434,15 +909,32 @@ const GeneralTeachingAssistantChat = () => {
   }
 
   const formatFileSize = (bytes: number): string => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    try {
+      if (bytes === 0) return '0 Bytes'
+      if (bytes < 0 || !isFinite(bytes)) return '0 Bytes'
+      const k = 1024
+      const sizes = ['Bytes', 'KB', 'MB', 'GB']
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+      return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
+    } catch (error) {
+      console.error('Error formatting file size:', error)
+      return 'Unknown size'
+    }
   }
 
   const startRecording = async () => {
     try {
+      // Check if user has access to audio/voice features (premium)
+      if (!featureAccess.audio_transcription) {
+        toast.info('Voice input is available with Premium. Upgrade to access.')
+        return
+      }
+
+      // Stop any existing recording first
+      if (mediaRecorderRef.current && isRecordingRef.current) {
+        stopRecording()
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       const recorder = new MediaRecorder(stream)
       const chunks: Blob[] = []
@@ -454,43 +946,86 @@ const GeneralTeachingAssistantChat = () => {
       }
 
       recorder.onstop = () => {
-        const blob = new Blob(chunks, { type: 'audio/webm' })
-        // Convert audio to text (mock implementation)
-        // In production, this would call a speech-to-text API
+        try {
+          // Create blob for potential future use (speech-to-text API)
+          const blob = new Blob(chunks, { type: 'audio/webm' })
+          // Convert audio to text (mock implementation)
+          // In production, this would call a speech-to-text API with the blob
+          console.log('Audio recorded, size:', blob.size, 'bytes')
+          setIsRecording(false)
+          isRecordingRef.current = false
+          stream.getTracks().forEach((track) => track.stop())
+        } catch (error) {
+          console.error('Error in recorder onstop:', error)
+          setIsRecording(false)
+          isRecordingRef.current = false
+          stream.getTracks().forEach((track) => track.stop())
+        }
+      }
+
+      recorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event)
         setIsRecording(false)
         stream.getTracks().forEach((track) => track.stop())
       }
 
       recorder.start()
       setMediaRecorder(recorder)
+      mediaRecorderRef.current = recorder
       setIsRecording(true)
+      isRecordingRef.current = true
     } catch (error) {
       console.error('Error accessing microphone:', error)
+      setIsRecording(false)
+      isRecordingRef.current = false
+      setMediaRecorder(null)
+      mediaRecorderRef.current = null
       alert('Could not access microphone. Please check permissions.')
     }
   }
 
   const stopRecording = () => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop()
+    try {
+      if (mediaRecorderRef.current && isRecordingRef.current) {
+        mediaRecorderRef.current.stop()
+        setIsRecording(false)
+        isRecordingRef.current = false
+        // In production, process the audio and convert to text
+        // For now, just simulate adding text
+        setInputValue((prev) => prev + ' [Audio message transcribed]')
+      }
+    } catch (error) {
+      console.error('Error stopping recording:', error)
       setIsRecording(false)
-      // In production, process the audio and convert to text
-      // For now, just simulate adding text
-      setInputValue((prev) => prev + ' [Audio message transcribed]')
+      isRecordingRef.current = false
     }
   }
 
   const toggleAudio = () => {
+    // Audio (voice input/output) is premium feature - GPT style
+    if (!featureAccess.audio_transcription && !audioEnabled) {
+      toast.info('Voice features are available with Premium. Upgrade to access.')
+      return
+    }
     setAudioEnabled(!audioEnabled)
   }
 
   const speakText = (text: string) => {
-    if ('speechSynthesis' in window && audioEnabled) {
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.rate = 0.9
-      utterance.pitch = 1
-      utterance.volume = 1
-      window.speechSynthesis.speak(utterance)
+    try {
+      if ('speechSynthesis' in window && audioEnabled) {
+        const utterance = new SpeechSynthesisUtterance(text)
+        utterance.rate = 0.9
+        utterance.pitch = 1
+        utterance.volume = 1
+        
+        utterance.onerror = (event) => {
+          console.error('Speech synthesis error:', event)
+        }
+        
+        window.speechSynthesis.speak(utterance)
+      }
+    } catch (error) {
+      console.error('Error in speech synthesis:', error)
     }
   }
 
@@ -533,6 +1068,11 @@ const GeneralTeachingAssistantChat = () => {
   }
 
   const toggleWebSearch = () => {
+    // Check if user has access to web search
+    if (!featureAccess.web_search && !webSearchEnabled) {
+      toast.info('Web search is a premium feature. Upgrade to access.')
+      return
+    }
     setWebSearchEnabled(!webSearchEnabled)
   }
 
@@ -542,21 +1082,66 @@ const GeneralTeachingAssistantChat = () => {
       case 'questions':
         if (messages.length > 0) {
           const lastMessage = messages[messages.length - 1]
+          let contentToUse = ''
+          
           if (lastMessage.role === 'assistant') {
-            setInputValue(`Generate questions based on: ${lastMessage.content.substring(0, 100)}...`)
+            // Use assistant's last response
+            contentToUse = lastMessage.content
+          } else if (messages.length >= 2) {
+            // Use previous assistant message if last is user
+            const prevAssistant = messages.slice().reverse().find(m => m.role === 'assistant')
+            if (prevAssistant) {
+              contentToUse = prevAssistant.content
+            }
           }
+          
+          if (contentToUse) {
+            const truncated = contentToUse.length > 200 
+              ? contentToUse.substring(0, 200) + '...'
+              : contentToUse
+            setInputValue(`Generate thoughtful questions based on the following content:\n\n${truncated}`)
+            // Focus input
+            setTimeout(() => textareaRef.current?.focus(), 100)
+          } else {
+            setInputValue('Generate questions based on: ')
+            setTimeout(() => textareaRef.current?.focus(), 100)
+          }
+        } else {
+          setInputValue('Generate questions about: ')
+          setTimeout(() => textareaRef.current?.focus(), 100)
         }
         break
       case 'summarize':
         if (messages.length > 0) {
           const lastMessage = messages[messages.length - 1]
+          let contentToUse = ''
+          
           if (lastMessage.role === 'assistant') {
-            setInputValue(`Summarize this: ${lastMessage.content.substring(0, 100)}...`)
+            contentToUse = lastMessage.content
+          } else if (messages.length >= 2) {
+            const prevAssistant = messages.slice().reverse().find(m => m.role === 'assistant')
+            if (prevAssistant) {
+              contentToUse = prevAssistant.content
+            }
           }
+          
+          if (contentToUse) {
+            const truncated = contentToUse.length > 200 
+              ? contentToUse.substring(0, 200) + '...'
+              : contentToUse
+            setInputValue(`Please provide a clear and concise summary of the following:\n\n${truncated}`)
+            setTimeout(() => textareaRef.current?.focus(), 100)
+          } else {
+            setInputValue('Summarize: ')
+            setTimeout(() => textareaRef.current?.focus(), 100)
+          }
+        } else {
+          setInputValue('Summarize: ')
+          setTimeout(() => textareaRef.current?.focus(), 100)
         }
         break
       case 'custom-prompts':
-        // Open custom prompts modal or show saved prompts
+        setShowCustomPromptsModal(true)
         break
       default:
         break
@@ -564,21 +1149,116 @@ const GeneralTeachingAssistantChat = () => {
   }
 
   const saveCustomPrompt = (prompt: string) => {
-    if (prompt.trim() && !customPrompts.includes(prompt.trim())) {
-      setCustomPrompts((prev) => [...prev, prompt.trim()])
-      localStorage.setItem('custom-prompts', JSON.stringify([...customPrompts, prompt.trim()]))
+    try {
+      if (prompt.trim() && !customPrompts.includes(prompt.trim())) {
+        const updated = [...customPrompts, prompt.trim()]
+        setCustomPrompts(updated)
+        localStorage.setItem('custom-prompts', JSON.stringify(updated))
+        setNewCustomPrompt('')
+        toast.success('Custom prompt saved!')
+      }
+    } catch (error) {
+      console.error('Error saving custom prompt:', error)
+      toast.error('Failed to save custom prompt')
     }
+  }
+
+  const deleteCustomPrompt = (index: number) => {
+    try {
+      const updated = customPrompts.filter((_, i) => i !== index)
+      setCustomPrompts(updated)
+      localStorage.setItem('custom-prompts', JSON.stringify(updated))
+      toast.success('Custom prompt deleted')
+    } catch (error) {
+      console.error('Error deleting custom prompt:', error)
+      toast.error('Failed to delete custom prompt')
+    }
+  }
+
+  const useCustomPrompt = (prompt: string) => {
+    setInputValue(prompt)
+    setShowCustomPromptsModal(false)
+    setTimeout(() => textareaRef.current?.focus(), 100)
   }
 
   // Load custom prompts from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('custom-prompts')
-    if (saved) {
-      setCustomPrompts(JSON.parse(saved))
+    try {
+      const saved = localStorage.getItem('custom-prompts')
+      if (saved) {
+        try {
+          setCustomPrompts(JSON.parse(saved))
+        } catch (parseError) {
+          console.error('Error parsing custom prompts:', parseError)
+          localStorage.removeItem('custom-prompts')
+        }
+      }
+    } catch (error) {
+      console.error('Error loading custom prompts from localStorage:', error)
     }
   }, [])
 
-  const generateMockResponse = (userMessage: string): string => {
+  // Cleanup on unmount - critical for preventing crashes
+  useEffect(() => {
+    return () => {
+      // Cleanup timeouts
+      try {
+        if (generationTimeoutRef.current) {
+          clearTimeout(generationTimeoutRef.current)
+          generationTimeoutRef.current = null
+        }
+        if ((window as any).currentGenerationTimeout) {
+          clearTimeout((window as any).currentGenerationTimeout)
+          ;(window as any).currentGenerationTimeout = null
+        }
+      } catch (error) {
+        console.error('Error cleaning up timeouts:', error)
+      }
+
+      // Cleanup MediaRecorder and media streams - use refs to avoid stale closures
+      try {
+        const recorder = mediaRecorderRef.current
+        if (recorder && isRecordingRef.current) {
+          try {
+            if (recorder.state !== 'inactive') {
+              recorder.stop()
+            }
+          } catch (e) {
+            // Ignore errors when stopping already stopped recorder
+          }
+        }
+        // Stop all media tracks from recorder stream
+        if (recorder && (recorder as any).stream) {
+          try {
+            (recorder as any).stream.getTracks().forEach((track: MediaStreamTrack) => {
+              track.stop()
+            })
+          } catch (e) {
+            // Ignore errors when stopping tracks
+          }
+        }
+        mediaRecorderRef.current = null
+        isRecordingRef.current = false
+      } catch (error) {
+        console.error('Error cleaning up MediaRecorder:', error)
+      }
+
+      // Cleanup Speech Synthesis
+      try {
+        if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel()
+        }
+      } catch (error) {
+        console.error('Error cleaning up speech synthesis:', error)
+      }
+    }
+    // Empty dependency array - cleanup only on unmount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // DEPRECATED: This function is no longer used - we use real API calls now
+  // Keeping for reference only, will be removed in future cleanup
+  const _generateMockResponse_DEPRECATED = (userMessage: string): string => {
     const lowerMessage = userMessage.toLowerCase()
     
     // Simple keyword-based responses for demo
@@ -711,130 +1391,233 @@ What would you like help with today? Feel free to ask me anything about teaching
     try {
       await navigator.clipboard.writeText(content)
       setCopiedMessageId(messageId)
-      setTimeout(() => setCopiedMessageId(null), 2000)
+      const timeoutId = setTimeout(() => setCopiedMessageId(null), 2000)
+      // Store timeout for cleanup if needed
+      return () => clearTimeout(timeoutId)
     } catch (err) {
       console.error('Failed to copy:', err)
     }
   }
 
   const formatTimestamp = (date: Date): string => {
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const minutes = Math.floor(diff / 60000)
-    
-    if (minutes < 1) return 'Just now'
-    if (minutes < 60) return `${minutes}m ago`
-    if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
-    return date.toLocaleDateString()
+    try {
+      if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+        return 'Unknown time'
+      }
+      const now = new Date()
+      const diff = now.getTime() - date.getTime()
+      const minutes = Math.floor(diff / 60000)
+      
+      if (minutes < 1) return 'Just now'
+      if (minutes < 60) return `${minutes}m ago`
+      if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
+      return date.toLocaleDateString()
+    } catch (error) {
+      console.error('Error formatting timestamp:', error)
+      return 'Unknown time'
+    }
   }
 
   const renderMarkdown = (text: string): JSX.Element => {
-    // Simple markdown rendering - split by lines and handle basic formatting
-    const lines = text.split('\n')
-    return (
-      <div className="space-y-2">
-        {lines.map((line, idx) => {
-          // Bold text
-          if (line.startsWith('**') && line.endsWith('**')) {
-            return (
-              <p key={idx} className="font-semibold text-gray-900">
-                {line.slice(2, -2)}
-              </p>
-            )
-          }
-          // List items
-          if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
-            return (
-              <li key={idx} className="ml-4 list-disc text-gray-700">
-                {line.trim().substring(1).trim()}
-              </li>
-            )
-          }
-          // Numbered lists
-          if (/^\d+\./.test(line.trim())) {
-            return (
-              <li key={idx} className="ml-4 list-decimal text-gray-700">
-                {line.trim().substring(line.trim().indexOf('.') + 1).trim()}
-              </li>
-            )
-          }
-          // Emoji headers
-          if (/^[📚📝👥🎯💡📊🔧]/.test(line.trim())) {
-            return (
-              <p key={idx} className="font-semibold text-gray-900 mt-3">
-                {line.trim()}
-              </p>
-            )
-          }
-          // Regular paragraph
-          if (line.trim()) {
-            return (
-              <p key={idx} className="text-gray-700 leading-relaxed">
-                {line}
-              </p>
-            )
-          }
-          return <br key={idx} />
-        })}
-      </div>
-    )
+    try {
+      if (!text || typeof text !== 'string') {
+        return <div className="text-gray-700">No content</div>
+      }
+      // Simple markdown rendering - split by lines and handle basic formatting
+      const lines = text.split('\n')
+      return (
+        <div className="space-y-2">
+          {lines.map((line, idx) => {
+            try {
+              // Bold text
+              if (line.startsWith('**') && line.endsWith('**')) {
+                return (
+                  <p key={idx} className="font-semibold text-gray-900">
+                    {line.slice(2, -2)}
+                  </p>
+                )
+              }
+              // List items
+              if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+                return (
+                  <li key={idx} className="ml-4 list-disc text-gray-700">
+                    {line.trim().substring(1).trim()}
+                  </li>
+                )
+              }
+              // Numbered lists
+              if (/^\d+\./.test(line.trim())) {
+                return (
+                  <li key={idx} className="ml-4 list-decimal text-gray-700">
+                    {line.trim().substring(line.trim().indexOf('.') + 1).trim()}
+                  </li>
+                )
+              }
+              // Emoji headers
+              if (/^[📚📝👥🎯💡📊🔧]/.test(line.trim())) {
+                return (
+                  <p key={idx} className="font-semibold text-gray-900 mt-3">
+                    {line.trim()}
+                  </p>
+                )
+              }
+              // Regular paragraph
+              if (line.trim()) {
+                return (
+                  <p key={idx} className="text-gray-700 leading-relaxed">
+                    {line}
+                  </p>
+                )
+              }
+              return <br key={idx} />
+            } catch (error) {
+              console.error('Error rendering markdown line:', error)
+              return <p key={idx} className="text-gray-700">{line}</p>
+            }
+          })}
+        </div>
+      )
+    } catch (error) {
+      console.error('Error rendering markdown:', error)
+      return <div className="text-gray-700">{text}</div>
+    }
   }
 
   const clearCurrentConversation = () => {
-    if (currentConversationId) {
-      setConversations((prev) => prev.filter((conv) => conv.id !== currentConversationId))
-      setCurrentConversationId(null)
-      localStorage.removeItem('general-teaching-assistant-current-conversation')
-    }
-    setMessages([])
-  }
-
-  const loadConversation = (conversationId: string) => {
-    const conversation = conversations.find((conv) => conv.id === conversationId)
-    if (conversation) {
-      setCurrentConversationId(conversationId)
-      setMessages(conversation.messages)
-      setShowHistory(false)
-    }
-  }
-
-  const deleteConversation = (conversationId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setConversations((prev) => prev.filter((conv) => conv.id !== conversationId))
-    if (currentConversationId === conversationId) {
-      setCurrentConversationId(null)
+    try {
+      // Clear any ongoing operations
+      if (generationTimeoutRef.current) {
+        clearTimeout(generationTimeoutRef.current)
+        generationTimeoutRef.current = null
+      }
+      if ((window as any).currentGenerationTimeout) {
+        clearTimeout((window as any).currentGenerationTimeout)
+        ;(window as any).currentGenerationTimeout = null
+      }
+      setIsLoading(false)
+      setCanStopGeneration(false)
+      
+      if (currentConversationId) {
+        setConversations((prev) => prev.filter((conv) => conv.id !== currentConversationId))
+        setCurrentConversationId(null)
+        try {
+          localStorage.removeItem('general-teaching-assistant-current-conversation')
+        } catch (e) {
+          console.error('Error removing conversation from localStorage:', e)
+        }
+      }
       setMessages([])
-      localStorage.removeItem('general-teaching-assistant-current-conversation')
+    } catch (error) {
+      console.error('Error clearing conversation:', error)
     }
   }
 
-  const deleteAllConversations = () => {
-    if (window.confirm('Are you sure you want to delete all conversations? This cannot be undone.')) {
+  const loadConversation = async (conversationId: string) => {
+    setCurrentConversationId(conversationId)
+    localStorage.setItem('general-teaching-assistant-current-conversation', conversationId)
+    setShowHistory(false)
+    
+    // Check if messages are already cached in current session
+    const conversation = conversations.find((conv) => conv.id === conversationId)
+    if (conversation?.messages) {
+      // Use cached messages if available
+      setMessages(conversation.messages)
+    } else {
+      // Lazy load messages from API (ChatGPT-like approach)
+      await loadConversationMessages(conversationId)
+    }
+  }
+
+  const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!window.confirm('Are you sure you want to delete this conversation?')) {
+      return
+    }
+
+    try {
+      // Delete via API (only for non-temp conversations)
+      if (!conversationId.startsWith('temp-')) {
+        await chatbotApi.deleteConversation(conversationId)
+      }
+
+      // Remove from local state
+      setConversations((prev) => prev.filter((conv) => conv.id !== conversationId))
+      if (currentConversationId === conversationId) {
+        setCurrentConversationId(null)
+        setMessages([])
+        localStorage.removeItem('general-teaching-assistant-current-conversation')
+      }
+      
+      // Refresh conversation list from API
+      try {
+        const apiConversations = await chatbotApi.listConversations(CHATBOT_SLUG)
+        const formattedConversations: Conversation[] = apiConversations.map((conv) => ({
+          id: conv.id,
+          title: conv.title || 'Untitled Conversation',
+          messages: undefined,
+          message_count: conv.message_count,
+          createdAt: new Date(conv.created_at),
+          updatedAt: new Date(conv.updated_at),
+        }))
+        setConversations(formattedConversations)
+      } catch (error) {
+        console.error('Error refreshing conversations after delete:', error)
+      }
+      
+      toast.success('Conversation deleted successfully')
+    } catch (error: any) {
+      console.error('Error deleting conversation:', error)
+      toast.error(error?.message || 'Failed to delete conversation')
+    }
+  }
+
+  const deleteAllConversations = async () => {
+    if (!window.confirm('Are you sure you want to delete all conversations? This cannot be undone.')) {
+      return
+    }
+
+    try {
+      // Delete all conversations via API
+      const conversationsToDelete = conversations.filter((conv) => !conv.id.startsWith('temp-'))
+      await Promise.all(conversationsToDelete.map((conv) => chatbotApi.deleteConversation(conv.id)))
+
+      // Clear local state
       setConversations([])
       setCurrentConversationId(null)
       setMessages([])
-      localStorage.removeItem('general-teaching-assistant-conversations')
       localStorage.removeItem('general-teaching-assistant-current-conversation')
       setShowHistory(false)
+      
+      toast.success('All conversations deleted successfully')
+    } catch (error: any) {
+      console.error('Error deleting conversations:', error)
+      toast.error('Failed to delete some conversations')
     }
   }
 
   const filteredConversations = conversations.filter((conv) =>
-    conv.title.toLowerCase().includes(historySearchQuery.toLowerCase()) ||
-    conv.messages.some((msg) => msg.content.toLowerCase().includes(historySearchQuery.toLowerCase()))
+    conv.title.toLowerCase().includes(historySearchQuery.toLowerCase())
   )
 
   const formatDate = (date: Date): string => {
-    const now = new Date()
-    const diff = now.getTime() - date.getTime()
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24))
-    
-    if (days === 0) return 'Today'
-    if (days === 1) return 'Yesterday'
-    if (days < 7) return `${days} days ago`
-    if (days < 30) return `${Math.floor(days / 7)} weeks ago`
-    if (days < 365) return `${Math.floor(days / 30)} months ago`
-    return date.toLocaleDateString()
+    try {
+      if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+        return 'Unknown date'
+      }
+      const now = new Date()
+      const diff = now.getTime() - date.getTime()
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+      
+      if (days === 0) return 'Today'
+      if (days === 1) return 'Yesterday'
+      if (days < 7) return `${days} days ago`
+      if (days < 30) return `${Math.floor(days / 7)} weeks ago`
+      if (days < 365) return `${Math.floor(days / 30)} months ago`
+      return date.toLocaleDateString()
+    } catch (error) {
+      console.error('Error formatting date:', error)
+      return 'Unknown date'
+    }
   }
 
   return (
@@ -857,7 +1640,38 @@ What would you like help with today? Feel free to ask me anything about teaching
               <p className="text-xs text-gray-500">Your versatile AI companion for teaching</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Quota Display */}
+            {quota && (
+              <div className="hidden md:flex items-center gap-3 px-3 py-1.5 rounded-lg bg-gray-50 border border-gray-200">
+                <div className="text-xs">
+                  <div className="font-medium text-gray-700">
+                    Messages: {quota.daily_messages_used} / {quota.daily_messages_limit}
+                  </div>
+                  <div className="text-gray-500 text-[10px] mt-0.5">
+                    {quota.daily_messages_limit - quota.daily_messages_used} remaining today
+                  </div>
+                </div>
+                <div className="h-8 w-px bg-gray-300" />
+                <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                  <div
+                    className={`h-1.5 rounded-full transition-all ${
+                      quota.daily_messages_used / quota.daily_messages_limit > 0.8
+                        ? 'bg-red-500'
+                        : quota.daily_messages_used / quota.daily_messages_limit > 0.5
+                        ? 'bg-yellow-500'
+                        : 'bg-green-500'
+                    }`}
+                    style={{
+                      width: `${Math.min(
+                        (quota.daily_messages_used / quota.daily_messages_limit) * 100,
+                        100
+                      )}%`,
+                    }}
+                  />
+                </div>
+              </div>
+            )}
             {/* Bot Mode Selector */}
             <div className="relative mode-menu-container">
               <button
@@ -1065,8 +1879,39 @@ What would you like help with today? Feel free to ask me anything about teaching
                         }`}
                       >
                         <div className={message.role === 'assistant' ? 'text-gray-700' : 'text-white'}>
-                          {message.role === 'assistant' ? renderMarkdown(message.content) : message.content}
+                          {message.role === 'assistant' ? (
+                            // CRITICAL: Show streaming content if this is the streaming message (like templates)
+                            streamingMessageId === message.id && streamingContent ? (
+                              <>
+                                {renderMarkdown(streamingContent)}
+                                {/* Show typing cursor during streaming */}
+                                {isLoading && <span className="inline-block w-0.5 h-4 bg-blue-500 ml-1 animate-pulse" />}
+                              </>
+                            ) : (
+                              renderMarkdown(message.content)
+                            )
+                          ) : (
+                            message.content
+                          )}
                         </div>
+                        {/* Show generating indicator and stop button inside the message bubble when streaming */}
+                        {message.role === 'assistant' && 
+                         streamingMessageId === message.id && 
+                         isLoading && (
+                          <div className="mt-3 flex items-center gap-2 pt-2 border-t border-gray-100">
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-500" />
+                            <span className="text-xs text-gray-500 font-medium">Generating...</span>
+                            {canStopGeneration && (
+                              <button
+                                onClick={handleStopGeneration}
+                                className="ml-auto flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-100 transition"
+                              >
+                                <StopCircle className="h-3 w-3" />
+                                Stop
+                              </button>
+                            )}
+                          </div>
+                        )}
                         <div className="mt-3 flex items-center justify-between">
                           <span className={`text-xs ${message.role === 'user' ? 'text-blue-100' : 'text-gray-400'}`}>
                             {formatTimestamp(message.timestamp)}
@@ -1191,16 +2036,25 @@ What would you like help with today? Feel free to ask me anything about teaching
                   </div>
               )}
 
-          {/* Loading Indicator */}
-          {isLoading && (
+          {/* Loading Indicator - Only show when loading AND no streaming content yet (before first chunk arrives) */}
+          {isLoading && !streamingMessageId && !streamingContent && (
             <div className="flex gap-4 justify-start">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-green-400 to-green-600 shadow-sm">
                 <Bot className="h-5 w-5 text-white" />
               </div>
               <div className="rounded-2xl bg-white px-4 py-3 shadow-sm border border-gray-200">
                 <div className="flex items-center gap-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
-                  <span className="text-sm text-gray-600 font-medium">Thinking...</span>
+                  {thinkingState ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-purple-500" />
+                      <span className="text-sm text-gray-600 font-medium">{thinkingState}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                      <span className="text-sm text-gray-600 font-medium">Generating...</span>
+                    </>
+                  )}
                   {canStopGeneration && (
                     <button
                       onClick={handleStopGeneration}
@@ -1249,15 +2103,29 @@ What would you like help with today? Feel free to ask me anything about teaching
 
               {/* Action Buttons Row */}
               <div className="mb-2 flex items-center gap-2 flex-wrap">
-                {/* Upload Button */}
+                {/* Upload Button - Premium Feature */}
                 <div className="relative upload-menu-container">
                   <button
-                    onClick={() => setShowUploadMenu(!showUploadMenu)}
-                    className="flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 hover:border-gray-400"
-                    title="Attach files"
+                    onClick={() => {
+                      if (!featureAccess.file_attachments) {
+                        toast.info('File attachments are available with Premium. Upgrade to access.')
+                        return
+                      }
+                      setShowUploadMenu(!showUploadMenu)
+                    }}
+                    disabled={!featureAccess.file_attachments}
+                    className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
+                      featureAccess.file_attachments
+                        ? 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400'
+                        : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60'
+                    }`}
+                    title={featureAccess.file_attachments ? 'Attach files' : 'File attachments require Premium'}
                   >
                     <Paperclip className="h-4 w-4" />
                     <span className="hidden sm:inline">Attach</span>
+                    {!featureAccess.file_attachments && (
+                      <Lock className="h-3 w-3 ml-1" />
+                    )}
                   </button>
                   {showUploadMenu && (
                     <>
@@ -1384,18 +2252,30 @@ What would you like help with today? Feel free to ask me anything about teaching
                   )}
                 </div>
 
-                {/* Web Search Toggle */}
+                {/* Web Search Toggle - Premium Feature */}
                 <button
                   onClick={toggleWebSearch}
+                  disabled={!featureAccess.web_search}
                   className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-                    webSearchEnabled
+                    !featureAccess.web_search
+                      ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60'
+                      : webSearchEnabled
                       ? 'border-blue-300 bg-blue-50 text-blue-600'
                       : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
                   }`}
-                  title={webSearchEnabled ? 'Web search enabled' : 'Enable web search'}
+                  title={
+                    !featureAccess.web_search
+                      ? 'Web search requires Premium'
+                      : webSearchEnabled
+                      ? 'Web search enabled'
+                      : 'Enable web search'
+                  }
                 >
                   <Globe className="h-4 w-4" />
                   <span className="hidden sm:inline">Web</span>
+                  {!featureAccess.web_search && (
+                    <Lock className="h-3 w-3 ml-1" />
+                  )}
                 </button>
 
                 {/* Actions Menu */}
@@ -1475,9 +2355,13 @@ What would you like help with today? Feel free to ask me anything about teaching
                             className="w-full flex items-center gap-3 rounded-lg p-3 text-left transition hover:bg-gray-50"
                           >
                             <Bookmark className="h-5 w-5 text-amber-600" />
-                            <div>
+                            <div className="flex-1">
                               <div className="font-medium text-gray-900">Custom Prompts</div>
-                              <div className="text-xs text-gray-500">Save prompts</div>
+                              <div className="text-xs text-gray-500">
+                                {customPrompts.length > 0 
+                                  ? `${customPrompts.length} saved prompt${customPrompts.length > 1 ? 's' : ''}`
+                                  : 'Save prompts'}
+                              </div>
                             </div>
                           </button>
                         </div>
@@ -1503,20 +2387,34 @@ What would you like help with today? Feel free to ask me anything about teaching
                   />
                 </div>
 
-                {/* Microphone Button */}
+                {/* Microphone Button - Premium Feature */}
                 <button
                   onClick={isRecording ? stopRecording : startRecording}
-                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-all ${
-                    isRecording
+                  disabled={!featureAccess.audio_transcription && !isRecording}
+                  className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border-2 transition-all relative ${
+                    !featureAccess.audio_transcription && !isRecording
+                      ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed opacity-60'
+                      : isRecording
                       ? 'border-red-300 bg-red-50 text-red-600 animate-pulse'
                       : 'border-gray-300 bg-white text-gray-600 hover:border-blue-300 hover:bg-blue-50'
                   }`}
-                  title={isRecording ? 'Stop recording' : 'Record audio'}
+                  title={
+                    !featureAccess.audio_transcription
+                      ? 'Voice input requires Premium'
+                      : isRecording
+                      ? 'Stop recording'
+                      : 'Record audio'
+                  }
                 >
                   {isRecording ? (
                     <MicOff className="h-5 w-5" />
                   ) : (
-                    <Mic className="h-5 w-5" />
+                    <>
+                      <Mic className="h-5 w-5" />
+                      {!featureAccess.audio_transcription && (
+                        <Lock className="h-3 w-3 absolute -top-1 -right-1" />
+                      )}
+                    </>
                   )}
                 </button>
 
@@ -1629,7 +2527,7 @@ What would you like help with today? Feel free to ask me anything about teaching
                             <div className="flex items-center gap-3 text-xs text-gray-500">
                               <span className="flex items-center gap-1">
                                 <MessageSquare className="h-3 w-3" />
-                                {conversation.messages.length}
+                                {conversation.message_count ?? conversation.messages?.length ?? 0}
                               </span>
                               <span className="flex items-center gap-1">
                                 <Calendar className="h-3 w-3" />
@@ -1647,6 +2545,98 @@ What would you like help with today? Feel free to ask me anything about teaching
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Custom Prompts Modal */}
+        {showCustomPromptsModal && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/50 z-50"
+              onClick={() => setShowCustomPromptsModal(false)}
+            />
+            <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-2xl z-50 max-h-[80vh] flex flex-col">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-xl font-semibold text-gray-900">Custom Prompts</h2>
+                  <button
+                    onClick={() => setShowCustomPromptsModal(false)}
+                    className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <p className="text-sm text-gray-500 mt-1">Save and reuse your favorite prompts</p>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {/* Add New Prompt */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700">Add New Prompt</label>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={newCustomPrompt}
+                      onChange={(e) => setNewCustomPrompt(e.target.value)}
+                      placeholder="Enter your custom prompt..."
+                      rows={2}
+                      className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      onClick={() => {
+                        if (newCustomPrompt.trim()) {
+                          saveCustomPrompt(newCustomPrompt)
+                        }
+                      }}
+                      disabled={!newCustomPrompt.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition"
+                    >
+                      Save
+                    </button>
+                  </div>
+                </div>
+
+                {/* Saved Prompts List */}
+                {customPrompts.length > 0 ? (
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-700">Saved Prompts ({customPrompts.length})</label>
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
+                      {customPrompts.map((prompt, index) => (
+                        <div
+                          key={index}
+                          className="group flex items-start gap-2 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-700 break-words">{prompt}</p>
+                          </div>
+                          <div className="flex gap-1 shrink-0">
+                            <button
+                              onClick={() => useCustomPrompt(prompt)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition opacity-0 group-hover:opacity-100"
+                              title="Use this prompt"
+                            >
+                              <Send className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => deleteCustomPrompt(index)}
+                              className="p-1.5 text-red-600 hover:bg-red-100 rounded transition opacity-0 group-hover:opacity-100"
+                              title="Delete prompt"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Bookmark className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                    <p className="text-sm">No saved prompts yet</p>
+                    <p className="text-xs mt-1">Create a prompt above to get started</p>
                   </div>
                 )}
               </div>

@@ -189,17 +189,53 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     }
   })
 
+  // Prevent multiple logout attempts
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  
   const handleLogout = async () => {
+    // CRITICAL: Prevent multiple clicks - only process if not already logging out
+    if (isLoggingOut) {
+      return
+    }
+    
+    setIsLoggingOut(true)
+    setProfileDropdownOpen(false) // Close dropdown immediately
+    
     try {
+      // Try to logout via API (non-blocking)
       if (user?.refresh_token) {
-        await dispatch(logoutUserAPI(user.refresh_token))
+        try {
+          await dispatch(logoutUserAPI(user.refresh_token)).unwrap()
+        } catch (apiError) {
+          // Ignore API errors - always clear local state
+          console.warn('Logout API failed, clearing local state:', apiError)
+        }
       }
+      
+      // Always clear local state (even if API fails)
       dispatch(logoutUser())
-      navigate('/login')
+      
+      // Clear localStorage to ensure clean logout
+      try {
+        localStorage.removeItem('persist:root')
+      } catch (e) {
+        console.warn('Failed to clear localStorage:', e)
+      }
+      
+      // Navigate to login
+      navigate('/login', { replace: true }) // Use replace to prevent back navigation
     } catch (err) {
-      // Even if API fails, clear local state
+      // Even if everything fails, clear local state and navigate
+      console.error('Logout error:', err)
       dispatch(logoutUser())
-      navigate('/login')
+      try {
+        localStorage.removeItem('persist:root')
+      } catch (e) {
+        // Ignore localStorage errors
+      }
+      navigate('/login', { replace: true })
+    } finally {
+      setIsLoggingOut(false)
     }
   }
 
@@ -811,13 +847,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      setProfileDropdownOpen(false);
-                      handleLogout();
+                      handleLogout(); // Dropdown closing is handled in handleLogout
                     }}
-                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative"
+                    onMouseDown={(e) => {
+                      // Prevent dropdown from closing on mousedown
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    disabled={isLoggingOut}
+                    className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <LogOut className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">Sign out</span>
+                    <span className="text-sm">{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
                   </button>
                 </div>
               )}
@@ -974,12 +1015,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setProfileDropdownOpen(false);
-                    handleLogout();
+                    handleLogout(); // Dropdown closing is handled in handleLogout
                   }}
-                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative"
+                  onMouseDown={(e) => {
+                    // Prevent dropdown from closing on mousedown
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  disabled={isLoggingOut}
+                  className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm">Sign out</span>
+                  <span className="text-sm">{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
                 </button>
               </div>
             )}

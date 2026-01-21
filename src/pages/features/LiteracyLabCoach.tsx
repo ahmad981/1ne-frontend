@@ -23,6 +23,8 @@ import {
   Star,
   Lock,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 interface TextAnalysis {
   readingLevel: string
@@ -60,6 +62,9 @@ interface WritingFeedback {
 }
 
 const LiteracyLabCoach = () => {
+  const { toast } = useSnackbar()
+  const CHATBOT_SLUG = 'literacy-lab-coach'
+  
   const [activeTab, setActiveTab] = useState<'analyze' | 'guided' | 'writing' | 'prompts' | 'vocabulary'>('analyze')
   const [textInput, setTextInput] = useState('')
   const [gradeLevel, setGradeLevel] = useState('5')
@@ -70,110 +75,114 @@ const LiteracyLabCoach = () => {
   const [writingFeedback, setWritingFeedback] = useState<WritingFeedback | null>(null)
 
   const handleTextAnalysis = async () => {
-    if (!textInput.trim()) return
+    if (!textInput.trim()) {
+      toast.error('Please enter text to analyze')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    // Simulate API call
-    setTimeout(() => {
-      const mockAnalysis: TextAnalysis = {
-        readingLevel: 'Intermediate',
-        complexity: 'Moderate',
-        wordCount: textInput.split(/\s+/).length,
-        sentenceCount: textInput.split(/[.!?]+/).filter(s => s.trim().length > 0).length,
-        avgWordsPerSentence: Math.round(textInput.split(/\s+/).length / textInput.split(/[.!?]+/).filter(s => s.trim().length > 0).length),
-        vocabularyLevel: 'Grade 4-6',
-        gradeLevel: gradeLevel,
-        readabilityScore: 75,
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'text_complexity',
+        {
+          input: textInput,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            subject: subject,
+          },
+        }
+      )
+      
+      // Response should match TextAnalysis interface
+      setAnalysis(response.result as TextAnalysis)
+      toast.success('Text analysis completed')
+    } catch (error: any) {
+      console.error('Error analyzing text:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to analyze text'
+      toast.error(errorMessage)
+      
+      // Show upgrade message if premium required
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setAnalysis(mockAnalysis)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const generateGuidedReading = async () => {
-    if (!textInput.trim()) return
+    if (!textInput.trim()) {
+      toast.error('Please enter text for guided reading')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockGuidedReading: GuidedReadingStrategy = {
-        beforeReading: [
-          'Preview the text title and images to activate prior knowledge',
-          'Introduce key vocabulary: protagonist, conflict, resolution',
-          'Set purpose: "We are reading to understand character development"',
-          'Make predictions based on the title and first paragraph',
-        ],
-        duringReading: [
-          'Stop and think: "What is the main character feeling right now?"',
-          'Visualize: Create mental images of the setting described',
-          'Question: "Why did the character make this decision?"',
-          'Monitor comprehension: Check understanding after each paragraph',
-        ],
-        afterReading: [
-          'Summarize the main events in sequence',
-          'Identify the theme or central message',
-          'Connect to personal experiences or other texts',
-          'Evaluate: "Was the ending satisfying? Why or why not?"',
-        ],
-        vocabulary: [
-          'Protagonist - the main character in a story',
-          'Conflict - a problem or struggle in the story',
-          'Resolution - how the conflict is solved',
-          'Theme - the underlying message or lesson',
-        ],
-        comprehensionQuestions: {
-          literal: [
-            'Who is the main character in this text?',
-            'Where does the story take place?',
-            'What problem does the character face?',
-          ],
-          inferential: [
-            'Why do you think the character made this choice?',
-            'What can you infer about the character\'s personality?',
-            'How might the story be different if told from another perspective?',
-          ],
-          evaluative: [
-            'Do you agree with how the character handled the situation?',
-            'What would you have done differently?',
-            'What is the author trying to teach us?',
-          ],
-        },
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'guided_reading',
+        {
+          input: textInput,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+          },
+        }
+      )
+      
+      setGuidedReading(response.result as GuidedReadingStrategy)
+      toast.success('Guided reading strategies generated')
+    } catch (error: any) {
+      console.error('Error generating guided reading:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to generate guided reading strategies'
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setGuidedReading(mockGuidedReading)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const generateWritingFeedback = async () => {
-    if (!textInput.trim()) return
+    if (!textInput.trim()) {
+      toast.error('Please enter writing sample for feedback')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockFeedback: WritingFeedback = {
-        strengths: [
-          'Clear topic sentence that introduces the main idea',
-          'Good use of descriptive language and sensory details',
-          'Logical organization with a beginning, middle, and end',
-        ],
-        areasForImprovement: [
-          'Consider adding more transition words to connect ideas',
-          'Some sentences could be combined for better flow',
-          'Add more specific examples to support your main points',
-        ],
-        suggestions: [
-          'Use words like "however," "therefore," and "for example" to connect ideas',
-          'Try varying sentence length to create rhythm in your writing',
-          'Include dialogue or quotes to make your writing more engaging',
-        ],
-        rubricScore: {
-          content: 4,
-          organization: 3,
-          language: 4,
-          conventions: 3,
-        },
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'writing_feedback',
+        {
+          input: textInput,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+          },
+        }
+      )
+      
+      setWritingFeedback(response.result as WritingFeedback)
+      toast.success('Writing feedback generated')
+    } catch (error: any) {
+      console.error('Error generating feedback:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to generate writing feedback'
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setWritingFeedback(mockFeedback)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
@@ -373,27 +382,27 @@ const LiteracyLabCoach = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Reading Level</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.readingLevel}</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.readingLevel ?? 'N/A'}</p>
                           </div>
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Complexity</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.complexity}</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.complexity ?? 'N/A'}</p>
                           </div>
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Word Count</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.wordCount.toLocaleString()}</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.wordCount?.toLocaleString() ?? 0}</p>
                           </div>
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Sentences</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.sentenceCount}</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.sentenceCount ?? 0}</p>
                           </div>
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Avg Words/Sentence</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.avgWordsPerSentence}</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.avgWordsPerSentence ?? 0}</p>
                           </div>
                           <div className="rounded-lg bg-white p-4 border border-gray-200">
                             <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">Readability Score</p>
-                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.readabilityScore}/100</p>
+                            <p className="text-xl font-bold text-gray-900 mt-1">{analysis.readabilityScore ?? 0}/100</p>
                           </div>
                         </div>
                         <div className="mt-4 rounded-lg bg-white p-4 border border-gray-200">
@@ -402,15 +411,15 @@ const LiteracyLabCoach = () => {
                             <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
                               <div 
                                 className="h-full bg-blue-600 rounded-full"
-                                style={{ width: `${(parseInt(analysis.gradeLevel) / 12) * 100}%` }}
+                                style={{ width: `${((parseInt(analysis.gradeLevel || '5') || 5) / 12) * 100}%` }}
                               />
                             </div>
-                            <span className="text-sm font-semibold text-gray-900">{analysis.gradeLevel}</span>
+                            <span className="text-sm font-semibold text-gray-900">{analysis.gradeLevel ?? 'N/A'}</span>
                           </div>
                         </div>
                         <div className="mt-4 rounded-lg bg-white p-4 border border-gray-200">
                           <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-2">Vocabulary Level</p>
-                          <p className="text-lg font-semibold text-gray-900">{analysis.vocabularyLevel}</p>
+                          <p className="text-lg font-semibold text-gray-900">{analysis.vocabularyLevel ?? 'N/A'}</p>
                         </div>
                       </div>
                       <button className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-2">
@@ -492,7 +501,7 @@ const LiteracyLabCoach = () => {
                           Before Reading
                         </h3>
                         <ul className="space-y-2">
-                          {guidedReading.beforeReading.map((strategy, idx) => (
+                          {(guidedReading.beforeReading || []).map((strategy, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                               <span>{strategy}</span>
@@ -507,7 +516,7 @@ const LiteracyLabCoach = () => {
                           During Reading
                         </h3>
                         <ul className="space-y-2">
-                          {guidedReading.duringReading.map((strategy, idx) => (
+                          {(guidedReading.duringReading || []).map((strategy, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                               <span>{strategy}</span>
@@ -522,7 +531,7 @@ const LiteracyLabCoach = () => {
                           After Reading
                         </h3>
                         <ul className="space-y-2">
-                          {guidedReading.afterReading.map((strategy, idx) => (
+                          {(guidedReading.afterReading || []).map((strategy, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <CheckCircle2 className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                               <span>{strategy}</span>
@@ -537,7 +546,7 @@ const LiteracyLabCoach = () => {
                           Key Vocabulary
                         </h3>
                         <ul className="space-y-2">
-                          {guidedReading.vocabulary.map((word, idx) => (
+                          {(guidedReading.vocabulary || []).map((word, idx) => (
                             <li key={idx} className="text-sm text-gray-700">
                               <span className="font-semibold text-gray-900">{word.split(' - ')[0]}</span>
                               {word.includes(' - ') && (
@@ -557,7 +566,7 @@ const LiteracyLabCoach = () => {
                           <div>
                             <p className="text-sm font-semibold text-gray-700 mb-2">Literal Questions</p>
                             <ul className="space-y-1">
-                              {guidedReading.comprehensionQuestions.literal.map((q, idx) => (
+                              {(guidedReading.comprehensionQuestions?.literal || []).map((q, idx) => (
                                 <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
                                   <span className="text-indigo-600 mt-0.5">•</span>
                                   <span>{q}</span>
@@ -568,7 +577,7 @@ const LiteracyLabCoach = () => {
                           <div>
                             <p className="text-sm font-semibold text-gray-700 mb-2">Inferential Questions</p>
                             <ul className="space-y-1">
-                              {guidedReading.comprehensionQuestions.inferential.map((q, idx) => (
+                              {(guidedReading.comprehensionQuestions?.inferential || []).map((q, idx) => (
                                 <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
                                   <span className="text-indigo-600 mt-0.5">•</span>
                                   <span>{q}</span>
@@ -579,7 +588,7 @@ const LiteracyLabCoach = () => {
                           <div>
                             <p className="text-sm font-semibold text-gray-700 mb-2">Evaluative Questions</p>
                             <ul className="space-y-1">
-                              {guidedReading.comprehensionQuestions.evaluative.map((q, idx) => (
+                              {(guidedReading.comprehensionQuestions?.evaluative || []).map((q, idx) => (
                                 <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
                                   <span className="text-indigo-600 mt-0.5">•</span>
                                   <span>{q}</span>
@@ -669,7 +678,7 @@ const LiteracyLabCoach = () => {
                           Strengths
                         </h3>
                         <ul className="space-y-2">
-                          {writingFeedback.strengths.map((strength, idx) => (
+                          {(writingFeedback.strengths || []).map((strength, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                               <span>{strength}</span>
@@ -684,7 +693,7 @@ const LiteracyLabCoach = () => {
                           Areas for Improvement
                         </h3>
                         <ul className="space-y-2">
-                          {writingFeedback.areasForImprovement.map((area, idx) => (
+                          {(writingFeedback.areasForImprovement || []).map((area, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                               <span>{area}</span>
@@ -699,7 +708,7 @@ const LiteracyLabCoach = () => {
                           Suggestions
                         </h3>
                         <ul className="space-y-2">
-                          {writingFeedback.suggestions.map((suggestion, idx) => (
+                          {(writingFeedback.suggestions || []).map((suggestion, idx) => (
                             <li key={idx} className="flex items-start gap-2 text-sm text-gray-700">
                               <Lightbulb className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                               <span>{suggestion}</span>
@@ -718,13 +727,13 @@ const LiteracyLabCoach = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-700">Content</span>
                               <span className="text-sm font-bold text-gray-900">
-                                {writingFeedback.rubricScore.content}/5
+                                {writingFeedback.rubricScore?.content ?? 0}/5
                               </span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-blue-600 rounded-full"
-                                style={{ width: `${(writingFeedback.rubricScore.content / 5) * 100}%` }}
+                                style={{ width: `${((writingFeedback.rubricScore?.content ?? 0) / 5) * 100}%` }}
                               />
                             </div>
                           </div>
@@ -732,13 +741,13 @@ const LiteracyLabCoach = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-700">Organization</span>
                               <span className="text-sm font-bold text-gray-900">
-                                {writingFeedback.rubricScore.organization}/5
+                                {writingFeedback.rubricScore?.organization ?? 0}/5
                               </span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-green-600 rounded-full"
-                                style={{ width: `${(writingFeedback.rubricScore.organization / 5) * 100}%` }}
+                                style={{ width: `${((writingFeedback.rubricScore?.organization ?? 0) / 5) * 100}%` }}
                               />
                             </div>
                           </div>
@@ -746,13 +755,13 @@ const LiteracyLabCoach = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-700">Language</span>
                               <span className="text-sm font-bold text-gray-900">
-                                {writingFeedback.rubricScore.language}/5
+                                {writingFeedback.rubricScore?.language ?? 0}/5
                               </span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-purple-600 rounded-full"
-                                style={{ width: `${(writingFeedback.rubricScore.language / 5) * 100}%` }}
+                                style={{ width: `${((writingFeedback.rubricScore?.language ?? 0) / 5) * 100}%` }}
                               />
                             </div>
                           </div>
@@ -760,13 +769,13 @@ const LiteracyLabCoach = () => {
                             <div className="flex items-center justify-between">
                               <span className="text-sm font-medium text-gray-700">Conventions</span>
                               <span className="text-sm font-bold text-gray-900">
-                                {writingFeedback.rubricScore.conventions}/5
+                                {writingFeedback.rubricScore?.conventions ?? 0}/5
                               </span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                               <div
                                 className="h-full bg-amber-600 rounded-full"
-                                style={{ width: `${(writingFeedback.rubricScore.conventions / 5) * 100}%` }}
+                                style={{ width: `${((writingFeedback.rubricScore?.conventions ?? 0) / 5) * 100}%` }}
                               />
                             </div>
                           </div>
@@ -776,10 +785,10 @@ const LiteracyLabCoach = () => {
                             <span className="text-base font-semibold text-gray-900">Overall Score</span>
                             <span className="text-2xl font-bold text-gray-900">
                               {(
-                                (writingFeedback.rubricScore.content +
-                                  writingFeedback.rubricScore.organization +
-                                  writingFeedback.rubricScore.language +
-                                  writingFeedback.rubricScore.conventions) /
+                                ((writingFeedback.rubricScore?.content ?? 0) +
+                                  (writingFeedback.rubricScore?.organization ?? 0) +
+                                  (writingFeedback.rubricScore?.language ?? 0) +
+                                  (writingFeedback.rubricScore?.conventions ?? 0)) /
                                 4
                               ).toFixed(1)}
                               /5

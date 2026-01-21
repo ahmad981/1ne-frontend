@@ -48,6 +48,8 @@ import {
   MessageSquare,
   Globe,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 interface NGSSInvestigation {
   phenomenon: string
@@ -108,6 +110,9 @@ interface InquiryGuidance {
 }
 
 const STEMInquiryMentor = () => {
+  const { toast } = useSnackbar()
+  const CHATBOT_SLUG = 'stem-inquiry-mentor'
+  
   const [activeTab, setActiveTab] = useState<'investigation' | 'engineering' | 'inquiry' | 'data' | 'assessment' | 'alignment'>('investigation')
   const [gradeLevel, setGradeLevel] = useState('8')
   const [topic, setTopic] = useState('')
@@ -118,177 +123,112 @@ const STEMInquiryMentor = () => {
   const [inquiryGuidance, setInquiryGuidance] = useState<InquiryGuidance | null>(null)
 
   const handleNGSSInvestigation = async () => {
-    if (!topic.trim()) return
+    if (!topic.trim()) {
+      toast.error('Please enter a phenomenon or topic')
+      return
+    }
+    
     setIsGenerating(true)
     
-    setTimeout(() => {
-      const mockInvestigation: NGSSInvestigation = {
-        phenomenon: topic || 'Why do some objects float while others sink?',
-        performanceExpectation: 'MS-PS1-2: Analyze and interpret data on the properties of substances before and after the substances interact to determine if a chemical reaction has occurred.',
-        dci: 'PS1.A: Structure and Properties of Matter - Substances are made from different types of atoms, which combine with one another in various ways.',
-        sep: [
-          'Asking Questions and Defining Problems',
-          'Planning and Carrying Out Investigations',
-          'Analyzing and Interpreting Data',
-        ],
-        ccc: [
-          'Patterns',
-          'Cause and Effect',
-          'Structure and Function',
-        ],
-        investigationPlan: {
-          question: 'How does the density of an object affect whether it floats or sinks in water?',
-          hypothesis: 'Objects with a density less than water (1 g/cm³) will float, while objects with a density greater than water will sink.',
-          materials: [
-            'Various objects (wood, metal, plastic, etc.)',
-            'Graduated cylinder',
-            'Balance scale',
-            'Water',
-            'Calculator',
-          ],
-          procedure: [
-            'Measure the mass of each object using the balance scale',
-            'Measure the volume of each object using water displacement',
-            'Calculate density using the formula: density = mass/volume',
-            'Test each object in water and observe whether it floats or sinks',
-            'Record observations and compare densities',
-          ],
-          dataCollection: 'Create a data table with columns for object name, mass (g), volume (cm³), calculated density (g/cm³), and observation (float/sink).',
-          analysis: 'Compare the calculated density of each object to the density of water (1 g/cm³). Objects with density < 1 g/cm³ float; objects with density > 1 g/cm³ sink.',
-        },
-        assessment: {
-          formative: [
-            'Exit ticket: Explain why a steel ship floats even though steel is denser than water',
-            'Think-pair-share: Predict what would happen if we tested objects in saltwater',
-            'Quick check: Calculate density of an object with mass 50g and volume 25cm³',
-          ],
-          summative: 'Design an investigation to determine the density of an unknown liquid and explain how you would use this information to identify the liquid.',
-        },
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'ngss_investigation',
+        {
+          input: topic,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            subject: subject,
+          },
+        }
+      )
+      
+      setNGSSInvestigation(response.result as NGSSInvestigation)
+      toast.success('NGSS investigation generated successfully')
+    } catch (error: any) {
+      console.error('Error generating NGSS investigation:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to generate investigation'
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setNGSSInvestigation(mockInvestigation)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const handleEngineeringChallenge = async () => {
-    if (!topic.trim()) return
+    if (!topic.trim()) {
+      toast.error('Please enter an engineering problem')
+      return
+    }
+    
     setIsGenerating(true)
     
-    setTimeout(() => {
-      const mockChallenge: EngineeringChallenge = {
-        problem: topic || 'Design a water filtration system for a community without access to clean water',
-        constraints: [
-          'Must use only locally available materials',
-          'Cost must be under $10 per unit',
-          'Must be able to filter at least 1 liter per hour',
-          'Must be portable and easy to assemble',
-        ],
-        criteria: [
-          'Effectiveness: Removes at least 90% of visible particles',
-          'Durability: Lasts at least 3 months with daily use',
-          'Usability: Can be operated by people with minimal training',
-          'Sustainability: Uses renewable or recyclable materials',
-        ],
-        designCycle: {
-          ask: [
-            'What contaminants need to be removed?',
-            'What materials are available locally?',
-            'What is the target user population?',
-            'What are the environmental conditions?',
-          ],
-          imagine: [
-            'Research existing filtration methods (sand, charcoal, cloth)',
-            'Brainstorm combinations of materials',
-            'Consider multi-stage filtration systems',
-            'Think about maintenance and replacement needs',
-          ],
-          plan: [
-            'Sketch design with labeled parts',
-            'List materials and quantities needed',
-            'Create step-by-step assembly instructions',
-            'Plan testing procedures',
-          ],
-          create: [
-            'Build prototype following design plan',
-            'Document any modifications made during construction',
-            'Take photos of each stage',
-            'Record initial observations',
-          ],
-          improve: [
-            'Test prototype with contaminated water',
-            'Measure effectiveness (particle count, clarity)',
-            'Identify weaknesses and failure points',
-            'Redesign and rebuild improved version',
-            'Compare performance of iterations',
-          ],
-        },
-        realWorldContext: 'Over 2 billion people lack access to safely managed drinking water. This challenge connects to UN Sustainable Development Goal 6: Clean Water and Sanitation.',
-        ngssAlignment: [
-          'MS-ETS1-1: Define the criteria and constraints of a design problem',
-          'MS-ETS1-2: Evaluate competing design solutions',
-          'MS-ETS1-3: Analyze data from tests to determine similarities and differences',
-          'MS-ETS1-4: Develop a model to generate data for iterative testing',
-        ],
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'engineering_design',
+        {
+          input: topic,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+          },
+        }
+      )
+      
+      setEngineeringChallenge(response.result as EngineeringChallenge)
+      toast.success('Engineering challenge generated successfully')
+    } catch (error: any) {
+      console.error('Error generating engineering challenge:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to generate challenge'
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setEngineeringChallenge(mockChallenge)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const handleInquiryGuidance = async () => {
-    if (!topic.trim()) return
+    if (!topic.trim()) {
+      toast.error('Please enter a topic')
+      return
+    }
+    
     setIsGenerating(true)
     
-    setTimeout(() => {
-      const mockGuidance: InquiryGuidance = {
-        topic: topic || 'Plant Growth',
-        questions: [
-          {
-            level: 'exploratory',
-            question: 'What factors might affect how fast a plant grows?',
-            guidance: 'Encourage students to observe plants in different conditions. Guide them to notice light, water, soil type, temperature, and space as potential factors.',
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'inquiry_guidance',
+        {
+          input: topic,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
           },
-          {
-            level: 'investigative',
-            question: 'How does the amount of light affect plant growth rate?',
-            guidance: 'Help students design a controlled experiment. They should vary only light (independent variable) while keeping water, soil, temperature constant. Measure growth (dependent variable) over time.',
-          },
-          {
-            level: 'evaluative',
-            question: 'Based on your data, what is the optimal amount of light for plant growth? How confident are you in this conclusion?',
-            guidance: 'Guide students to analyze their data, identify patterns, and consider limitations. Encourage them to think about sample size, measurement accuracy, and external factors.',
-          },
-        ],
-        hypothesisFramework: {
-          template: 'If [independent variable] is [changed in this way], then [dependent variable] will [expected outcome] because [scientific reasoning].',
-          examples: [
-            'If plants receive more light, then they will grow taller because light is needed for photosynthesis to produce energy for growth.',
-            'If the temperature increases, then the rate of chemical reactions will increase because higher temperatures provide more kinetic energy to molecules.',
-          ],
-        },
-        experimentalDesign: {
-          variables: 'Independent: Amount of light (0, 4, 8, 12 hours/day)\nDependent: Plant height (cm) measured weekly\nControlled: Type of plant, amount of water, soil type, temperature, pot size',
-          controls: 'Control group: Plant with standard light conditions (8 hours)\nPositive control: Plant known to grow well\nNegative control: Plant with no light (to confirm light is necessary)',
-          procedure: '1. Plant seeds in identical pots with same soil\n2. Place in same location with controlled temperature\n3. Water all plants with same amount daily\n4. Expose to different light durations (0, 4, 8, 12 hours)\n5. Measure height weekly for 4 weeks\n6. Record data in table',
-        },
-        dataAnalysis: {
-          methods: [
-            'Create line graphs showing growth over time for each condition',
-            'Calculate average growth rate for each group',
-            'Compare final heights using bar graph',
-            'Identify trends and patterns',
-          ],
-          tools: [
-            'Graphing software or graph paper',
-            'Calculator for averages',
-            'Statistical analysis (if appropriate for grade level)',
-          ],
-          interpretation: 'Guide students to: (1) Describe what the data shows, (2) Identify relationships between variables, (3) Explain the science behind the results, (4) Consider sources of error, (5) Draw evidence-based conclusions.',
-        },
+        }
+      )
+      
+      setInquiryGuidance(response.result as InquiryGuidance)
+      toast.success('Inquiry guidance generated successfully')
+    } catch (error: any) {
+      console.error('Error generating inquiry guidance:', error)
+      const errorMessage = error?.detail || error?.message || 'Failed to generate guidance'
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setInquiryGuidance(mockGuidance)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
@@ -497,7 +437,7 @@ const STEMInquiryMentor = () => {
                           <Lightbulb className="h-5 w-5 text-blue-600" />
                           Phenomena
                         </h3>
-                        <p className="text-gray-700 text-lg font-medium">{ngssInvestigation.phenomenon}</p>
+                        <p className="text-gray-700 text-lg font-medium">{ngssInvestigation.phenomenon ?? 'N/A'}</p>
                       </div>
 
                       <div className="rounded-2xl border border-gray-200 bg-white p-6">
@@ -508,16 +448,16 @@ const STEMInquiryMentor = () => {
                         <div className="space-y-4">
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Performance Expectation</p>
-                            <p className="text-sm font-mono text-gray-900 bg-gray-50 p-2 rounded">{ngssInvestigation.performanceExpectation}</p>
+                            <p className="text-sm font-mono text-gray-900 bg-gray-50 p-2 rounded">{ngssInvestigation.performanceExpectation ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Disciplinary Core Idea (DCI)</p>
-                            <p className="text-sm text-gray-700">{ngssInvestigation.dci}</p>
+                            <p className="text-sm text-gray-700">{ngssInvestigation.dci ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Science & Engineering Practices (SEP)</p>
                             <ul className="space-y-1">
-                              {ngssInvestigation.sep.map((practice, idx) => (
+                              {(ngssInvestigation.sep ?? []).map((practice, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                   <CheckCircle2 className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                                   <span>{practice}</span>
@@ -528,7 +468,7 @@ const STEMInquiryMentor = () => {
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Crosscutting Concepts (CCC)</p>
                             <ul className="space-y-1">
-                              {ngssInvestigation.ccc.map((concept, idx) => (
+                              {(ngssInvestigation.ccc ?? []).map((concept, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                   <Layers className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
                                   <span>{concept}</span>
@@ -547,16 +487,16 @@ const STEMInquiryMentor = () => {
                         <div className="space-y-4">
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Research Question</p>
-                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan.question}</p>
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan?.question ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Hypothesis</p>
-                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan.hypothesis}</p>
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan?.hypothesis ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Materials</p>
                             <ul className="space-y-1">
-                              {ngssInvestigation.investigationPlan.materials.map((material, idx) => (
+                              {(ngssInvestigation.investigationPlan?.materials ?? []).map((material, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 bg-white p-2 rounded border border-green-200">
                                   <Circle className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                                   <span>{material}</span>
@@ -567,7 +507,7 @@ const STEMInquiryMentor = () => {
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Procedure</p>
                             <ol className="space-y-1">
-                              {ngssInvestigation.investigationPlan.procedure.map((step, idx) => (
+                              {(ngssInvestigation.investigationPlan?.procedure ?? []).map((step, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2 bg-white p-2 rounded border border-green-200">
                                   <span className="flex-shrink-0 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center text-xs font-semibold">
                                     {idx + 1}
@@ -579,11 +519,11 @@ const STEMInquiryMentor = () => {
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Data Collection</p>
-                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan.dataCollection}</p>
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan?.dataCollection ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Analysis</p>
-                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan.analysis}</p>
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-green-200">{ngssInvestigation.investigationPlan?.analysis ?? 'N/A'}</p>
                           </div>
                         </div>
                       </div>
@@ -597,7 +537,7 @@ const STEMInquiryMentor = () => {
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Formative Assessment</p>
                             <ul className="space-y-1">
-                              {ngssInvestigation.assessment.formative.map((item, idx) => (
+                              {(ngssInvestigation.assessment?.formative ?? []).map((item, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                   <CheckCircle2 className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                                   <span>{item}</span>
@@ -607,7 +547,7 @@ const STEMInquiryMentor = () => {
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-1">Summative Assessment</p>
-                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-purple-200">{ngssInvestigation.assessment.summative}</p>
+                            <p className="text-sm text-gray-700 bg-white p-3 rounded border border-purple-200">{ngssInvestigation.assessment?.summative ?? 'N/A'}</p>
                           </div>
                         </div>
                       </div>
@@ -690,7 +630,7 @@ const STEMInquiryMentor = () => {
                           <Wrench className="h-5 w-5 text-blue-600" />
                           Engineering Problem
                         </h3>
-                        <p className="text-gray-700 text-lg font-medium">{engineeringChallenge.problem}</p>
+                        <p className="text-gray-700 text-lg font-medium">{engineeringChallenge.problem ?? 'N/A'}</p>
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -700,7 +640,7 @@ const STEMInquiryMentor = () => {
                             Constraints
                           </h4>
                           <ul className="space-y-1">
-                            {engineeringChallenge.constraints.map((constraint, idx) => (
+                            {(engineeringChallenge.constraints ?? []).map((constraint, idx) => (
                               <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                 <span className="text-red-600 mt-0.5">•</span>
                                 <span>{constraint}</span>
@@ -714,7 +654,7 @@ const STEMInquiryMentor = () => {
                             Success Criteria
                           </h4>
                           <ul className="space-y-1">
-                            {engineeringChallenge.criteria.map((criterion, idx) => (
+                            {(engineeringChallenge.criteria ?? []).map((criterion, idx) => (
                               <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
                                 <span>{criterion}</span>
@@ -730,7 +670,7 @@ const STEMInquiryMentor = () => {
                           Engineering Design Cycle
                         </h3>
                         <div className="space-y-4">
-                          {Object.entries(engineeringChallenge.designCycle).map(([stage, activities]) => (
+                          {Object.entries(engineeringChallenge.designCycle ?? {}).map(([stage, activities]) => (
                             <div key={stage} className="rounded-lg border-2 border-indigo-200 bg-indigo-50 p-4">
                               <h4 className="text-base font-bold text-gray-900 mb-3 capitalize flex items-center gap-2">
                                 <span className="flex-shrink-0 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-bold">
@@ -739,7 +679,7 @@ const STEMInquiryMentor = () => {
                                 {stage}
                               </h4>
                               <ul className="space-y-1 ml-10">
-                                {activities.map((activity, idx) => (
+                                {((activities as string[]) ?? []).map((activity, idx) => (
                                   <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                     <span className="text-indigo-600 mt-0.5">•</span>
                                     <span>{activity}</span>
@@ -756,7 +696,7 @@ const STEMInquiryMentor = () => {
                           <Globe className="h-5 w-5 text-teal-600" />
                           Real-World Context
                         </h3>
-                        <p className="text-gray-700">{engineeringChallenge.realWorldContext}</p>
+                        <p className="text-gray-700">{engineeringChallenge.realWorldContext ?? 'N/A'}</p>
                       </div>
 
                       <div className="rounded-2xl border border-gray-200 bg-gradient-to-br from-purple-50 to-pink-50 p-6">
@@ -765,7 +705,7 @@ const STEMInquiryMentor = () => {
                           NGSS Alignment
                         </h3>
                         <ul className="space-y-1">
-                          {engineeringChallenge.ngssAlignment.map((standard, idx) => (
+                          {(engineeringChallenge.ngssAlignment ?? []).map((standard, idx) => (
                             <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                               <CheckCircle2 className="h-4 w-4 text-purple-600 mt-0.5 flex-shrink-0" />
                               <span className="font-mono">{standard}</span>
@@ -853,7 +793,7 @@ const STEMInquiryMentor = () => {
                           Inquiry Questions
                         </h3>
                         <div className="space-y-4">
-                          {inquiryGuidance.questions.map((q, idx) => {
+                          {(inquiryGuidance.questions ?? []).map((q, idx) => {
                             const levelColors = {
                               exploratory: 'bg-green-50 border-green-200',
                               investigative: 'bg-blue-50 border-blue-200',
@@ -882,12 +822,12 @@ const STEMInquiryMentor = () => {
                         <div className="space-y-3">
                           <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Template</p>
-                            <p className="text-sm font-mono text-gray-900">{inquiryGuidance.hypothesisFramework.template}</p>
+                            <p className="text-sm font-mono text-gray-900">{inquiryGuidance.hypothesisFramework?.template ?? 'N/A'}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Examples</p>
                             <ul className="space-y-2">
-                              {inquiryGuidance.hypothesisFramework.examples.map((example, idx) => (
+                              {(inquiryGuidance.hypothesisFramework?.examples ?? []).map((example, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 bg-gray-50 p-3 rounded border border-gray-200">
                                   "{example}"
                                 </li>
@@ -905,15 +845,15 @@ const STEMInquiryMentor = () => {
                         <div className="space-y-3">
                           <div className="bg-white rounded-lg p-4 border border-green-200">
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Variables</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign.variables}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign?.variables ?? 'N/A'}</p>
                           </div>
                           <div className="bg-white rounded-lg p-4 border border-green-200">
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Controls</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign.controls}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign?.controls ?? 'N/A'}</p>
                           </div>
                           <div className="bg-white rounded-lg p-4 border border-green-200">
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Procedure</p>
-                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign.procedure}</p>
+                            <p className="text-sm text-gray-700 whitespace-pre-line">{inquiryGuidance.experimentalDesign?.procedure ?? 'N/A'}</p>
                           </div>
                         </div>
                       </div>
@@ -927,7 +867,7 @@ const STEMInquiryMentor = () => {
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Analysis Methods</p>
                             <ul className="space-y-1">
-                              {inquiryGuidance.dataAnalysis.methods.map((method, idx) => (
+                              {(inquiryGuidance.dataAnalysis?.methods ?? []).map((method, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                   <CheckCircle2 className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
                                   <span>{method}</span>
@@ -938,7 +878,7 @@ const STEMInquiryMentor = () => {
                           <div>
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Tools</p>
                             <ul className="space-y-1">
-                              {inquiryGuidance.dataAnalysis.tools.map((tool, idx) => (
+                              {(inquiryGuidance.dataAnalysis?.tools ?? []).map((tool, idx) => (
                                 <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                   <Wand2 className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
                                   <span>{tool}</span>
@@ -948,7 +888,7 @@ const STEMInquiryMentor = () => {
                           </div>
                           <div className="bg-white rounded-lg p-4 border border-indigo-200">
                             <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">Interpretation Guidance</p>
-                            <p className="text-sm text-gray-700">{inquiryGuidance.dataAnalysis.interpretation}</p>
+                            <p className="text-sm text-gray-700">{inquiryGuidance.dataAnalysis?.interpretation ?? 'N/A'}</p>
                           </div>
                         </div>
                       </div>
