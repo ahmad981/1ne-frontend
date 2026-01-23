@@ -31,6 +31,8 @@ import {
   Zap,
   Compass,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 interface ThemeAnalysis {
   themes: {
@@ -74,6 +76,9 @@ interface DiscussionPrompts {
 }
 
 const LiteratureAnalysisExpert = () => {
+  const { toast } = useSnackbar()
+  const CHATBOT_SLUG = 'literature-analysis-expert'
+  
   const [activeTab, setActiveTab] = useState<'theme' | 'character' | 'devices' | 'discussion' | 'compare' | 'essay'>('theme')
   const [textInput, setTextInput] = useState('')
   const [title, setTitle] = useState('')
@@ -85,201 +90,203 @@ const LiteratureAnalysisExpert = () => {
   const [literaryDevices, setLiteraryDevices] = useState<LiteraryDevices | null>(null)
   const [discussionPrompts, setDiscussionPrompts] = useState<DiscussionPrompts | null>(null)
 
+  // Helper function to extract error message from various error formats
+  const extractErrorMessage = (error: any, defaultMessage: string): string => {
+    if (typeof error === 'string') {
+      return error
+    }
+    
+    // Handle Pydantic validation errors (array format)
+    const extractFromDetail = (detail: any): string | null => {
+      if (Array.isArray(detail)) {
+        const firstError = detail[0]
+        return firstError?.msg || firstError?.message || `Validation error: ${firstError?.type || 'unknown'}`
+      } else if (typeof detail === 'string') {
+        return detail
+      }
+      return null
+    }
+    
+    if (error?.detail) {
+      const msg = extractFromDetail(error.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.response?.data?.detail) {
+      const msg = extractFromDetail(error.response.data.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.data?.detail) {
+      const msg = extractFromDetail(error.data.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.message) {
+      return typeof error.message === 'string' ? error.message : JSON.stringify(error.message)
+    }
+    
+    if (error?.response?.data?.message) {
+      return typeof error.response.data.message === 'string' ? error.response.data.message : JSON.stringify(error.response.data.message)
+    }
+    
+    return defaultMessage
+  }
+
   const handleThemeAnalysis = async () => {
-    if (!textInput.trim() && !title.trim()) return
+    if (!textInput.trim() && !title.trim()) {
+      toast.error('Please enter text or title for theme analysis')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockAnalysis: ThemeAnalysis = {
-        themes: [
-          {
-            theme: 'The Power of Knowledge',
-            description: 'The text explores how knowledge can be both liberating and dangerous, showing characters who seek understanding despite risks.',
-            evidence: [
-              'Character pursues forbidden knowledge despite warnings',
-              'Discovery leads to both enlightenment and consequences',
-              'Knowledge creates power dynamics between characters',
-            ],
-            significance: 'This theme connects to the human desire for understanding and the ethical implications of seeking truth.',
+    try {
+      const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'theme_exploration',
+        {
+          input: inputText,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            title: title || undefined,
+            author: author || undefined,
           },
-          {
-            theme: 'Identity and Self-Discovery',
-            description: 'Characters struggle with questions of who they are and who they want to become, often through conflict and growth.',
-            evidence: [
-              'Protagonist questions their place in the world',
-              'External conflicts mirror internal identity struggles',
-              'Character transformation reveals true self',
-            ],
-            significance: 'The theme reflects universal questions about personal identity and the journey of self-discovery.',
-          },
-        ],
-        motifs: [
-          'Light and darkness as symbols of knowledge and ignorance',
-          'Journey/quest representing personal growth',
-          'Mirrors and reflections showing self-examination',
-        ],
-        symbols: [
-          {
-            symbol: 'The Ancient Book',
-            meaning: 'Represents forbidden knowledge and the power of written word',
-            examples: [
-              'Appears at moments of critical decision-making',
-              'Characters are drawn to it despite warnings',
-              'Its contents change those who read it',
-            ],
-          },
-          {
-            symbol: 'The Bridge',
-            meaning: 'Represents transition, connection, and the passage from one state to another',
-            examples: [
-              'Characters cross it at pivotal moments',
-              'It connects two different worlds or states of being',
-              'Crossing requires courage and commitment',
-            ],
-          },
-        ],
+        }
+      )
+      
+      setThemeAnalysis(response.result as ThemeAnalysis)
+      toast.success('Theme analysis completed')
+    } catch (error: any) {
+      console.error('Error analyzing themes:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to analyze themes')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setThemeAnalysis(mockAnalysis)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handleCharacterAnalysis = async () => {
-    if (!textInput.trim() && !title.trim()) return
+    if (!textInput.trim() && !title.trim()) {
+      toast.error('Please enter text or title for character analysis')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockAnalysis: CharacterAnalysis = {
-        characters: [
-          {
-            name: 'Protagonist',
-            role: 'Main character, hero/heroine',
-            traits: ['Curious', 'Determined', 'Compassionate', 'Impulsive'],
-            development: 'Begins as naive and uncertain, but through trials and challenges, grows into a confident leader who understands the weight of responsibility.',
-            relationships: [
-              'Mentor: Seeks guidance and wisdom',
-              'Rival: Competes with but ultimately respects',
-              'Friend: Provides emotional support and loyalty',
-            ],
-            quotes: [
-              '"I must know the truth, no matter the cost."',
-              '"We are stronger together than we are alone."',
-              '"The greatest journey begins with a single step."',
-            ],
+    try {
+      const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'character_analysis',
+        {
+          input: inputText,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            title: title || undefined,
+            author: author || undefined,
           },
-          {
-            name: 'Antagonist',
-            role: 'Opposing force, creates conflict',
-            traits: ['Ambitious', 'Cunning', 'Charismatic', 'Flawed'],
-            development: 'Initially appears as a clear villain, but reveals complexity and motivations that challenge simple moral judgments.',
-            relationships: [
-              'Protagonist: Complex dynamic of opposition and understanding',
-              'Followers: Commands loyalty through fear and manipulation',
-            ],
-            quotes: [
-              '"Power is not given, it is taken."',
-              '"Every choice has a consequence."',
-            ],
-          },
-        ],
+        }
+      )
+      
+      setCharacterAnalysis(response.result as CharacterAnalysis)
+      toast.success('Character analysis completed')
+    } catch (error: any) {
+      console.error('Error analyzing characters:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to analyze characters')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setCharacterAnalysis(mockAnalysis)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handleLiteraryDevices = async () => {
-    if (!textInput.trim() && !title.trim()) return
+    if (!textInput.trim() && !title.trim()) {
+      toast.error('Please enter text or title for literary devices analysis')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockDevices: LiteraryDevices = {
-        devices: [
-          {
-            type: 'Metaphor',
-            examples: [
-              '"Her smile was a ray of sunshine"',
-              '"Time is a thief"',
-              '"The classroom was a battlefield"',
-            ],
-            effect: 'Creates vivid imagery and helps readers understand abstract concepts through concrete comparisons.',
+    try {
+      const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'literary_devices',
+        {
+          input: inputText,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            title: title || undefined,
+            author: author || undefined,
           },
-          {
-            type: 'Foreshadowing',
-            examples: [
-              'Early mention of storm clouds before conflict',
-              'Character\'s unease about a decision that later proves significant',
-              'Symbolic objects that reappear at crucial moments',
-            ],
-            effect: 'Builds suspense and prepares readers for future events, creating anticipation and deeper engagement.',
-          },
-          {
-            type: 'Irony',
-            examples: [
-              'Situational: Character achieves goal but loses what they valued most',
-              'Verbal: Character says opposite of what they mean',
-              'Dramatic: Reader knows something characters do not',
-            ],
-            effect: 'Adds complexity, humor, or tragedy, and highlights the gap between appearance and reality.',
-          },
-          {
-            type: 'Symbolism',
-            examples: [
-              'Red rose representing love and passion',
-              'Broken mirror symbolizing fractured identity',
-              'Light/dark imagery throughout the text',
-            ],
-            effect: 'Adds layers of meaning, allowing readers to interpret deeper significance beyond literal events.',
-          },
-          {
-            type: 'Alliteration',
-            examples: [
-              '"The wild wind whispered warnings"',
-              '"Silent shadows slipped slowly"',
-            ],
-            effect: 'Creates rhythm, emphasizes certain words, and makes phrases more memorable.',
-          },
-        ],
+        }
+      )
+      
+      setLiteraryDevices(response.result as LiteraryDevices)
+      toast.success('Literary devices analysis completed')
+    } catch (error: any) {
+      console.error('Error analyzing literary devices:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to analyze literary devices')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setLiteraryDevices(mockDevices)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handleDiscussionPrompts = async () => {
-    if (!textInput.trim() && !title.trim()) return
+    if (!textInput.trim() && !title.trim()) {
+      toast.error('Please enter text or title for discussion prompts')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockPrompts: DiscussionPrompts = {
-        literal: [
-          'What is the main conflict in this text?',
-          'Who are the main characters and what are their roles?',
-          'Where and when does the story take place?',
-          'What are the key events in the plot?',
-        ],
-        inferential: [
-          'Why do you think the author chose this setting?',
-          'What can we infer about the character\'s motivations from their actions?',
-          'How does the author use symbolism to convey deeper meaning?',
-          'What themes emerge from the characters\' interactions?',
-        ],
-        evaluative: [
-          'Do you agree with the protagonist\'s decisions? Why or why not?',
-          'How effective is the author\'s use of literary devices?',
-          'What message is the author trying to convey, and is it successful?',
-          'How does this text compare to other works you\'ve read?',
-        ],
-        creative: [
-          'Rewrite the ending from a different character\'s perspective',
-          'Create a dialogue between two characters that didn\'t interact in the text',
-          'Design a book cover that represents the main themes',
-          'Write a letter from one character to another explaining their actions',
-        ],
+    try {
+      const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'discussion_prompts',
+        {
+          input: inputText,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            title: title || undefined,
+            author: author || undefined,
+          },
+        }
+      )
+      
+      setDiscussionPrompts(response.result as DiscussionPrompts)
+      toast.success('Discussion prompts generated')
+    } catch (error: any) {
+      console.error('Error generating discussion prompts:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to generate discussion prompts')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setDiscussionPrompts(mockPrompts)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const tabs = [

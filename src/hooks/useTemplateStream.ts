@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { StreamEvent } from '../api/types'
+import { API_URL } from '../config/api'
 
 interface UseTemplateStreamReturn {
   content: string // Accumulated JSON content from streaming
@@ -1240,9 +1241,8 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
     const abortController = new AbortController()
     abortControllerRef.current = abortController
 
-    // Build URL
-    const DEFAULT_BASE_URL = 'http://localhost:8000/api'
-    const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
+    // Build URL using centralized config
+    const API_BASE_URL = API_URL.replace(/\/$/, '')
     const url = `${API_BASE_URL}/v1/templates/${slug}/execute-stream`
 
     // Start fetch request

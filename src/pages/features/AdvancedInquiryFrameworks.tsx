@@ -140,7 +140,7 @@ PBL is a teaching method where students learn by actively engaging in real-world
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub/student-engagement-path')}
+                onClick={() => navigate('/learning-hub/student-engagement-path')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -329,7 +329,7 @@ PBL is a teaching method where students learn by actively engaging in real-world
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Module Complete!</h3>
               <p className="text-gray-700 mb-6">Congratulations! You've completed all modules in the Student Engagement Path.</p>
               <button
-                onClick={() => navigate('/dashboard/learning-hub/student-engagement-path')}
+                onClick={() => navigate('/learning-hub/student-engagement-path')}
                 className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
               >
                 View Certificate

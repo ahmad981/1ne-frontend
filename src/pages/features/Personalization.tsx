@@ -435,7 +435,7 @@ const Personalization = () => {
                 Set learning goals
               </button>
               <Link
-                to="/dashboard/analytics"
+                to="/analytics"
                 className="w-full rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 hover:bg-gray-50 inline-flex items-center justify-center gap-2"
               >
                 <ArrowUpRight className="h-3.5 w-3.5" /> View detailed analytics

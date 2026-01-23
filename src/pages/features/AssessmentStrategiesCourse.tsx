@@ -312,7 +312,7 @@ const AssessmentStrategiesCourse = () => {
   }
 
   const handleCompleteCourse = () => {
-    navigate('/dashboard/learning-hub')
+    navigate('/learning-hub')
   }
 
   if (showCertificate) {
@@ -385,7 +385,7 @@ const AssessmentStrategiesCourse = () => {
               <p className="text-sm text-gray-600 mt-1">Test your understanding of formative assessment strategies</p>
             </div>
             <button
-              onClick={() => navigate('/dashboard/learning-hub')}
+              onClick={() => navigate('/learning-hub')}
               className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100"
             >
               <X className="w-5 h-5" />
@@ -585,7 +585,7 @@ const AssessmentStrategiesCourse = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('/dashboard/learning-hub')}
+            onClick={() => navigate('/learning-hub')}
             className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
           >
             <X className="w-5 h-5" />
@@ -684,7 +684,7 @@ const AssessmentStrategiesCourse = () => {
                       <div className="bg-white rounded-lg p-4 border border-blue-200">
                         <p className="text-sm font-semibold text-gray-700 mb-2">Tips:</p>
                         <ul className="space-y-1">
-                          {currentContent.data.tips.map((tip: string, idx: number) => (
+                          {currentContent?.data?.tips?.map((tip: string, idx: number) => (
                             <li key={idx} className="text-sm text-gray-600 flex items-start gap-2">
                               <ChevronRight className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                               <span>{tip}</span>

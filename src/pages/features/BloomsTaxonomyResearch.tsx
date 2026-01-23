@@ -312,7 +312,7 @@ const BloomsTaxonomyResearch = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub')}
+                onClick={() => navigate('/learning-hub')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -814,13 +814,13 @@ const BloomsTaxonomyResearch = () => {
           </p>
           <div className="flex gap-3 justify-center">
             <button
-              onClick={() => navigate('/dashboard/templates/general-lesson-planner')}
+              onClick={() => navigate('/templates/general-lesson-planner')}
               className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-purple-600 hover:bg-purple-50 transition"
             >
               Create a Lesson Plan
             </button>
             <button
-              onClick={() => navigate('/dashboard/learning-hub')}
+              onClick={() => navigate('learning-hub')}
               className="rounded-full border-2 border-white px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition"
             >
               Explore More Research

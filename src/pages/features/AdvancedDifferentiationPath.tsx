@@ -430,7 +430,7 @@ const AdvancedDifferentiationPath = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub')}
+                onClick={() => navigate('/learning-hub')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -714,12 +714,12 @@ const AdvancedDifferentiationPath = () => {
                               <button
                                 onClick={() => {
                                   const moduleRoutes: Record<string, string> = {
-                                    'tiered-instruction': '/dashboard/learning-hub/tiered-instruction-module',
-                                    'content-differentiation': '/dashboard/learning-hub/content-differentiation-module',
-                                    'process-differentiation': '/dashboard/learning-hub/process-differentiation-module',
-                                    'product-differentiation': '/dashboard/learning-hub/product-differentiation-module',
-                                    'assessment-differentiation': '/dashboard/learning-hub/assessment-differentiation-module',
-                                    'advanced-grouping': '/dashboard/learning-hub/advanced-grouping-module',
+                                    'tiered-instruction': '/learning-hub/tiered-instruction-module',
+                                    'content-differentiation': '/learning-hub/content-differentiation-module',
+                                    'process-differentiation': '/learning-hub/process-differentiation-module',
+                                    'product-differentiation': '/learning-hub/product-differentiation-module',
+                                    'assessment-differentiation': '/learning-hub/assessment-differentiation-module',
+                                    'advanced-grouping': '/learning-hub/advanced-grouping-module',
                                   }
                                   
                                   const route = moduleRoutes[module.id]

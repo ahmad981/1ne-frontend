@@ -121,7 +121,7 @@ See `FLOW_TEST_VERIFICATION.md` for complete testing guide.
 **Quick Test:**
 1. Start backend: `cd 1ne_backend && uvicorn app.main:app --reload`
 2. Start frontend: `cd 1ne-frontend && npm run dev`
-3. Navigate to `/dashboard/templates`
+3. Navigate to `templates`
 4. Click a template
 5. Fill form and submit
 6. Verify streaming works

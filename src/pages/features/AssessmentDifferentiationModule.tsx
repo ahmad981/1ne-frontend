@@ -286,7 +286,7 @@ Differentiated assessment provides multiple ways for students to demonstrate lea
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub/advanced-differentiation-path')}
+                onClick={() => navigate('/learning-hub/advanced-differentiation-path')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />

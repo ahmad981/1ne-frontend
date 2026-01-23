@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 
 import { TemplateListParams, TemplateResponse, TemplateSort } from '../../api/types'
+import { API_BASE_URL, API_URL, HEALTH_URL } from '../../config/api'
 
 type TemplateFilterFormState = {
   q: string
@@ -406,19 +407,19 @@ const TemplatesLibrary = () => {
               try {
                 // Test 1: Health endpoint
                 console.log('[TemplatesLibrary] Test 1: Health check...')
-                const healthUrl = 'http://localhost:8000/health'
+                const healthUrl = HEALTH_URL
                 const healthRes = await fetch(healthUrl, { method: 'GET', mode: 'cors' })
                 console.log('[TemplatesLibrary] Health status:', healthRes.status)
                 
                 // Test 2: Test endpoint
                 console.log('[TemplatesLibrary] Test 2: Test endpoint...')
-                const testUrl = 'http://localhost:8000/api/v1/test'
+                const testUrl = `${API_URL}/v1/test`
                 const testRes = await fetch(testUrl, { method: 'GET', mode: 'cors' })
                 console.log('[TemplatesLibrary] Test endpoint status:', testRes.status)
                 
                 // Test 3: Templates endpoint
                 console.log('[TemplatesLibrary] Test 3: Templates endpoint...')
-                const templatesUrl = 'http://localhost:8000/api/v1/templates'
+                const templatesUrl = `${API_URL}/v1/templates`
                 const response = await fetch(templatesUrl, {
                   method: 'GET',
                   headers: { 'Accept': 'application/json' },
@@ -659,7 +660,7 @@ const TemplatesLibrary = () => {
                   <div className="text-xs text-red-600 bg-red-100/50 rounded-lg p-3">
                     <p className="font-semibold mb-2">Troubleshooting Steps:</p>
                     <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>Ensure the backend server is running on <code className="bg-red-200 px-1.5 py-0.5 rounded font-mono">http://localhost:8000</code></li>
+                      <li>Ensure the backend server is running at <code className="bg-red-200 px-1.5 py-0.5 rounded font-mono">{API_BASE_URL}</code></li>
                       <li>Check browser console (F12) for detailed error messages</li>
                       <li>Verify CORS settings if using a different origin</li>
                       <li>Check Network tab to see the failed request details</li>

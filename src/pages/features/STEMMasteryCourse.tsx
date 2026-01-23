@@ -556,14 +556,14 @@ const STEMMasteryCourse = () => {
                     <div className="max-h-96 overflow-y-auto">
                       {courseModules.map((module, idx) => {
                         const moduleRoutes: Record<string, string> = {
-                          'ngss-foundations': '/dashboard/learning-hub/ngss-foundations',
-                          'engineering-design': '/dashboard/learning-hub/engineering-design',
-                          'computational-thinking': '/dashboard/learning-hub/computational-thinking',
-                          'lab-safety': '/dashboard/learning-hub/lab-safety',
-                          'phenomena-driven': '/dashboard/learning-hub/phenomena-driven',
-                          'data-literacy': '/dashboard/learning-hub/data-literacy',
-                          'integration-strategies': '/dashboard/learning-hub/stem-integration',
-                          'assessment-ngss': '/dashboard/learning-hub/ngss-assessment',
+                          'ngss-foundations': '//learning-hub/ngss-foundations',
+                          'engineering-design': '//learning-hub/engineering-design',
+                          'computational-thinking': '//learning-hub/computational-thinking',
+                          'lab-safety': '//learning-hub/lab-safety',
+                          'phenomena-driven': '//learning-hub/phenomena-driven',
+                          'data-literacy': '//learning-hub/data-literacy',
+                          'integration-strategies': '//learning-hub/stem-integration',
+                          'assessment-ngss': '//learning-hub/ngss-assessment',
                         }
                         const route = moduleRoutes[module.id]
                         const isCompleted = completedModules.includes(module.id)
@@ -934,14 +934,14 @@ const STEMMasteryCourse = () => {
                               </button>
                               {(() => {
                                 const moduleRoutes: Record<string, string> = {
-                                  'ngss-foundations': '/dashboard/learning-hub/ngss-foundations',
-                                  'engineering-design': '/dashboard/learning-hub/engineering-design',
-                                  'computational-thinking': '/dashboard/learning-hub/computational-thinking',
-                                  'lab-safety': '/dashboard/learning-hub/lab-safety',
-                                  'phenomena-driven': '/dashboard/learning-hub/phenomena-driven',
-                                  'data-literacy': '/dashboard/learning-hub/data-literacy',
-                                  'integration-strategies': '/dashboard/learning-hub/stem-integration',
-                                  'assessment-ngss': '/dashboard/learning-hub/ngss-assessment',
+                                  'ngss-foundations': '/learning-hub/ngss-foundations',
+                                  'engineering-design': '/learning-hub/engineering-design',
+                                  'computational-thinking': '/learning-hub/computational-thinking',
+                                  'lab-safety': '/learning-hub/lab-safety',
+                                  'phenomena-driven': '/learning-hub/phenomena-driven',
+                                  'data-literacy': '/learning-hub/data-literacy',
+                                  'integration-strategies': '/learning-hub/stem-integration',
+                                  'assessment-ngss': '/learning-hub/ngss-assessment',
                                 }
                                 const route = moduleRoutes[module.id]
                                 return route ? (
@@ -964,14 +964,14 @@ const STEMMasteryCourse = () => {
                               <button
                                 onClick={() => {
                                   const moduleRoutes: Record<string, string> = {
-                                    'ngss-foundations': '/dashboard/learning-hub/ngss-foundations',
-                                    'engineering-design': '/dashboard/learning-hub/engineering-design',
-                                    'computational-thinking': '/dashboard/learning-hub/computational-thinking',
-                                    'lab-safety': '/dashboard/learning-hub/lab-safety',
-                                    'phenomena-driven': '/dashboard/learning-hub/phenomena-driven',
-                                    'data-literacy': '/dashboard/learning-hub/data-literacy',
-                                    'integration-strategies': '/dashboard/learning-hub/stem-integration',
-                                    'assessment-ngss': '/dashboard/learning-hub/ngss-assessment',
+                                    'ngss-foundations': 'learning-hub/ngss-foundations',
+                                    'engineering-design': 'learning-hub/engineering-design',
+                                    'computational-thinking': 'learning-hub/computational-thinking',
+                                    'lab-safety': 'learning-hub/lab-safety',
+                                    'phenomena-driven': 'learning-hub/phenomena-driven',
+                                    'data-literacy': 'learning-hub/data-literacy',
+                                    'integration-strategies': 'learning-hub/stem-integration',
+                                    'assessment-ngss': 'learning-hub/ngss-assessment',
                                   }
                                   
                                   const route = moduleRoutes[module.id]

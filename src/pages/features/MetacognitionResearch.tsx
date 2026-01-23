@@ -160,7 +160,7 @@ const MetacognitionResearch = () => {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/dashboard/learning-hub')}
+            onClick={() => navigate('/learning-hub')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition"
           >
             <ArrowLeft className="h-5 w-5" />

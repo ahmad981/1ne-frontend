@@ -1,9 +1,8 @@
 import { TemplateListParams } from './types'
+import { API_URL } from '../config/api'
 
-// Default to IPv4 loopback to avoid IPv6 (::1) resolution issues on Windows
-// when the backend is bound to 127.0.0.1. Users can override via VITE_API_URL.
-const DEFAULT_BASE_URL = 'http://127.0.0.1:8000/api'
-const API_BASE_URL = (import.meta.env.VITE_API_URL || DEFAULT_BASE_URL).replace(/\/$/, '')
+// Use centralized API configuration
+const API_BASE_URL = API_URL.replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number

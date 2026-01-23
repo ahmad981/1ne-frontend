@@ -395,7 +395,7 @@ const AIAssistedAssessmentPath = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub')}
+                onClick={() => navigate('/learning-hub')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -679,11 +679,11 @@ const AIAssistedAssessmentPath = () => {
                               <button
                                 onClick={() => {
                                   const moduleRoutes: Record<string, string> = {
-                                    'ai-assessment-intro': '/dashboard/learning-hub/ai-assessment-intro-module',
-                                    'automated-rubrics': '/dashboard/learning-hub/automated-rubrics-module',
-                                    'instant-feedback': '/dashboard/learning-hub/instant-feedback-module',
-                                    'formative-automation': '/dashboard/learning-hub/formative-automation-module',
-                                    'summative-ai-design': '/dashboard/learning-hub/summative-ai-design-module',
+                                    'ai-assessment-intro': '/learning-hub/ai-assessment-intro-module',
+                                    'automated-rubrics': '/learning-hub/automated-rubrics-module',
+                                    'instant-feedback': '/learning-hub/instant-feedback-module',
+                                    'formative-automation': '/learning-hub/formative-automation-module',
+                                    'summative-ai-design': '/learning-hub/summative-ai-design-module',
                                   }
                                   
                                   const route = moduleRoutes[module.id]

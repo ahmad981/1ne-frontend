@@ -374,7 +374,7 @@ const DifferentiationTutorial = () => {
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub')}
+                onClick={() => navigate('/learning-hub')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -919,7 +919,7 @@ const DifferentiationTutorial = () => {
               <p className="text-gray-700 mb-6">You've completed the Differentiation in Action tutorial.</p>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => navigate('/dashboard/learning-hub')}
+                  onClick={() => navigate('/learning-hub')}
                   className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
                 >
                   Back to Learning Hub

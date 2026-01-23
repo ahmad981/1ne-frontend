@@ -222,7 +222,7 @@ const YouTubeQuizGenerator = () => {
     if (!hasGenerated || !quizPreview) return
     
     // Navigate to results page with the generated quiz data
-    navigate('/dashboard/youtube-quiz/results', {
+    navigate('/youtube-quiz/results', {
       state: { quizData: quizPreview },
     })
   }
@@ -296,7 +296,7 @@ const YouTubeQuizGenerator = () => {
       
       // Navigate to results page after generation
       setTimeout(() => {
-        navigate('/dashboard/youtube-quiz/results', {
+        navigate('/youtube-quiz/results', {
           state: { quizData: generatedQuiz },
         })
       }, 500)

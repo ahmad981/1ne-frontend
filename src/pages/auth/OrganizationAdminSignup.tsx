@@ -72,13 +72,13 @@ const OrganizationAdminSignup: React.FC = () => {
   };
 
   const handleNext = () => {
+    // Allow navigation between steps but prevent actual submission
     if (step === 1 && validateStep1()) {
       setStep(2);
     } else if (step === 2 && validateStep2()) {
       setStep(3);
-    } else if (step === 3 && validateStep3()) {
-      handleSubmit();
     }
+    // Don't submit on step 3 - form is coming soon
   };
 
   const handleSubmit = async () => {
@@ -140,7 +140,17 @@ const OrganizationAdminSignup: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl w-full bg-white rounded-lg shadow-md p-8">
+      <div className="max-w-2xl w-full bg-white rounded-lg shadow-md p-8 relative">
+        {/* Coming Soon Banner */}
+        <div className="bg-gradient-to-r from-amber-400 to-orange-500 text-white px-6 py-4 rounded-t-lg -mt-8 -mx-8 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-bold">🚀 Coming Soon</h3>
+              <p className="text-sm opacity-90">Organization signup is currently under development. You can preview the form below.</p>
+            </div>
+          </div>
+        </div>
+
         <h2 className="text-2xl font-bold text-gray-900 mb-6">Organization Signup</h2>
 
         <div className="mb-4">
@@ -393,10 +403,14 @@ const OrganizationAdminSignup: React.FC = () => {
           <button
             type="button"
             onClick={handleNext}
-            disabled={loading}
-            className="flex-1 bg-primary-600 text-white py-2 px-4 rounded-md hover:bg-primary-700 disabled:opacity-50"
+            disabled={step === 3}
+            className={`flex-1 py-2 px-4 rounded-md ${
+              step === 3 
+                ? 'bg-gray-400 text-white cursor-not-allowed' 
+                : 'bg-primary-600 text-white hover:bg-primary-700'
+            }`}
           >
-            {loading ? 'Creating...' : step === 3 ? 'Create Organization' : 'Next'}
+            {step === 3 ? 'Coming Soon' : 'Next'}
           </button>
         </div>
 

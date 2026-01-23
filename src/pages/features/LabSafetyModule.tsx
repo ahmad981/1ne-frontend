@@ -318,7 +318,7 @@ Schools must comply with Occupational Safety and Health Administration (OSHA) st
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub/stem-mastery')}
+                onClick={() => navigate('/learning-hub/stem-mastery')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -796,7 +796,7 @@ Schools must comply with Occupational Safety and Health Administration (OSHA) st
               </p>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => navigate('/dashboard/learning-hub/stem-mastery')}
+                  onClick={() => navigate('/learning-hub/stem-mastery')}
                   className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
                 >
                   Continue to Next Module

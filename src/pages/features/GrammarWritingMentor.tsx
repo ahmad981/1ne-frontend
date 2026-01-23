@@ -38,6 +38,8 @@ import {
   ScrollText,
   FileEdit,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 interface GrammarCheck {
   errors: {
@@ -100,6 +102,9 @@ interface GrammarLesson {
 }
 
 const GrammarWritingMentor = () => {
+  const { toast } = useSnackbar()
+  const CHATBOT_SLUG = 'grammar-writing-mentor'
+  
   const [activeTab, setActiveTab] = useState<'grammar' | 'feedback' | 'peer' | 'lessons' | 'prompts' | 'rubric'>('grammar')
   const [textInput, setTextInput] = useState('')
   const [gradeLevel, setGradeLevel] = useState('7')
@@ -109,235 +114,187 @@ const GrammarWritingMentor = () => {
   const [writingFeedback, setWritingFeedback] = useState<WritingFeedback | null>(null)
   const [peerReviewGuide, setPeerReviewGuide] = useState<PeerReviewGuide | null>(null)
   const [grammarLesson, setGrammarLesson] = useState<GrammarLesson | null>(null)
+  const [hasGeneratedPeerGuide, setHasGeneratedPeerGuide] = useState(false)
+  const [hasGeneratedLesson, setHasGeneratedLesson] = useState(false)
+
+  // Helper function to extract error message from various error formats
+  const extractErrorMessage = (error: any, defaultMessage: string): string => {
+    if (typeof error === 'string') {
+      return error
+    }
+    
+    // Handle Pydantic validation errors (array format)
+    const extractFromDetail = (detail: any): string | null => {
+      if (Array.isArray(detail)) {
+        const firstError = detail[0]
+        return firstError?.msg || firstError?.message || `Validation error: ${firstError?.type || 'unknown'}`
+      } else if (typeof detail === 'string') {
+        return detail
+      }
+      return null
+    }
+    
+    if (error?.detail) {
+      const msg = extractFromDetail(error.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.response?.data?.detail) {
+      const msg = extractFromDetail(error.response.data.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.data?.detail) {
+      const msg = extractFromDetail(error.data.detail)
+      if (msg) return msg
+    }
+    
+    if (error?.message) {
+      return typeof error.message === 'string' ? error.message : JSON.stringify(error.message)
+    }
+    
+    if (error?.response?.data?.message) {
+      return typeof error.response.data.message === 'string' ? error.response.data.message : JSON.stringify(error.response.data.message)
+    }
+    
+    return defaultMessage
+  }
 
   const handleGrammarCheck = async () => {
-    if (!textInput.trim()) return
+    if (!textInput.trim()) {
+      toast.error('Please enter text to check')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockCheck: GrammarCheck = {
-        errors: [
-          {
-            type: 'Subject-Verb Agreement',
-            original: 'The students was excited',
-            suggestion: 'The students were excited',
-            explanation: 'The subject "students" is plural, so the verb should be "were" instead of "was".',
-            severity: 'error',
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'grammar_check',
+        {
+          input: textInput,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
           },
-          {
-            type: 'Comma Usage',
-            original: 'I went to the store and I bought milk',
-            suggestion: 'I went to the store, and I bought milk',
-            explanation: 'Use a comma before "and" when connecting two independent clauses.',
-            severity: 'warning',
-          },
-          {
-            type: 'Word Choice',
-            original: 'The book was really good',
-            suggestion: 'The book was excellent',
-            explanation: 'Consider using more specific and vivid adjectives to strengthen your writing.',
-            severity: 'suggestion',
-          },
-        ],
-        score: 85,
-        suggestions: [
-          'Vary your sentence structure to create more engaging writing',
-          'Consider using more descriptive vocabulary',
-          'Check for consistent verb tense throughout',
-        ],
+        }
+      )
+      
+      setGrammarCheck(response.result as GrammarCheck)
+      toast.success('Grammar check completed')
+    } catch (error: any) {
+      console.error('Error checking grammar:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to check grammar')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setGrammarCheck(mockCheck)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handleWritingFeedback = async () => {
-    if (!textInput.trim()) return
+    if (!textInput.trim()) {
+      toast.error('Please enter writing sample for feedback')
+      return
+    }
+    
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockFeedback: WritingFeedback = {
-        strengths: [
-          'Clear and engaging introduction that hooks the reader',
-          'Good use of descriptive language and sensory details',
-          'Logical organization with smooth transitions between paragraphs',
-          'Strong conclusion that ties back to the main idea',
-        ],
-        areasForImprovement: [
-          'Some sentences could be combined for better flow',
-          'Consider adding more specific examples to support main points',
-          'Vary sentence length to create rhythm and interest',
-          'Some word choices could be more precise',
-        ],
-        suggestions: [
-          'Use transition words like "however," "therefore," and "for example" to connect ideas',
-          'Try starting some sentences with different parts of speech (adverbs, prepositional phrases)',
-          'Include dialogue or quotes to make your writing more engaging',
-          'Consider using figurative language (metaphors, similes) to create vivid imagery',
-        ],
-        rubricScore: {
-          grammar: 4,
-          organization: 4,
-          style: 3,
-          content: 4,
-          conventions: 3,
-        },
-        styleAnalysis: {
-          tone: 'Engaging and appropriate for the audience',
-          voice: 'Clear personal voice with some room for more distinctive style',
-          sentenceVariety: 'Good variety, but could benefit from more complex sentence structures',
-          wordChoice: 'Appropriate vocabulary with opportunities for more sophisticated word selection',
-        },
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'writing_feedback',
+        {
+          input: textInput,
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
+            writing_type: writingType,
+          },
+        }
+      )
+      
+      setWritingFeedback(response.result as WritingFeedback)
+      toast.success('Writing feedback generated')
+    } catch (error: any) {
+      console.error('Error generating feedback:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to generate writing feedback')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setWritingFeedback(mockFeedback)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handlePeerReviewGuide = async () => {
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockGuide: PeerReviewGuide = {
-        criteria: [
-          {
-            category: 'Content & Ideas',
-            questions: [
-              'Is the main idea clear and well-developed?',
-              'Are there enough supporting details?',
-              'Does the writing stay focused on the topic?',
-            ],
-            checklist: [
-              'Main idea is clearly stated',
-              'Supporting details are relevant and specific',
-              'Ideas are well-organized',
-              'Writing addresses the prompt or task',
-            ],
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'peer_review_guide',
+        {
+          input: 'Generate peer review guide',
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
           },
-          {
-            category: 'Organization',
-            questions: [
-              'Does the writing have a clear beginning, middle, and end?',
-              'Are paragraphs organized logically?',
-              'Do transitions help connect ideas?',
-            ],
-            checklist: [
-              'Introduction hooks the reader',
-              'Body paragraphs have clear topic sentences',
-              'Transitions connect ideas smoothly',
-              'Conclusion wraps up the writing effectively',
-            ],
-          },
-          {
-            category: 'Voice & Style',
-            questions: [
-              'Does the writing sound authentic and engaging?',
-              'Is the tone appropriate for the audience?',
-              'Does the writer use varied sentence structures?',
-            ],
-            checklist: [
-              'Writing has a clear voice',
-              'Tone is appropriate for purpose and audience',
-              'Sentence variety creates interest',
-              'Word choice is precise and vivid',
-            ],
-          },
-          {
-            category: 'Conventions',
-            questions: [
-              'Are grammar and punctuation correct?',
-              'Is spelling accurate?',
-              'Are capitalization rules followed?',
-            ],
-            checklist: [
-              'Grammar is mostly correct',
-              'Punctuation is used correctly',
-              'Spelling is accurate',
-              'Capitalization follows rules',
-            ],
-          },
-        ],
-        protocols: [
-          'Read the entire piece first before making comments',
-          'Start with positive feedback before suggesting improvements',
-          'Be specific in your comments (point to exact lines or paragraphs)',
-          'Use "I" statements: "I noticed..." or "I wonder if..."',
-          'Focus on the most important areas for improvement',
-          'Ask questions to help the writer think, rather than just telling them what to change',
-        ],
-        sentenceStarters: {
-          praise: [
-            'I really liked how you...',
-            'Your use of [specific technique] was effective because...',
-            'The way you described [specific detail] helped me visualize...',
-            'Your introduction grabbed my attention when...',
-          ],
-          suggestion: [
-            'Consider adding more detail about...',
-            'You might want to clarify...',
-            'I wonder if you could expand on...',
-            'It might be stronger if you...',
-          ],
-          question: [
-            'What did you mean when you wrote...?',
-            'Could you tell me more about...?',
-            'I\'m curious about...',
-            'How does this connect to your main idea?',
-          ],
-        },
+        }
+      )
+      
+      setPeerReviewGuide(response.result as PeerReviewGuide)
+      setHasGeneratedPeerGuide(true)
+      toast.success('Peer review guide generated')
+    } catch (error: any) {
+      console.error('Error generating peer review guide:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to generate peer review guide')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setPeerReviewGuide(mockGuide)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const handleGrammarLesson = async () => {
     setIsAnalyzing(true)
     
-    setTimeout(() => {
-      const mockLesson: GrammarLesson = {
-        topic: 'Comma Usage in Compound Sentences',
-        explanation: 'A compound sentence contains two or more independent clauses joined by a coordinating conjunction (and, but, or, nor, for, so, yet). When joining two independent clauses, always use a comma before the conjunction.',
-        examples: {
-          correct: [
-            'I wanted to go to the park, but it started raining.',
-            'She studied hard for the test, and she earned an A.',
-            'You can have pizza, or you can have pasta.',
-          ],
-          incorrect: [
-            'I wanted to go to the park but it started raining.',
-            'She studied hard for the test and she earned an A.',
-            'You can have pizza or you can have pasta.',
-          ],
-        },
-        practice: [
-          {
-            question: 'Which sentence is correctly punctuated?',
-            options: [
-              'I love reading books and I also enjoy writing stories.',
-              'I love reading books, and I also enjoy writing stories.',
-              'I love reading books and, I also enjoy writing stories.',
-              'I love reading books; and I also enjoy writing stories.',
-            ],
-            correct: 1,
-            explanation: 'When two independent clauses are joined by "and," use a comma before the conjunction.',
+    try {
+      const response = await chatbotApi.executeCapability(
+        CHATBOT_SLUG,
+        'grammar_lesson',
+        {
+          input: 'Generate grammar lesson',
+          input_type: 'text',
+          parameters: {
+            grade_level: gradeLevel,
           },
-          {
-            question: 'Which sentence needs a comma?',
-            options: [
-              'The dog barked and the cat meowed.',
-              'The dog barked, and the cat meowed.',
-              'Both are correct',
-              'Neither needs a comma',
-            ],
-            correct: 1,
-            explanation: 'Since both clauses are independent (can stand alone), a comma is needed before "and".',
-          },
-        ],
+        }
+      )
+      
+      setGrammarLesson(response.result as GrammarLesson)
+      setHasGeneratedLesson(true)
+      toast.success('Grammar lesson generated')
+    } catch (error: any) {
+      console.error('Error generating grammar lesson:', error)
+      const errorMessage = extractErrorMessage(error, 'Failed to generate grammar lesson')
+      toast.error(errorMessage)
+      
+      if (error?.status === 403 || error?.response?.status === 403 || errorMessage.includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setGrammarLesson(mockLesson)
+    } finally {
       setIsAnalyzing(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
@@ -846,7 +803,7 @@ const GrammarWritingMentor = () => {
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Generate Guide
+                        {hasGeneratedPeerGuide ? 'Regenerate Guide' : 'Generate Guide'}
                       </>
                     )}
                   </button>
@@ -964,12 +921,12 @@ const GrammarWritingMentor = () => {
                     {isAnalyzing ? (
                       <>
                         <RefreshCw className="h-4 w-4 animate-spin" />
-                        Loading...
+                        Generating...
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Load Sample Lesson
+                        {hasGeneratedLesson ? 'Generate New Lesson' : 'Generate Lesson'}
                       </>
                     )}
                   </button>

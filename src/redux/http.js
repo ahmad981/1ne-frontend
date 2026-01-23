@@ -59,8 +59,9 @@ async function tryRefreshToken() {
       return false;
     }
     
-    const { baseURL } = require('./constant');
-    const refreshUrl = `${baseURL}/auth/refresh`;
+    // Use centralized config directly
+    const { API_BASE_URL } = await import('../config/api')
+    const refreshUrl = `${API_BASE_URL}/api/v1/auth/refresh`;
     
     const refreshResponse = await fetch(refreshUrl, {
       method: 'POST',

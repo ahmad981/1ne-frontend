@@ -264,7 +264,7 @@ Start with guided choices, gradually increase student autonomy as they become mo
           <div className="flex-1">
             <div className="flex items-center gap-3 mb-4">
               <button
-                onClick={() => navigate('/dashboard/learning-hub/student-engagement-path')}
+                onClick={() => navigate('/learning-hub/student-engagement-path')}
                 className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -526,7 +526,7 @@ Start with guided choices, gradually increase student autonomy as they become mo
               <Trophy className="h-16 w-16 text-green-600 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Module Complete!</h3>
               <button
-                onClick={() => navigate('/dashboard/learning-hub/student-engagement-path')}
+                onClick={() => navigate('/learning-hub/student-engagement-path')}
                 className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
               >
                 Continue to Next Module

@@ -1,5 +1,8 @@
-// Base URL from environment variable
-export const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+// Import from centralized API config
+import { API_BASE_URL } from '../config/api'
+
+// Base URL from centralized config
+export const baseURL = API_BASE_URL;
 
 // Endpoints (relative paths - axios instance in http.js already has baseURL configured)
 const endPoints = {

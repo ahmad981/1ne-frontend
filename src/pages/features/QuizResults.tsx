@@ -31,7 +31,7 @@ const QuizResults = () => {
         <div className="text-center">
           <p className="text-gray-600">No quiz data found. Please generate a quiz first.</p>
           <button
-            onClick={() => navigate('/dashboard/youtube-quiz')}
+            onClick={() => navigate('/youtube-quiz')}
             className="mt-4 rounded-full bg-red-500 px-6 py-2 text-sm font-semibold text-white hover:bg-red-400"
           >
             Go to Quiz Generator
@@ -53,7 +53,7 @@ const QuizResults = () => {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate('/dashboard/youtube-quiz')}
+            onClick={() => navigate('/youtube-quiz')}
             className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
           >
             <ArrowLeft className="h-4 w-4" />
@@ -128,7 +128,7 @@ const QuizResults = () => {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => navigate('/dashboard/youtube-quiz')}
+              onClick={() => navigate('/youtube-quiz')}
               className="rounded-full border-2 border-red-500 bg-white px-6 py-2 text-sm font-semibold text-red-500 hover:bg-red-50"
             >
               Generate Another

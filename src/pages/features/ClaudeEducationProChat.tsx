@@ -459,7 +459,7 @@ const ClaudeEducationProChat = () => {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => navigate('/dashboard/chatbots')}
+              onClick={() => navigate('/chatbots')}
               className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition"
             >
               <ArrowLeft className="h-5 w-5" />
