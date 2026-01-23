@@ -11,7 +11,7 @@ import { GraduationCap } from 'lucide-react';
 import { getFirstRouteByRole } from '../../../routes/routeHelpers';
 import { setAuthToken } from '../../../redux/http';
 import { CustomButton, CustomInput } from '../../../components/shared';
-import TenantSelection from '../../../components/auth/TenantSelection';
+import TenantSelection from '@/components/Auth/TenantSelection';
 
 export const Login = () => {
   const navigate = useNavigate();
