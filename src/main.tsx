@@ -17,7 +17,15 @@ const PersistGateLoading = () => (
   </div>
 )
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root')
+
+if (!rootElement) {
+  throw new Error('Root element not found! Make sure index.html has <div id="root"></div>')
+}
+
+console.log('[main.tsx] Starting React app render...')
+
+ReactDOM.createRoot(rootElement).render(
   <React.StrictMode>
     <Provider store={store}>
       <PersistGate loading={<PersistGateLoading />} persistor={persistor}>
@@ -28,6 +36,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     </Provider>
   </React.StrictMode>,
 )
+
+console.log('[main.tsx] React app rendered successfully')
 
 
 

@@ -120,6 +120,13 @@ import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
 import Subscription from '../pages/Subscription';
 import ExploreUseCases from '../pages/ExploreUseCases';
+import { ContentPacksManagement } from '../pages/features/ContentPacksManagement';
+import { ContentPackDetail } from '../pages/features/ContentPackDetail';
+import { DocumentUpload } from '../pages/features/DocumentUpload';
+import { DocumentDetails } from '../pages/features/DocumentDetails';
+import { DocumentsList } from '../pages/features/DocumentsList';
+import { WorksheetGenerator } from '../pages/features/WorksheetGenerator';
+import { WorksheetViewer } from '../pages/features/WorksheetViewer';
 
 export const commonRoutes = [
   {
@@ -1074,6 +1081,26 @@ export const teacherRoutes = [
           </DashboardLayout>
         ),
       },
+      {
+        path: '/admin/content-packs',
+        moduleName: 'Content Management',
+        element: (
+          <DashboardLayout>
+            <ContentPacksManagement />
+          </DashboardLayout>
+        ),
+        child: [
+          {
+            path: '/admin/content-packs/:id',
+            moduleName: 'Content Pack Details',
+            element: (
+              <DashboardLayout>
+                <ContentPackDetail />
+              </DashboardLayout>
+            ),
+          },
+        ],
+      },
     ],
   },
   {
@@ -1082,6 +1109,24 @@ export const teacherRoutes = [
     element: (
       <DashboardLayout>
         <ExploreUseCases />
+      </DashboardLayout>
+    ),
+  },
+  {
+    path: '/worksheets/generate',
+    moduleName: 'Worksheet Generator',
+    element: (
+      <DashboardLayout>
+        <WorksheetGenerator />
+      </DashboardLayout>
+    ),
+  },
+  {
+    path: '/worksheets/:id',
+    moduleName: 'Worksheet Viewer',
+    element: (
+      <DashboardLayout>
+        <WorksheetViewer />
       </DashboardLayout>
     ),
   },
@@ -1096,6 +1141,28 @@ export const superAdminRoutes = [
         <ComingSoon />
       </DashboardLayout>
     ),
+    child: [
+      {
+        path: '/admin/content-packs',
+        moduleName: 'Content Management',
+        element: (
+          <DashboardLayout>
+            <ContentPacksManagement />
+          </DashboardLayout>
+        ),
+        child: [
+          {
+            path: '/admin/content-packs/:id',
+            moduleName: 'Content Pack Details',
+            element: (
+              <DashboardLayout>
+                <ContentPackDetail />
+              </DashboardLayout>
+            ),
+          },
+        ],
+      },
+    ],
   },
 ];
 
@@ -1109,6 +1176,55 @@ export const orgAdminRoutes = [
       </DashboardLayout>
     ),
   },
+      {
+        path: '/admin/content-packs',
+        moduleName: 'Content Packs',
+        element: (
+          <DashboardLayout>
+            <ContentPacksManagement />
+          </DashboardLayout>
+        ),
+        child: [
+          {
+            path: '/admin/content-packs/:id',
+            moduleName: 'Content Pack Details',
+            element: (
+              <DashboardLayout>
+                <ContentPackDetail />
+              </DashboardLayout>
+            ),
+          },
+        ],
+      },
+  {
+    path: '/admin/documents',
+    moduleName: 'Documents',
+    element: (
+      <DashboardLayout>
+        <DocumentsList />
+      </DashboardLayout>
+    ),
+    child: [
+      {
+        path: '/admin/documents/upload',
+        moduleName: 'Upload Document',
+        element: (
+          <DashboardLayout>
+            <DocumentUpload />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/admin/documents/:id',
+        moduleName: 'Document Details',
+        element: (
+          <DashboardLayout>
+            <DocumentDetails />
+          </DashboardLayout>
+        ),
+      },
+    ],
+  },
 ];
 
 export const schoolAdminRoutes = [
@@ -1120,6 +1236,55 @@ export const schoolAdminRoutes = [
         <ComingSoon />
       </DashboardLayout>
     ),
+  },
+      {
+        path: '/admin/content-packs',
+        moduleName: 'Content Packs',
+        element: (
+          <DashboardLayout>
+            <ContentPacksManagement />
+          </DashboardLayout>
+        ),
+        child: [
+          {
+            path: '/admin/content-packs/:id',
+            moduleName: 'Content Pack Details',
+            element: (
+              <DashboardLayout>
+                <ContentPackDetail />
+              </DashboardLayout>
+            ),
+          },
+        ],
+      },
+  {
+    path: '/admin/documents',
+    moduleName: 'Documents',
+    element: (
+      <DashboardLayout>
+        <DocumentsList />
+      </DashboardLayout>
+    ),
+    child: [
+      {
+        path: '/admin/documents/upload',
+        moduleName: 'Upload Document',
+        element: (
+          <DashboardLayout>
+            <DocumentUpload />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/admin/documents/:id',
+        moduleName: 'Document Details',
+        element: (
+          <DashboardLayout>
+            <DocumentDetails />
+          </DashboardLayout>
+        ),
+      },
+    ],
   },
 ];
 
@@ -1149,11 +1314,6 @@ export const parentRoutes = [
 
 // Auth routes
 export const authRoutes = [
-  {
-    path: '/',
-    moduleName: 'Base',
-    element: <Navigate to='/login' replace />,
-  },
   {
     path: '/login',
     moduleName: 'Login',
