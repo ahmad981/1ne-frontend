@@ -141,7 +141,7 @@ async function tryRefreshToken(): Promise<boolean> {
 }
 
 // Helper to get auth token from Redux store (same way as Redux axios does)
-const getAuthToken = (): string | null => {
+export const getAuthToken = (): string | null => {
   // First try: Get from Redux store directly (most reliable, same as http.js)
   if (storeRef) {
     try {

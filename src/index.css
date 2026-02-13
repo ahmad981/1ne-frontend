@@ -141,3 +141,117 @@
   }
 }
 
+/* Print Styles - Hide all UI elements and show only worksheet content */
+@media print {
+  /* Hide all navigation, headers, sidebars, and UI chrome */
+  aside,
+  nav:not(.worksheet-nav),
+  header,
+  .sidebar,
+  .side-menu,
+  .header,
+  [class*="SideMenu"],
+  [class*="Header"],
+  [class*="DashboardLayout"] > aside,
+  [class*="Layout"] > aside,
+  .no-print,
+  button:not(.print-button),
+  .action-bar,
+  .edit-controls,
+  .print-hide,
+  [class*="Toastbar"],
+  [class*="Toast"],
+  [class*="Notification"] {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Show print-only elements */
+  .print-only {
+    display: block !important;
+    visibility: visible !important;
+  }
+
+  /* Reset layout for print */
+  body,
+  html {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    background: white !important;
+  }
+
+  /* Remove all flex containers that might cause layout issues */
+  main,
+  [class*="Layout"],
+  [class*="DashboardLayout"],
+  .flex {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Show only worksheet content */
+  .worksheet-print-container,
+  .worksheet-content,
+  [class*="WorksheetDisplay"] {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 20px !important;
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure questions don't break across pages */
+  .question-item,
+  .worksheet-question {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+    margin-bottom: 20px !important;
+  }
+
+  /* Remove hover effects and interactive elements */
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  /* Ensure proper spacing */
+  .worksheet-print-container > * {
+    margin-bottom: 15px !important;
+  }
+
+  /* Hide all edit buttons and controls */
+  .edit-button,
+  .delete-button,
+  .add-button,
+  [class*="Edit"],
+  [class*="Delete"],
+  [class*="Add"] {
+    display: none !important;
+  }
+
+  /* Print-friendly typography */
+  h1, h2, h3, h4, h5, h6 {
+    color: black !important;
+    page-break-after: avoid !important;
+  }
+
+  /* Ensure proper page breaks */
+  .page-break-before {
+    page-break-before: always !important;
+  }
+
+  .page-break-after {
+    page-break-after: always !important;
+  }
+
+  .no-page-break {
+    page-break-inside: avoid !important;
+  }
+}
+

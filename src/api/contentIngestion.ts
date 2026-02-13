@@ -1,7 +1,8 @@
 /**
  * Content Ingestion API client
  */
-import { apiRequest, buildUrl } from './client'
+import { apiRequest, buildUrl, getAuthToken } from './client'
+import { API_BASE_URL } from '../config/api'
 
 export interface ContentPack {
   id: string
@@ -109,32 +110,52 @@ export interface DocumentStatus {
 
 export interface WorksheetQuestion {
   id: string
-  type: string
+  type: 'mcq' | 'short_answer' | 'long_answer'
   question: string
-  options?: string[]
-  correct_answer: string
+  options?: string[] // For MCQ: ["A) option1", "B) option2", ...]
+  correct_answer: string // For MCQ: "A" | "B" | "C" | "D", for short_answer: answer text
   explanation?: string
   points: number
-  difficulty: string
-  math_content: boolean
+  difficulty: 'easy' | 'medium' | 'hard'
+  math_content: boolean // true if question contains LaTeX math
+}
+
+export interface Citation {
+  chunk_id: string
+  document_id: string
+  page_range: string // e.g., "73-84" or "73"
 }
 
 export interface Worksheet {
   id: string
   pack_id: string
-  topic_id: string | null
-  topic_text: string | null
-  grade: string | null
-  subject: string | null
+  topic_id?: string
+  topic_text?: string
+  grade?: string
+  subject?: string
   questions: WorksheetQuestion[]
-  answer_key: Record<string, string>
-  marking_scheme: Record<string, any>
-  citations?: Array<{
-    chunk_id: string
-    document_id: string
-    page_range: string
+  answer_key: Record<string, string> // { [questionId]: answer }
+  marking_scheme: Record<string, {
+    points: number
+    criteria: string
   }>
+  citations?: Citation[]
   created_at: string
+  
+  // Optional metadata
+  chapter_page_range?: string // e.g., "73-84"
+  relevance_avg_sim?: number // 0.0-1.0 relevance score
+  relevance_keyword_hits?: number // Keyword match count
+  
+  // Difficulty metadata (only if difficulty was requested)
+  final_difficulty_used?: 'easy' | 'medium' | 'hard'
+  attempts_count?: number
+  attempts?: number // Alias for attempts_count
+  
+  // Debug fields (only if X-Debug: 1 header sent)
+  validator_report_per_attempt?: string[]
+  validator_reports?: string[] // Alias
+  warnings?: string[]
 }
 
 export interface WorksheetGenerateRequest {
@@ -143,13 +164,27 @@ export interface WorksheetGenerateRequest {
   topic_text?: string
   grade?: string
   subject?: string
-  difficulty_mix?: {
-    easy: number
-    medium: number
-    hard: number
+  
+  // Difficulty - use ONE of the following:
+  difficulty?: 'easy' | 'medium' | 'hard' // Single difficulty (100% this level)
+  difficulty_mix?: { // OR: Difficulty distribution (must sum to 1.0)
+    easy?: number
+    medium?: number
+    hard?: number
   }
-  num_questions?: number
-  question_types?: string[]
+  
+  num_questions?: number // Default: 10, Range: 1-20
+  question_types?: string[] // Default: ["mcq", "short_answer"], Options: "mcq", "short_answer", "long_answer"
+  
+  force_regenerate?: boolean // Default: false - Skip cache, generate fresh
+  skip_cache_write?: boolean // Default: false - Don't save to cache
+  regenerate_key?: string // Optional: Key to avoid duplicate questions
+}
+
+export interface WorksheetGenerateResponse extends Worksheet {
+  // Response includes headers that we'll capture separately
+  _cacheStatus?: 'hit' | 'miss' // From X-Worksheet-Cache header
+  _requestId?: string // From X-Request-Id header
 }
 
 // Content Pack API
@@ -504,29 +539,206 @@ export function streamDocumentStatus(
 }
 
 // Worksheet API
-export async function generateWorksheet(data: WorksheetGenerateRequest): Promise<Worksheet> {
-  return apiRequest<Worksheet>('v1/worksheets/generate', {
-    method: 'POST',
-    body: data,
-    timeout: 120000, // 2 minutes for LLM generation
-  })
+export interface WorksheetGenerateOptions {
+  timeout?: number // Default: 120000 (120 seconds)
+  debug?: boolean // Include X-Debug: 1 header
+  signal?: AbortSignal // For request cancellation
 }
+
+export async function generateWorksheet(
+  data: WorksheetGenerateRequest,
+  options?: WorksheetGenerateOptions
+): Promise<WorksheetGenerateResponse> {
+  const timeout = options?.timeout ?? 120000 // 120 seconds default (backend timeout is 180s)
+  
+  // Build headers for custom headers (like X-Debug)
+  const customHeaders: Record<string, string> = {}
+  if (options?.debug) {
+    customHeaders['X-Debug'] = '1'
+  }
+  
+  try {
+    // Use apiRequest which handles authentication, token refresh, and error handling
+    // We need to intercept the response to extract headers, so we'll use a custom fetch approach
+    // but with proper auth handling from client.ts
+    
+    // Get auth token using the exported function from client.ts
+    const token = getAuthToken()
+    
+    if (!token) {
+      console.error('[generateWorksheet] ❌ No auth token found! User must be logged in.')
+      throw new Error('Authentication required. Please log in to generate worksheets.')
+    }
+    
+    // Build headers
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+      ...customHeaders,
+    }
+    
+    // Create AbortController for timeout handling
+    // If signal is provided, use it; otherwise create a new controller
+    const controller = options?.signal ? null : new AbortController()
+    const signal = options?.signal || controller!.signal
+    const timeoutId = timeout > 0 && controller ? setTimeout(() => controller.abort(), timeout) : null
+    
+    try {
+      // buildUrl uses API_BASE_URL which already includes /api
+      // So 'v1/worksheets/generate' becomes: http://127.0.0.1:8000/api/v1/worksheets/generate
+      const url = buildUrl('v1/worksheets/generate')
+      
+      // Verify URL construction
+      // API_BASE_URL from config/api.ts is the base URL without /api
+      // buildUrl in client.ts uses API_URL which includes /api
+      // So the final URL should be: http://127.0.0.1:8000/api/v1/worksheets/generate
+      console.log('[generateWorksheet] 🔍 URL Debug:', {
+        API_BASE_URL_from_config: API_BASE_URL,
+        built_url: url,
+        expected_pattern: 'http://127.0.0.1:8000/api/v1/worksheets/generate'
+      })
+      
+      // Log request details for debugging
+      console.log('[generateWorksheet] 🔵 Request URL:', url)
+      console.log('[generateWorksheet] 🔵 Request headers:', { ...headers, Authorization: token ? 'Bearer ***' : 'None' })
+      console.log('[generateWorksheet] 🔵 Request body:', JSON.stringify(data, null, 2))
+      console.log('[generateWorksheet] 🔵 Has auth token:', !!token)
+      
+      let response: Response
+      try {
+        // Use fetch with explicit CORS mode
+      // Don't use credentials: 'include' as it can cause CORS issues
+      // We're sending the token in Authorization header, so credentials aren't needed
+        response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(data),
+          signal: signal,
+          mode: 'cors', // Explicitly set CORS mode
+          // credentials: 'omit' is default, which is fine since we use Authorization header
+        })
+      } catch (fetchError: any) {
+        // Enhanced error handling for "Failed to fetch"
+        console.error('[generateWorksheet] ❌ Fetch error:', fetchError)
+        console.error('[generateWorksheet] ❌ Error name:', fetchError.name)
+        console.error('[generateWorksheet] ❌ Error message:', fetchError.message)
+        
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Generation timed out. Please try again with fewer questions.')
+        }
+        
+        // Check for network errors
+        if (fetchError.message?.includes('Failed to fetch') || 
+            fetchError.message?.includes('NetworkError') ||
+            fetchError.message?.includes('Network request failed') ||
+            fetchError.name === 'TypeError') {
+          
+          // This is typically a CORS preflight failure
+          const errorMsg = `Network error: Unable to connect to backend.
+
+This is usually a CORS (Cross-Origin Resource Sharing) issue.
+
+Troubleshooting steps:
+1. ✅ Backend is running (verified: http://127.0.0.1:8000/health)
+2. ❌ Check browser console (F12) → Network tab → Look for OPTIONS request
+3. ❌ If OPTIONS request fails → CORS preflight is blocked
+4. ❌ Check backend CORS configuration allows: http://localhost:5173
+
+Current URL: ${url}
+Backend: http://127.0.0.1:8000
+Frontend: http://localhost:5173
+
+Quick fix: Make sure backend ENVIRONMENT=dev (allows all origins)`
+          throw new Error(errorMsg)
+        }
+        
+        throw fetchError
+      }
+      
+      console.log('[generateWorksheet] 📥 Response status:', response.status, response.statusText)
+      
+      if (timeoutId) clearTimeout(timeoutId)
+      
+      // Extract headers
+      const cacheStatus = response.headers.get('X-Worksheet-Cache') as 'hit' | 'miss' | null
+      const requestId = response.headers.get('X-Request-Id')
+      
+      if (!response.ok) {
+        let errorMessage = 'Failed to generate worksheet'
+        let errorDetail: any = null
+        
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.detail?.message || errorData.detail || errorMessage
+          errorDetail = errorData.detail
+        } catch {
+          // If response is not JSON, try to get text
+          try {
+            const text = await response.text()
+            errorMessage = text || response.statusText || errorMessage
+          } catch {
+            errorMessage = response.statusText || errorMessage
+          }
+        }
+        
+        console.error('[generateWorksheet] ❌ Request failed:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorMessage,
+          errorDetail
+        })
+        
+        // Handle specific error codes
+        if (response.status === 500) {
+          // Internal Server Error - backend issue
+          console.error('[generateWorksheet] ❌ 500 Internal Server Error - Backend issue!')
+          throw new Error(`Backend error (500): ${errorMessage || 'Internal server error. Check backend logs for details.'}`)
+        } else if (response.status === 422) {
+          // Topic not found or validation failed
+          throw new Error(errorMessage || 'Topic not found in this content pack. Please try a different topic.')
+        } else if (response.status === 504) {
+          // Gateway timeout
+          throw new Error(errorMessage || 'Generation timed out. Please try again with fewer questions.')
+        } else if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.')
+        } else if (response.status === 403) {
+          throw new Error('Access denied. Please check your permissions.')
+        } else if (response.status === 404) {
+          throw new Error('Worksheet or content pack not found.')
+        } else if (response.status === 400) {
+          throw new Error(errorMessage || 'Invalid request parameters.')
+        }
+        
+        throw new Error(`Error ${response.status}: ${errorMessage}`)
+      }
+      
+      const worksheet = await response.json() as Worksheet
+      
+      // Attach metadata from headers
+      return {
+        ...worksheet,
+        _cacheStatus: cacheStatus || undefined,
+        _requestId: requestId || undefined,
+      }
+    } catch (error: any) {
+      if (timeoutId) clearTimeout(timeoutId)
+      
+      if (error.name === 'AbortError') {
+        throw new Error('Generation timed out. Please try again with fewer questions.')
+      }
+      
+      throw error
+    }
+  } catch (error: any) {
+    // Re-throw with better error messages
+    if (error.message) {
+      throw error
+    }
+    throw new Error('Failed to generate worksheet. Please try again.')
+  }
+}
+
 
 export async function getWorksheet(worksheetId: string): Promise<Worksheet> {
   return apiRequest<Worksheet>(`v1/worksheets/${worksheetId}`)
-}
-
-// Helper to get auth token (same pattern as client.ts)
-function getAuthToken(): string | null {
-  try {
-    const persistedState = localStorage.getItem('persist:root')
-    if (persistedState) {
-      const parsed = JSON.parse(persistedState)
-      const authState = parsed?.auth ? JSON.parse(parsed.auth) : null
-      return authState?.user?.token || null
-    }
-  } catch (error) {
-    console.warn('[getAuthToken] Failed to parse persisted state:', error)
-  }
-  return null
 }
