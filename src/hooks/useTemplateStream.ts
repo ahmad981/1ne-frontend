@@ -46,6 +46,12 @@ const normalizeToJson = (raw: string): string => {
   return s
 }
 
+const KNOWN_OUTPUT_KEYS = new Set([
+  'title', 'overview', 'learning_goals', 'learning_objectives', '_goals', 'learningals', 'learning_go',
+  'materials', 'steps', 'lesson_flow', 'differentiation', 'assessment', 'teacher_notes', 'teacher', 'teacher_note',
+  'bloom_alignment', 'bloom', 'bloom_taxonomy', 'standards_alignment',
+])
+
 const buildFormattedFromParsed = (parsed: any): string => {
   let formatted = ''
   if (!parsed || typeof parsed !== 'object') return formatted
@@ -64,6 +70,14 @@ const buildFormattedFromParsed = (parsed: any): string => {
       .replace(/\s+/g, ' ')  // Normalize whitespace
       .trim()
   }
+
+  // Title (backend output_schema often has title first)
+  if (parsed.title) {
+    const title = cleanText(String(parsed.title))
+    if (title && title.length > 1 && !title.match(/^[:\s,{}[\]]+$/)) {
+      formatted += `# ${title}\n\n`
+    }
+  }
   
   if (parsed.overview) {
     const overview = cleanText(String(parsed.overview))
@@ -72,8 +86,8 @@ const buildFormattedFromParsed = (parsed: any): string => {
     }
   }
 
-  // Extract learning goals - handle various field name variations
-  const goals = parsed.learning_goals || parsed._goals || parsed.learningals || parsed.learning_go
+  // Extract learning goals / learning_objectives - handle backend and legacy field names
+  const goals = parsed.learning_objectives || parsed.learning_goals || parsed._goals || parsed.learningals || parsed.learning_go
   if (goals) {
     if (Array.isArray(goals) && goals.length > 0) {
       formatted += `## LEARNING OBJECTIVE\n\n`
@@ -128,6 +142,24 @@ const buildFormattedFromParsed = (parsed: any): string => {
         }
       }
     })
+  }
+
+  // Lesson flow (backend output_schema: array of { phase, minutes, activity })
+  if (parsed.lesson_flow && Array.isArray(parsed.lesson_flow) && parsed.lesson_flow.length > 0) {
+    formatted += `## LESSON FLOW\n\n`
+    parsed.lesson_flow.forEach((item: any) => {
+      if (item && typeof item === 'object') {
+        const phase = item.phase ? cleanText(String(item.phase)) : ''
+        const minutes = item.minutes != null ? Number(item.minutes) : ''
+        const activity = item.activity ? cleanText(String(item.activity)) : ''
+        if (phase && phase.length > 1 && !phase.match(/^[:\s,{}[\]]+$/)) {
+          formatted += `- **${phase}**${minutes !== '' ? ` (${minutes} min)` : ''}: ${activity || ''}\n`
+        } else if (activity && activity.length > 5) {
+          formatted += `- ${activity}\n`
+        }
+      }
+    })
+    formatted += `\n`
   }
 
   // Extract differentiation
@@ -196,7 +228,7 @@ const buildFormattedFromParsed = (parsed: any): string => {
     formatted += `\n`
   }
 
-  // Extract bloom alignment
+  // Extract bloom alignment (backend uses level + note; support description as fallback)
   const bloomAlignment = parsed.bloom_alignment || parsed.bloom || parsed.bloom_taxonomy
   if (bloomAlignment) {
     if (Array.isArray(bloomAlignment) && bloomAlignment.length > 0) {
@@ -204,9 +236,11 @@ const buildFormattedFromParsed = (parsed: any): string => {
       bloomAlignment.forEach((item: any) => {
         if (item && typeof item === 'object') {
           const level = item.level ? cleanText(String(item.level)) : ''
-          const desc = item.description ? cleanText(String(item.description)) : ''
+          const desc = item.description ? cleanText(String(item.description)) : (item.note ? cleanText(String(item.note)) : '')
           if (level && level.length > 1 && desc && desc.length > 5) {
             formatted += `- **${level}**: ${desc}\n`
+          } else if (level && level.length > 1) {
+            formatted += `- **${level}**\n`
           }
         } else if (typeof item === 'string') {
           const itemText = cleanText(item)
@@ -216,6 +250,12 @@ const buildFormattedFromParsed = (parsed: any): string => {
         }
       })
       formatted += `\n`
+    } else if (typeof bloomAlignment === 'object' && bloomAlignment.level) {
+      const level = cleanText(String(bloomAlignment.level))
+      const desc = bloomAlignment.description ? cleanText(String(bloomAlignment.description)) : (bloomAlignment.note ? cleanText(String(bloomAlignment.note)) : '')
+      if (level && level.length > 1) {
+        formatted += `## BLOOM ALIGNMENT\n\n- **${level}**: ${desc || ''}\n\n`
+      }
     } else if (typeof bloomAlignment === 'string') {
       const bloom = cleanText(bloomAlignment)
       if (bloom && bloom.length > 5 && !bloom.match(/^[:\s,{}[\]]+$/)) {
@@ -223,6 +263,39 @@ const buildFormattedFromParsed = (parsed: any): string => {
       }
     }
   }
+
+  // Standards alignment (backend output_schema)
+  if (parsed.standards_alignment) {
+    const sa = cleanText(String(parsed.standards_alignment))
+    if (sa && sa.length > 2 && !sa.match(/^[:\s,{}[\]]+$/)) {
+      formatted += `## STANDARDS ALIGNMENT\n\n${sa}\n\n`
+    }
+  }
+
+  // Generic fallback: render any remaining top-level keys not already handled
+  Object.keys(parsed).forEach((key) => {
+    if (KNOWN_OUTPUT_KEYS.has(key)) return
+    const value = parsed[key]
+    if (value == null) return
+    const heading = key.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())
+    if (Array.isArray(value) && value.length > 0) {
+      formatted += `## ${heading}\n\n`
+      value.forEach((v: any) => {
+        if (typeof v === 'object' && v !== null) {
+          formatted += `- ${JSON.stringify(v)}\n`
+        } else {
+          formatted += `- ${cleanText(String(v))}\n`
+        }
+      })
+      formatted += `\n`
+    } else if (typeof value === 'object' && value !== null && Object.keys(value).length > 0) {
+      formatted += `## ${heading}\n\n${JSON.stringify(value, null, 2)}\n\n`
+    } else if (typeof value === 'string' && value.trim().length > 2) {
+      formatted += `## ${heading}\n\n${cleanText(value)}\n\n`
+    } else if (typeof value === 'number' || typeof value === 'boolean') {
+      formatted += `## ${heading}\n\n${value}\n\n`
+    }
+  })
 
   return formatted
 }
@@ -232,13 +305,16 @@ const buildFormattedFromParsed = (parsed: any): string => {
 const looseParseToon = (raw: string): any => {
   const obj: any = {}
   if (!raw) return obj
+  // title (backend output_schema)
+  const titleMatch = raw.match(/title\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
+  if (titleMatch && titleMatch[1]) obj.title = titleMatch[1].trim().replace(/\\"/g, '"')
   // overview
   const ovMatch = raw.match(/overview\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
   if (ovMatch && ovMatch[1]) obj.overview = ovMatch[1].trim().replace(/\\"/g, '"')
 
-  // goals variations - handle incomplete arrays (for streaming)
+  // goals / learning_objectives variations - handle incomplete arrays (for streaming)
   // CRITICAL: Match even if array is not closed (for streaming)
-  const goalsMatch = raw.match(/(learning_goals|learning_go|_goals|learningals)\s*:\s*\[(.*?)(?:\]|$)/s)
+  const goalsMatch = raw.match(/(learning_objectives|learning_goals|learning_go|_goals|learningals)\s*:\s*\[(.*?)(?:\]|$)/s)
   if (goalsMatch && goalsMatch[2]) {
     // Handle incomplete arrays - extract items even if array is not closed
     const arrayContent = goalsMatch[2]
@@ -260,7 +336,10 @@ const looseParseToon = (raw: string): any => {
         parts.push(...unquotedParts)
       }
     }
-    if (parts.length) obj.learning_goals = parts
+    if (parts.length) {
+      obj.learning_goals = parts
+      obj.learning_objectives = parts
+    }
   }
 
   // materials - handle incomplete arrays (for streaming)
@@ -346,6 +425,29 @@ const looseParseToon = (raw: string): any => {
     if (steps.length) obj.steps = steps
   }
 
+  // lesson_flow (backend: array of { phase, minutes, activity })
+  const lessonFlowMatch = raw.match(/lesson_flow\s*:\s*\[(.*?)(?:\]|$)/s)
+  if (lessonFlowMatch && lessonFlowMatch[1]) {
+    const flowRaw = lessonFlowMatch[1]
+    const flowChunks = flowRaw.split(/{/).filter(chunk => chunk.trim().length > 2)
+    const lessonFlow: any[] = []
+    flowChunks.forEach((chunk, idx) => {
+      if (idx === 0 && !chunk.trim()) return
+      const phaseMatch = chunk.match(/phase\s*:\s*"([^"]*)"|phase\s*:\s*([^,\n}]+)/)
+      const minMatch = chunk.match(/minutes\s*:\s*(\d+)/)
+      const activityMatch = chunk.match(/activity\s*:\s*"([^"]*)"|activity\s*:\s*"([^"]*)/)
+      const phase = phaseMatch ? (phaseMatch[1] || phaseMatch[2] || '').trim().replace(/\\"/g, '"') : ''
+      const minutes = minMatch ? parseInt(minMatch[1], 10) : undefined
+      const activity = activityMatch ? (activityMatch[1] || activityMatch[2] || '').trim().replace(/\\"/g, '"') : ''
+      if (phase || activity) lessonFlow.push({ phase, minutes, activity })
+    })
+    if (lessonFlow.length) obj.lesson_flow = lessonFlow
+  }
+
+  // standards_alignment (backend output_schema)
+  const saMatch = raw.match(/standards_alignment\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
+  if (saMatch && saMatch[1]) obj.standards_alignment = saMatch[1].trim().replace(/\\"/g, '"')
+
   // differentiation
   const diffMatch = raw.match(/differenti\w*\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
   if (diffMatch && diffMatch[1]) obj.differentiation = diffMatch[1].trim().replace(/\\"/g, '"')
@@ -368,14 +470,16 @@ const looseParseToon = (raw: string): any => {
   const teacherMatch = raw.match(/teacher(?:_notes)?\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
   if (teacherMatch && teacherMatch[1]) obj.teacher_notes = [teacherMatch[1].trim().replace(/\\"/g, '"')]
 
-  // bloom
+  // bloom (backend uses level + note; support description as well)
   const bloomMatch = raw.match(/bloom_alignment|bloom\s*{(.*?)}/s)
   if (bloomMatch && bloomMatch[1]) {
     const bRaw = bloomMatch[1]
     const levelMatch = bRaw.match(/level\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
     const descMatch = bRaw.match(/description\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
-    if (levelMatch && descMatch) {
-      obj.bloom_alignment = [{ level: levelMatch[1].trim().replace(/\\"/g, '"'), description: descMatch[1].trim().replace(/\\"/g, '"') }]
+    const noteMatch = bRaw.match(/note\s*:\s*"?(.*?)(?:(?<!\\)",|\n|,|$)/s)
+    const desc = descMatch?.[1]?.trim().replace(/\\"/g, '"') ?? noteMatch?.[1]?.trim().replace(/\\"/g, '"') ?? ''
+    if (levelMatch) {
+      obj.bloom_alignment = [{ level: levelMatch[1].trim().replace(/\\"/g, '"'), description: desc, note: desc || noteMatch?.[1]?.trim().replace(/\\"/g, '"') }]
     }
   }
 

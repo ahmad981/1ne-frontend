@@ -57,7 +57,7 @@ export const fetchTemplates = createAsyncThunk(
   'templates/fetchTemplates',
   async (params, { getState, rejectWithValue }) => {
     try {
-      // Build query params
+      // Build query params - do not send page/page_size so backend returns full list
       const queryParams = {};
       if (params?.subject) queryParams.subject = params.subject;
       if (params?.gradeBand) queryParams.grade_band = params.gradeBand;
@@ -65,8 +65,6 @@ export const fetchTemplates = createAsyncThunk(
       if (params?.is_hot !== undefined) queryParams.is_hot = params.is_hot;
       if (params?.is_favorite !== undefined) queryParams.is_favorite = params.is_favorite;
       if (params?.sort) queryParams.sort = params.sort;
-      if (params?.page) queryParams.page = params.page;
-      if (params?.pageSize) queryParams.page_size = params.pageSize;
 
       // Auth token automatically included by axiosInstance interceptor
       // Log for debugging
