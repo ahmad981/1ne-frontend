@@ -3,11 +3,12 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../hooks/useSnackbar';
 import { CustomInput, CustomButton, ProfilePictureUpload } from '../components/shared';
+import { TeacherContextForm, getDefaultTeacherContextForm, validateTeacherContext } from '../components/profile/TeacherContextForm';
 import { getProfileDetails, updateProfile, changePassword, updateUserEmail } from '../redux/features/auth/authSlice';
 import { setAuthToken } from '../redux/http';
 import { validateEmail, validatePassword } from '../utils/utils';
 import { baseURL } from '../redux/constant';
-import { Lock, User, Mail, Phone, AtSign, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Mail, Phone, AtSign, AlertCircle, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 const Profile = () => {
   const dispatch = useDispatch();
@@ -101,6 +102,11 @@ const Profile = () => {
   // Initial form data for change detection
   const [initialFormData, setInitialFormData] = useState(null);
 
+  // Teaching context form state
+  const [teacherContextForm, setTeacherContextForm] = useState(getDefaultTeacherContextForm);
+  const [initialTeacherContext, setInitialTeacherContext] = useState(null);
+  const [teacherContextErrors, setTeacherContextErrors] = useState({});
+
   // Form errors
   const [formErrors, setFormErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -141,6 +147,30 @@ const Profile = () => {
       
       setFormData(data);
       setInitialFormData(data);
+
+      // Teaching context from profile
+      const tc = profileDetails.teacher_context;
+      if (tc) {
+        const tcForm = {
+          country: tc.country || '',
+          region: tc.region || '',
+          school_type: tc.school_type || '',
+          grade_band: tc.grade_band || '',
+          subjects: Array.isArray(tc.subjects) ? tc.subjects : [],
+          language_preference: tc.language_preference || '',
+          school_name: tc.school_name || '',
+          city: tc.city || '',
+          postal_code: tc.postal_code || '',
+          curriculum_framework: tc.curriculum_framework || '',
+          years_experience: tc.years_experience || '',
+          professional_goals: Array.isArray(tc.professional_goals) ? tc.professional_goals : [],
+        };
+        setTeacherContextForm(tcForm);
+        setInitialTeacherContext(tcForm);
+      } else {
+        setTeacherContextForm(getDefaultTeacherContextForm());
+        setInitialTeacherContext(getDefaultTeacherContextForm());
+      }
       
       // Set profile picture URL
       if (profileDetails.profile_picture_url) {
@@ -259,6 +289,28 @@ const Profile = () => {
     return Object.keys(errors).length === 0;
   };
 
+  const hasTeacherContextChanges = () => {
+    if (!initialTeacherContext) return true;
+    const a = teacherContextForm;
+    const b = initialTeacherContext;
+    return (
+      a.country !== b.country ||
+      a.region !== b.region ||
+      a.school_type !== b.school_type ||
+      a.grade_band !== b.grade_band ||
+      (a.subjects || []).length !== (b.subjects || []).length ||
+      (a.subjects || []).some((s, i) => (b.subjects || [])[i] !== s) ||
+      a.language_preference !== b.language_preference ||
+      (a.school_name || '') !== (b.school_name || '') ||
+      (a.city || '') !== (b.city || '') ||
+      (a.postal_code || '') !== (b.postal_code || '') ||
+      (a.curriculum_framework || '') !== (b.curriculum_framework || '') ||
+      (a.years_experience || '') !== (b.years_experience || '') ||
+      (a.professional_goals || []).length !== (b.professional_goals || []).length ||
+      (a.professional_goals || []).some((g, i) => (b.professional_goals || [])[i] !== g)
+    );
+  };
+
   // Check if profile form has changes
   const hasChanges = () => {
     if (!initialFormData) return false;
@@ -271,8 +323,9 @@ const Profile = () => {
       formData.username !== initialFormData.username;
 
     const pictureChanged = profilePictureFile !== null || removeProfilePicture;
+    const teachingContextChanged = hasTeacherContextChanges();
 
-    return textFieldsChanged || pictureChanged;
+    return textFieldsChanged || pictureChanged || teachingContextChanged;
   };
 
   // Handle profile picture change
@@ -305,7 +358,7 @@ const Profile = () => {
     }));
   };
 
-  // Handle profile form submission
+  // Handle profile form submission (single PUT /auth/me with personal + picture + teaching_context)
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -314,12 +367,20 @@ const Profile = () => {
       return;
     }
 
+    if (hasTeacherContextChanges()) {
+      const tcErrors = validateTeacherContext(teacherContextForm);
+      setTeacherContextErrors(tcErrors);
+      if (Object.keys(tcErrors).length > 0) {
+        toast.error('Please complete all required Teaching Context fields');
+        return;
+      }
+    }
+
     if (!hasChanges()) {
       toast.info('No changes to save');
       return;
     }
 
-    // Warn about email change requiring re-login
     const emailChanged = initialFormData && formData.email !== initialFormData.email;
     if (emailChanged && !showEmailWarning) {
       setShowEmailWarning(true);
@@ -327,132 +388,109 @@ const Profile = () => {
     }
 
     setIsSubmitting(true);
+    setTeacherContextErrors({});
 
     try {
       const submitFormData = new FormData();
-
       if (initialFormData) {
-        if (formData.first_name !== initialFormData.first_name) {
-          submitFormData.append('first_name', formData.first_name.trim());
-        }
-        if (formData.last_name !== initialFormData.last_name) {
-          submitFormData.append('last_name', formData.last_name.trim());
-        }
-        if (formData.email !== initialFormData.email) {
-          submitFormData.append('email', formData.email.trim().toLowerCase());
-        }
-        // Only send phone if it's changed and not empty
-        if (formData.phone !== initialFormData.phone) {
-          const phoneValue = formData.phone.trim();
-          if (phoneValue) {
-            submitFormData.append('phone', phoneValue);
-          } else {
-            // If phone is cleared (empty), send empty string to remove it
-            submitFormData.append('phone', '');
-          }
-        }
-        // Only send username if it's changed and not empty
-        if (formData.username !== initialFormData.username) {
-          const usernameValue = formData.username.trim();
-          if (usernameValue) {
-            submitFormData.append('username', usernameValue);
-          } else {
-            // If username is cleared (empty), send empty string to remove it
-            submitFormData.append('username', '');
-          }
-        }
+        if (formData.first_name !== initialFormData.first_name) submitFormData.append('first_name', formData.first_name.trim());
+        if (formData.last_name !== initialFormData.last_name) submitFormData.append('last_name', formData.last_name.trim());
+        if (formData.email !== initialFormData.email) submitFormData.append('email', formData.email.trim().toLowerCase());
+        if ('phone' in formData) submitFormData.append('phone', formData.phone?.trim() ?? '');
+        if ('username' in formData) submitFormData.append('username', formData.username?.trim() ?? '');
       } else {
         submitFormData.append('first_name', formData.first_name.trim());
         submitFormData.append('last_name', formData.last_name.trim());
         submitFormData.append('email', formData.email.trim().toLowerCase());
-        // Only append optional fields if they have values
-        const phoneValue = formData.phone.trim();
-        if (phoneValue) {
-          submitFormData.append('phone', phoneValue);
-        }
-        const usernameValue = formData.username.trim();
-        if (usernameValue) {
-          submitFormData.append('username', usernameValue);
-        }
+        if (formData.phone?.trim()) submitFormData.append('phone', formData.phone.trim());
+        if (formData.username?.trim()) submitFormData.append('username', formData.username.trim());
       }
+      if (removeProfilePicture) submitFormData.append('remove_profile_picture', 'true');
+      else if (profilePictureFile) submitFormData.append('profile_picture', profilePictureFile);
 
-      if (removeProfilePicture) {
-        submitFormData.append('remove_profile_picture', 'true');
-      } else if (profilePictureFile) {
-        submitFormData.append('profile_picture', profilePictureFile);
+      const tcFilled =
+        teacherContextForm.country &&
+        teacherContextForm.region &&
+        teacherContextForm.school_type &&
+        teacherContextForm.grade_band &&
+        Array.isArray(teacherContextForm.subjects) &&
+        teacherContextForm.subjects.length > 0 &&
+        teacherContextForm.language_preference;
+      if (tcFilled) {
+        submitFormData.append(
+          'teaching_context',
+          JSON.stringify({
+            country: teacherContextForm.country,
+            region: teacherContextForm.region,
+            school_type: teacherContextForm.school_type,
+            grade_band: teacherContextForm.grade_band,
+            subjects: teacherContextForm.subjects,
+            language_preference: teacherContextForm.language_preference,
+            school_name: teacherContextForm.school_name || null,
+            city: teacherContextForm.city || null,
+            postal_code: teacherContextForm.postal_code || null,
+            curriculum_framework: teacherContextForm.curriculum_framework || null,
+            years_experience: teacherContextForm.years_experience || null,
+            professional_goals: teacherContextForm.professional_goals?.length ? teacherContextForm.professional_goals : null,
+          })
+        );
       }
 
       const result = await dispatch(updateProfile(submitFormData));
 
       if (result?.meta?.requestStatus === 'fulfilled') {
         const response = result.payload;
-        
-        // Check if email was changed and handle new token
-        const emailChanged = initialFormData && formData.email !== initialFormData.email;
-        
-        if (emailChanged && response?.access_token) {
-          // Update auth token without logout
+        if (response?.access_token) {
           setAuthToken(response.access_token);
           localStorage.setItem('access_token', response.access_token);
-          
-          // Update Redux user state with new email
-          if (response.email) {
-            dispatch(updateUserEmail({
-              email: response.email,
-              email_verified: false
-            }));
+          if (response?.email) {
+            dispatch(updateUserEmail({ email: response.email, email_verified: false }));
           }
-          
-          toast.success(response.message || 'Email updated successfully! Please check your new email for verification.');
-        } else {
-          toast.success('Profile updated successfully!');
         }
-        
-        // Clear form state
+        toast.success(response?.message || 'Profile updated successfully!');
         setProfilePictureFile(null);
         setRemoveProfilePicture(false);
         setShowEmailWarning(false);
         setPendingEmailChange(false);
-        
-        // Refresh profile data to get updated data (including username removal)
-        const refreshResult = await dispatch(getProfileDetails());
-        if (refreshResult?.meta?.requestStatus === 'fulfilled') {
-          // Update all form data with refreshed profile data
-          const updatedProfile = refreshResult.payload;
-          setInitialFormData(updatedProfile);
-          setFormData({
-            first_name: updatedProfile.first_name || '',
-            last_name: updatedProfile.last_name || '',
-            email: updatedProfile.email || '',
-            phone: updatedProfile.phone || '',
-            username: updatedProfile.username || '',
-          });
-          
-          // Update profile picture URL from refreshed data
-          if (updatedProfile?.profile_picture_url) {
-            const urlValue = updatedProfile.profile_picture_url;
-            let fullUrl;
-            if (urlValue.startsWith('http')) {
-              fullUrl = urlValue;
-            } else if (urlValue.startsWith('/')) {
-              fullUrl = `${baseURL}${urlValue}`;
-            } else {
-              fullUrl = `${baseURL}/static/profile_pictures/${urlValue}`;
-            }
+        setInitialFormData(response);
+        setFormData({
+          first_name: response?.first_name || '',
+          last_name: response?.last_name || '',
+          email: response?.email || '',
+          phone: response?.phone || '',
+          username: response?.username || '',
+        });
+        if (response?.teacher_context) {
+          const tc = response.teacher_context;
+          const tcForm = {
+            country: tc.country || '',
+            region: tc.region || '',
+            school_type: tc.school_type || '',
+            grade_band: tc.grade_band || '',
+            subjects: Array.isArray(tc.subjects) ? tc.subjects : [],
+            language_preference: tc.language_preference || '',
+            school_name: tc.school_name || '',
+            city: tc.city || '',
+            postal_code: tc.postal_code || '',
+            curriculum_framework: tc.curriculum_framework || '',
+            years_experience: tc.years_experience || '',
+            professional_goals: Array.isArray(tc.professional_goals) ? tc.professional_goals : [],
+          };
+          setTeacherContextForm(tcForm);
+          setInitialTeacherContext(tcForm);
+        }
+        if (response?.profile_picture_url !== undefined) {
+          const urlValue = response.profile_picture_url;
+          if (urlValue) {
+            const fullUrl = urlValue.startsWith('http') ? urlValue : urlValue.startsWith('/') ? `${baseURL}${urlValue}` : `${baseURL}/static/profile_pictures/${urlValue}`;
             setProfilePictureUrl(fullUrl);
-          } else {
-            setProfilePictureUrl(null);
-          }
+          } else setProfilePictureUrl(null);
         }
       } else {
         const errorMessage = result?.payload || error || 'Failed to update profile';
-        if (typeof errorMessage === 'string') {
-          toast.error(errorMessage);
-        } else if (errorMessage?.detail) {
-          toast.error(errorMessage.detail);
-        } else {
-          toast.error('Failed to update profile. Please try again.');
-        }
+        if (typeof errorMessage === 'string') toast.error(errorMessage);
+        else if (errorMessage?.detail) toast.error(errorMessage.detail);
+        else toast.error('Failed to update profile. Please try again.');
       }
     } catch (err) {
       console.error('Profile update error:', err);
@@ -637,6 +675,35 @@ const Profile = () => {
                 />
               </div>
 
+              {/* Context resolution status (after submit) */}
+              {profileDetails?.context_resolution_status === 'resolved' && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
+                  <p className="text-sm text-green-800">Your educational context is resolved. You’ll get accurate recommendations in the Professional Learning Hub.</p>
+                </div>
+              )}
+              {profileDetails?.context_resolution_status === 'partial' && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">We found a partial match</p>
+                    <p className="text-sm text-amber-700 mt-1">Consider completing curriculum framework and grade band for better recommendations.</p>
+                  </div>
+                </div>
+              )}
+              {profileDetails?.context_resolution_status === 'not_found' && profileDetails?.teacher_context && (
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">Complete your context for better recommendations</p>
+                    <p className="text-sm text-amber-700 mt-1">
+                      We were unable to automatically identify detailed educational context based on the information provided.
+                      To ensure accurate recommendations in the Professional Learning Hub, please review or complete the following fields.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Personal Information Section */}
               <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
                 <h2 className="text-lg font-semibold text-gray-900 mb-6">Personal Information</h2>
@@ -725,6 +792,21 @@ const Profile = () => {
                 </div>
               </div>
 
+              {/* Teaching Context & Professional Environment */}
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">Teaching Context & Professional Environment</h2>
+                <p className="text-sm text-gray-600 mb-6">
+                  This information helps us map you to your national education framework and personalize the Professional Learning Hub.
+                </p>
+                <TeacherContextForm
+                  value={teacherContextForm}
+                  onChange={setTeacherContextForm}
+                  errors={teacherContextErrors}
+                  disabled={isSubmitting || loading}
+                  showOptional={profileDetails?.context_resolution_status === 'not_found' || !profileDetails?.context_resolution_status}
+                />
+              </div>
+
               {/* Form Actions */}
               <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
                 <CustomButton
@@ -733,6 +815,8 @@ const Profile = () => {
                     if (initialFormData) {
                       setFormData(initialFormData);
                       setFormErrors({});
+                      setTeacherContextErrors({});
+                      if (initialTeacherContext) setTeacherContextForm(initialTeacherContext);
                       setProfilePictureFile(null);
                       setRemoveProfilePicture(false);
                       setShowEmailWarning(false);

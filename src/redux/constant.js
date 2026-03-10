@@ -49,6 +49,19 @@ const endPoints = {
   // Update Profile
   updateProfile: `/api/v1/auth/me`,
 
+  // Update Profile (with teaching context) - returns { profile, context_resolution_status }
+  updateProfileWithContext: `/api/v1/users/profile`,
+
+  // Metadata for teaching context dropdowns
+  metadataCountries: `/api/v1/metadata/countries`,
+  metadataRegions: `/api/v1/metadata/regions`,
+  metadataSubjects: `/api/v1/metadata/subjects`,
+  metadataCurriculums: `/api/v1/metadata/curriculums`,
+  metadataGradeBands: `/api/v1/metadata/grade-bands`,
+  metadataSchoolTypes: `/api/v1/metadata/school-types`,
+  metadataLanguages: `/api/v1/metadata/languages`,
+  metadataYearsExperience: `/api/v1/metadata/years-experience`,
+
   // Change Password
   changePassword: `/api/v1/auth/me/change-password`,
 

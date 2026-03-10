@@ -677,12 +677,9 @@ export const authSlice = createSlice({
       })
       .addCase(updateProfile.fulfilled, (state, action) => {
         state.loading = false;
-        // Response could be direct user data or nested in data property
         const userData = action.payload?.user || action.payload || action.payload?.data;
         if (userData) {
           const primaryRole = getPrimaryRole(userData?.roles || []);
-          
-          // Update user state
           if (state.user) {
             state.user.first_name = userData.first_name || state.user.first_name;
             state.user.last_name = userData.last_name || state.user.last_name;
@@ -693,12 +690,12 @@ export const authSlice = createSlice({
             state.user.roles = userData.roles || state.user.roles || [];
             state.user.role = primaryRole || state.user.role;
           }
-          
-          // Update profileDetails state with complete profile data
           state.profileDetails = {
             ...state.profileDetails,
             ...userData,
             profile_picture_url: userData.profile_picture_url !== undefined ? userData.profile_picture_url : state.profileDetails?.profile_picture_url,
+            context_resolution_status: userData.context_resolution_status !== undefined ? userData.context_resolution_status : state.profileDetails?.context_resolution_status,
+            teacher_context: userData.teacher_context !== undefined ? userData.teacher_context : state.profileDetails?.teacher_context,
           };
         }
         state.error = null;
