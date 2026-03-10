@@ -14,6 +14,7 @@ import {
   GraduationCap,
   MessageSquare,
   Lightbulb,
+  RefreshCw,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -638,11 +639,19 @@ const TemplatesLibrary = () => {
 
       <div className="space-y-4">
         <section className="space-y-4">
-          {total > 0 && (
-            <div>
-              <p className="text-sm font-semibold text-gray-900">{total} templates</p>
-            </div>
-          )}
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-gray-900">{total > 0 ? `${total} templates` : 'Templates'}</p>
+            <button
+              type="button"
+              onClick={() => dispatch(fetchTemplates(filters) as any)}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              title="Refresh template list from backend"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
 
           {loading && (
             <div className="flex items-center justify-center rounded-2xl border border-dashed border-gray-300 py-10 text-sm text-gray-500">

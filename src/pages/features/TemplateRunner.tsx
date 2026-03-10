@@ -166,6 +166,8 @@ const TemplateRunner = () => {
           fieldType = 'number'
         } else if (prop.type === 'boolean') {
           fieldType = 'select' // We'll handle boolean as select with yes/no
+        } else if (prop.type === 'array' && prop.items?.type === 'string') {
+          fieldType = 'array' // Render as textarea; payload will split into string[]
         }
         
         // Format label from property name
@@ -366,6 +368,9 @@ const TemplateRunner = () => {
         } else {
           payload[field.name] = raw
         }
+      } else if (field.type === 'array') {
+        // Array of strings: split by newline or comma
+        payload[field.name] = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
       } else {
         // Text, textarea, etc.
         payload[field.name] = raw.trim()
@@ -432,6 +437,8 @@ const TemplateRunner = () => {
         } else {
           payload[field.name] = raw
         }
+      } else if (field.type === 'array') {
+        payload[field.name] = raw.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean)
       } else {
         payload[field.name] = raw.trim()
       }
@@ -942,12 +949,12 @@ const TemplateRunner = () => {
         'w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-gray-900 transition-colors focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 placeholder:text-gray-500',
     }
 
-    if (field.type === 'textarea') {
+    if (field.type === 'textarea' || field.type === 'array') {
       return (
         <textarea 
           {...commonProps} 
-          rows={8} 
-          placeholder={field.placeholder} 
+          rows={field.type === 'array' ? 4 : 8} 
+          placeholder={field.type === 'array' ? (field.placeholder || 'One item per line or comma-separated') : field.placeholder} 
           className={`${commonProps.className} resize-y min-h-[120px]`} 
         />
       )
