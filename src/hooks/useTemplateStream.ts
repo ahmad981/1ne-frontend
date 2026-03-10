@@ -49,7 +49,7 @@ const normalizeToJson = (raw: string): string => {
 const KNOWN_OUTPUT_KEYS = new Set([
   'title', 'overview', 'learning_goals', 'learning_objectives', '_goals', 'learningals', 'learning_go',
   'materials', 'steps', 'lesson_flow', 'differentiation', 'assessment', 'teacher_notes', 'teacher', 'teacher_note',
-  'bloom_alignment', 'bloom', 'bloom_taxonomy', 'standards_alignment',
+  'bloom_alignment', 'bloom', 'bloom_taxonomy', 'standards_alignment', 'standards_aligned',
 ])
 
 const buildFormattedFromParsed = (parsed: any): string => {
@@ -120,28 +120,37 @@ const buildFormattedFromParsed = (parsed: any): string => {
     }
   }
 
-  // Extract steps - clean and validate each step
+  // Extract steps - support both array of objects (title/description) and array of strings (e.g. Art Exploration)
   if (parsed.steps && Array.isArray(parsed.steps) && parsed.steps.length > 0) {
-    parsed.steps.forEach((step: any) => {
-      if (step && typeof step === 'object') {
-        const title = step.title ? cleanText(String(step.title)) : ''
-        const desc = step.description ? cleanText(String(step.description)) : ''
-        
-        // Only add step if we have valid content
-        if (title && title.length > 2 && !title.match(/^[:\s,{}[\]]+$/)) {
-          formatted += `## ${title.toUpperCase()}\n\n`
-          if (desc && desc.length > 5) {
-            formatted += `${desc}\n\n`
-          } else {
-            formatted += `\n`
-          }
-        } else if (desc && desc.length > 10 && !desc.match(/^[:\s,{}[\]]+$/)) {
-          // If no valid title but have description, use description as heading
-          const shortTitle = desc.substring(0, 50).replace(/\.$/, '')
-          formatted += `## ${shortTitle.toUpperCase()}\n\n${desc}\n\n`
+    const firstStep = parsed.steps[0]
+    if (typeof firstStep === 'string') {
+      formatted += `## STEPS\n\n`
+      parsed.steps.forEach((step: string) => {
+        const s = cleanText(String(step))
+        if (s && s.length > 2 && !s.match(/^[:\s,{}[\]]+$/)) {
+          formatted += `- ${s}\n`
         }
-      }
-    })
+      })
+      formatted += `\n`
+    } else {
+      parsed.steps.forEach((step: any) => {
+        if (step && typeof step === 'object') {
+          const title = step.title ? cleanText(String(step.title)) : ''
+          const desc = step.description ? cleanText(String(step.description)) : ''
+          if (title && title.length > 2 && !title.match(/^[:\s,{}[\]]+$/)) {
+            formatted += `## ${title.toUpperCase()}\n\n`
+            if (desc && desc.length > 5) {
+              formatted += `${desc}\n\n`
+            } else {
+              formatted += `\n`
+            }
+          } else if (desc && desc.length > 10 && !desc.match(/^[:\s,{}[\]]+$/)) {
+            const shortTitle = desc.substring(0, 50).replace(/\.$/, '')
+            formatted += `## ${shortTitle.toUpperCase()}\n\n${desc}\n\n`
+          }
+        }
+      })
+    }
   }
 
   // Lesson flow (backend output_schema: array of { phase, minutes, activity })
@@ -162,9 +171,30 @@ const buildFormattedFromParsed = (parsed: any): string => {
     formatted += `\n`
   }
 
-  // Extract differentiation
+  // Extract differentiation (support object with support/extension e.g. Art Exploration, or string/array)
   if (parsed.differentiation) {
-    if (typeof parsed.differentiation === 'string') {
+    if (typeof parsed.differentiation === 'object' && !Array.isArray(parsed.differentiation)) {
+      const diff = parsed.differentiation as { support?: string[]; extension?: string[] }
+      if ((diff.support && diff.support.length > 0) || (diff.extension && diff.extension.length > 0)) {
+        formatted += `## DIFFERENTIATION\n\n`
+        if (diff.support && diff.support.length > 0) {
+          formatted += `**Support:**\n`
+          diff.support.forEach((s: string) => {
+            const item = cleanText(String(s))
+            if (item && item.length > 2) formatted += `- ${item}\n`
+          })
+          formatted += `\n`
+        }
+        if (diff.extension && diff.extension.length > 0) {
+          formatted += `**Extension:**\n`
+          diff.extension.forEach((e: string) => {
+            const item = cleanText(String(e))
+            if (item && item.length > 2) formatted += `- ${item}\n`
+          })
+          formatted += `\n`
+        }
+      }
+    } else if (typeof parsed.differentiation === 'string') {
       const diff = cleanText(parsed.differentiation)
       if (diff && diff.length > 10 && !diff.match(/^[:\s,{}[\]]+$/)) {
         formatted += `## DIFFERENTIATION\n\n${diff}\n\n`
@@ -181,10 +211,24 @@ const buildFormattedFromParsed = (parsed: any): string => {
     }
   }
 
-  // Extract assessment
+  // Extract assessment (support type + criteria e.g. Art Exploration, and checks/rubric)
   if (parsed.assessment) {
     formatted += `## ASSESSMENT\n\n`
     if (typeof parsed.assessment === 'object') {
+      const typeStr = parsed.assessment.type ? cleanText(String(parsed.assessment.type)) : ''
+      if (typeStr && typeStr.length > 1) {
+        formatted += `**Type:** ${typeStr}\n\n`
+      }
+      const criteria = parsed.assessment.criteria
+      if (criteria && Array.isArray(criteria) && criteria.length > 0) {
+        criteria.forEach((c: any) => {
+          const check = cleanText(String(c))
+          if (check && check.length > 2 && !check.match(/^[:\s,{}[\]]+$/)) {
+            formatted += `- ${check}\n`
+          }
+        })
+        formatted += `\n`
+      }
       const checks = parsed.assessment.checks_for_understanding || parsed.assessment.checks_understanding || parsed.assessment.checks
       if (checks && Array.isArray(checks) && checks.length > 0) {
         checks.forEach((c: any) => {
@@ -193,6 +237,12 @@ const buildFormattedFromParsed = (parsed: any): string => {
             formatted += `- ${check}\n`
           }
         })
+      }
+      if (parsed.assessment.description) {
+        const desc = cleanText(String(parsed.assessment.description))
+        if (desc && desc.length > 5) {
+          formatted += `${desc}\n\n`
+        }
       }
       if (parsed.assessment.rubric) {
         const rubric = cleanText(String(parsed.assessment.rubric))
@@ -264,11 +314,24 @@ const buildFormattedFromParsed = (parsed: any): string => {
     }
   }
 
-  // Standards alignment (backend output_schema)
-  if (parsed.standards_alignment) {
-    const sa = cleanText(String(parsed.standards_alignment))
-    if (sa && sa.length > 2 && !sa.match(/^[:\s,{}[\]]+$/)) {
-      formatted += `## STANDARDS ALIGNMENT\n\n${sa}\n\n`
+  // Standards alignment (backend output_schema; support object e.g. Art Exploration or string)
+  const standardsData = parsed.standards_alignment ?? parsed.standards_aligned
+  if (standardsData) {
+    if (typeof standardsData === 'object' && standardsData !== null) {
+      const code = (standardsData as any).code ? cleanText(String((standardsData as any).code)) : ''
+      const note = (standardsData as any).note ? cleanText(String((standardsData as any).note)) : ''
+      const framework = (standardsData as any).framework ? cleanText(String((standardsData as any).framework)) : ''
+      if (code || note || framework) {
+        formatted += `## STANDARDS ALIGNMENT\n\n`
+        if (framework) formatted += `**Framework:** ${framework}\n\n`
+        if (code) formatted += `**Code:** ${code}\n\n`
+        if (note) formatted += `${note}\n\n`
+      }
+    } else {
+      const sa = cleanText(String(standardsData))
+      if (sa && sa.length > 2 && !sa.match(/^[:\s,{}[\]]+$/)) {
+        formatted += `## STANDARDS ALIGNMENT\n\n${sa}\n\n`
+      }
     }
   }
 
