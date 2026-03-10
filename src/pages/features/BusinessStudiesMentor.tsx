@@ -28,13 +28,6 @@ import {
   Network,
 } from 'lucide-react'
 import {
-  getInternationalStandards,
-  getEntrepreneurshipFramework,
-  getEconomicConcept,
-  generateFinancialLiteracyModule,
-  generateBusinessScenario,
-  getTradeAgreements,
-  getCrossCulturalGuide,
   getBusinessRegions,
   getIndustries,
   InternationalBusinessStandard,
@@ -45,6 +38,18 @@ import {
   TradeAgreement,
   CrossCulturalBusinessGuide,
 } from '../../utils/businessUtils'
+import * as chatbotApi from '../../api/chatbots'
+import {
+  mapInternationalStandardsResponseToUI,
+  mapEntrepreneurshipFrameworkResponseToUI,
+  mapEconomicConceptResponseToUI,
+  mapFinancialLiteracyModuleResponseToUI,
+  mapBusinessScenarioResponseToUI,
+  mapTradeAgreementsResponseToUI,
+  mapCrossCulturalGuideResponseToUI,
+} from '../../utils/businessAdapters'
+
+const BUSINESS_MENTOR_SLUG = 'business-studies-mentor'
 
 type TabType = 'standards' | 'entrepreneurship' | 'economics' | 'financial' | 'scenarios' | 'trade' | 'cultural' | 'assessment'
 
@@ -84,75 +89,130 @@ const BusinessStudiesMentor = () => {
   const regions = getBusinessRegions()
   const industries = getIndustries()
 
-  // International Standards
+  // International Standards (backend)
   const handleExploreStandard = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getInternationalStandards()
-      const standard = standards.find(s => s.name.includes(selectedStandard)) || standards[0]
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'international_standards', {
+        input: selectedStandard,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const standard = mapInternationalStandardsResponseToUI(response.result as Record<string, unknown>, selectedStandard, selectedRegion)
       setBusinessStandard(standard)
+    } catch (e) {
+      console.error('International standards:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Entrepreneurship Framework
+  // Entrepreneurship Framework (backend)
   const handleGetEntrepreneurshipFramework = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const framework = getEntrepreneurshipFramework()
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'entrepreneurship_framework', {
+        input: '',
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const framework = mapEntrepreneurshipFrameworkResponseToUI(response.result as Record<string, unknown>)
       setEntrepreneurshipFramework(framework)
+    } catch (e) {
+      console.error('Entrepreneurship framework:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Economic Concept
+  // Economic Concept (backend)
   const handleGetEconomicConcept = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const concept = getEconomicConcept(selectedConcept)
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'economic_concepts', {
+        input: selectedConcept,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const concept = mapEconomicConceptResponseToUI(response.result as Record<string, unknown>)
       setEconomicConcept(concept)
+    } catch (e) {
+      console.error('Economic concept:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Financial Literacy
+  // Financial Literacy (backend)
   const handleGenerateFinancialModule = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const module = generateFinancialLiteracyModule(financialTopic, gradeLevel)
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'financial_literacy_module', {
+        input: financialTopic,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const module = mapFinancialLiteracyModuleResponseToUI(response.result as Record<string, unknown>, financialTopic, gradeLevel)
       setFinancialModule(module)
+    } catch (e) {
+      console.error('Financial literacy module:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Business Scenario
+  // Business Scenario (backend)
   const handleGenerateScenario = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const scenario = generateBusinessScenario(scenarioType, selectedIndustry)
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'business_scenarios', {
+        input: scenarioType,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const scenario = mapBusinessScenarioResponseToUI(response.result as Record<string, unknown>, scenarioType, selectedIndustry, selectedRegion)
       setBusinessScenario(scenario)
+    } catch (e) {
+      console.error('Business scenario:', e)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
-  // Trade Agreements
+  // Trade Agreements (backend)
   const handleGetTradeAgreements = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const agreements = getTradeAgreements()
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'trade_agreements', {
+        input: '',
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const agreements = mapTradeAgreementsResponseToUI(response.result as Record<string, unknown>)
       setTradeAgreements(agreements)
+    } catch (e) {
+      console.error('Trade agreements:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Cross-Cultural Guide
+  // Cross-Cultural Guide (backend)
   const handleGetCulturalGuide = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guide = getCrossCulturalGuide(culturalRegion)
+    try {
+      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'cross_cultural_guide', {
+        input: culturalRegion,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const guide = mapCrossCulturalGuideResponseToUI(response.result as Record<string, unknown>, culturalRegion)
       setCulturalGuide(guide)
+    } catch (e) {
+      console.error('Cross-cultural guide:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

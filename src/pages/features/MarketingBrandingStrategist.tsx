@@ -29,7 +29,6 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import {
-  getMarketingConcepts,
   getBrandingStrategies,
   getDigitalMarketingChannels,
   getMarketResearchMethods,
@@ -44,6 +43,10 @@ import {
   MarketingStandard,
   MarketingCampaign,
 } from '../../utils/marketingUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { mapMarketingConceptsResponseToUI } from '../../utils/marketingAdapters'
+
+const MARKETING_STRATEGIST_SLUG = 'marketing-branding-strategist'
 
 type TabType = 'marketing-concepts' | 'branding' | 'digital-marketing' | 'market-research' | 'campaigns' | 'standards' | 'resources'
 
@@ -81,14 +84,22 @@ const MarketingBrandingStrategist = () => {
   const gradeLevels = getGradeLevels()
   const marketingTopics = getMarketingTopics()
 
-  // Load Marketing Concepts
+  // Load Marketing Concepts (backend)
   const handleLoadMarketingConcepts = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const concepts = getMarketingConcepts()
+    try {
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'marketing_concepts', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel },
+      })
+      const concepts = mapMarketingConceptsResponseToUI(response.result as Record<string, unknown>, gradeLevel)
       setMarketingConcepts(concepts)
+    } catch (e) {
+      console.error('Marketing concepts:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Branding Strategies

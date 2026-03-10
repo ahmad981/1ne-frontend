@@ -29,13 +29,6 @@ import {
   MapPin,
 } from 'lucide-react'
 import {
-  getResumeFormats,
-  getInterviewQuestions,
-  getNACECompetencies,
-  getIndustryInsights,
-  generateCareerPathway,
-  getLinkedInOptimizationGuide,
-  generateSkillsAssessment,
   getResumeRegions,
   getCareerIndustries,
   getInterviewCategories,
@@ -47,6 +40,18 @@ import {
   LinkedInOptimization,
   SkillsAssessment,
 } from '../../utils/careerUtils'
+import * as chatbotApi from '../../api/chatbots'
+import {
+  mapResumeFormatResponseToUI,
+  mapInterviewPrepResponseToUI,
+  mapNACECompetenciesResponseToUI,
+  mapIndustryInsightsResponseToUI,
+  mapCareerPathwayResponseToUI,
+  mapLinkedInGuideResponseToUI,
+  mapSkillsAssessmentResponseToUI,
+} from '../../utils/careerAdapters'
+
+const CAREER_COACH_SLUG = 'career-readiness-coach'
 
 type TabType = 'resume' | 'interview' | 'skills' | 'industry' | 'pathway' | 'linkedin' | 'assessment' | 'standards'
 
@@ -91,75 +96,130 @@ const CareerReadinessCoach = () => {
   const industries = getCareerIndustries()
   const interviewCategories = getInterviewCategories()
 
-  // Resume Format Explorer
+  // Resume Format Explorer (backend)
   const handleExploreResumeFormat = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const formats = getResumeFormats()
-      const format = formats.find(f => f.name === selectedResumeFormat) || formats[0]
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'international_resume_builder', {
+        input: selectedResumeFormat,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const format = mapResumeFormatResponseToUI(response.result as Record<string, unknown>, selectedResumeFormat)
       setResumeFormat(format)
+    } catch (e) {
+      console.error('Resume format:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Interview Questions
+  // Interview Questions (backend)
   const handleGetInterviewQuestions = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const questions = getInterviewQuestions(interviewCategory.toLowerCase(), selectedIndustry)
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'interview_prep', {
+        input: interviewCategory,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const questions = mapInterviewPrepResponseToUI(response.result as Record<string, unknown>, interviewCategory)
       setInterviewQuestions(questions)
+    } catch (e) {
+      console.error('Interview prep:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // NACE Competencies
+  // NACE Competencies (backend)
   const handleGetNACECompetencies = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const competencies = getNACECompetencies()
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'professional_skills_competencies', {
+        input: '',
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const competencies = mapNACECompetenciesResponseToUI(response.result as Record<string, unknown>)
       setNACECompetencies(competencies)
+    } catch (e) {
+      console.error('Professional skills:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Industry Insights
+  // Industry Insights (backend)
   const handleGetIndustryInsights = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const insight = getIndustryInsights(selectedIndustry)
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'industry_insights', {
+        input: selectedIndustry,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const insight = mapIndustryInsightsResponseToUI(response.result as Record<string, unknown>, selectedIndustry)
       setIndustryInsight(insight)
+    } catch (e) {
+      console.error('Industry insights:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Career Pathway
+  // Career Pathway (backend)
   const handleGeneratePathway = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const pathway = generateCareerPathway(targetCareer, selectedIndustry)
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'career_pathway_planning', {
+        input: targetCareer,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry, career_level: careerLevel },
+      })
+      const pathway = mapCareerPathwayResponseToUI(response.result as Record<string, unknown>, targetCareer, selectedIndustry)
       setCareerPathway(pathway)
+    } catch (e) {
+      console.error('Career pathway:', e)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
-  // LinkedIn Guide
+  // LinkedIn Guide (backend)
   const handleGetLinkedInGuide = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guide = getLinkedInOptimizationGuide()
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'linkedin_guide', {
+        input: '',
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+      })
+      const guide = mapLinkedInGuideResponseToUI(response.result as Record<string, unknown>)
       setLinkedInGuide(guide)
+    } catch (e) {
+      console.error('LinkedIn guide:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Skills Assessment
+  // Skills Assessment (backend)
   const handleGenerateAssessment = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const assessment = generateSkillsAssessment(assessmentCompetency, currentLevel, targetLevel)
+    try {
+      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'skills_assessment_gap_analysis', {
+        input: assessmentCompetency,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel, current_level: currentLevel, target_level: targetLevel },
+      })
+      const assessment = mapSkillsAssessmentResponseToUI(response.result as Record<string, unknown>, assessmentCompetency, currentLevel, targetLevel)
       setSkillsAssessment(assessment)
+    } catch (e) {
+      console.error('Skills assessment:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

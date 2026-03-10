@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Bot,
   Filter,
@@ -21,6 +22,7 @@ import {
   Zap,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { listChatbots, Chatbot } from '../../api/chatbots'
 
 // FREE Chat Bot
 const freeChatBot = {
@@ -198,6 +200,54 @@ const subjectBots = {
 }
 
 const SpecializedChatbots = () => {
+  const [businessBots, setBusinessBots] = useState<typeof subjectBots.Business | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    const loadBusinessBots = async () => {
+      try {
+        const chatbots = await listChatbots()
+
+        const updatedBusinessBots: typeof subjectBots.Business = subjectBots.Business.map((fallbackBot) => {
+          let slug = ''
+
+          if (fallbackBot.name === 'Business Studies Mentor') {
+            slug = 'business-studies-mentor'
+          } else if (fallbackBot.name === 'Career Readiness Coach') {
+            slug = 'career-readiness-coach'
+          } else if (fallbackBot.name === 'Marketing & Branding Strategist') {
+            slug = 'marketing-branding-strategist'
+          }
+
+          if (!slug) return fallbackBot
+
+          const backendBot: Chatbot | undefined = chatbots.find((bot) => bot.slug === slug)
+
+          if (!backendBot) return fallbackBot
+
+          return {
+            ...fallbackBot,
+            name: backendBot.name || fallbackBot.name,
+            description: backendBot.description || fallbackBot.description,
+          }
+        })
+
+        if (isMounted) {
+          setBusinessBots(updatedBusinessBots)
+        }
+      } catch {
+        // If the API call fails, keep using the static business bots
+      }
+    }
+
+    loadBusinessBots()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   return (
     <div className="space-y-10">
       {/* Hero Section */}
@@ -470,6 +520,8 @@ const SpecializedChatbots = () => {
             Technology: 'bg-indigo-50 text-indigo-600 border-indigo-200',
           }
 
+          const effectiveBots = subject === 'Business' && businessBots ? businessBots : bots
+
           return (
             <div
               key={subject}
@@ -482,13 +534,13 @@ const SpecializedChatbots = () => {
                   </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{subject}</h3>
-                    <p className="text-sm text-gray-600">{bots.length} specialized bots available</p>
+                    <p className="text-sm text-gray-600">{effectiveBots.length} specialized bots available</p>
                   </div>
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {bots.map((bot, idx) => {
+                {effectiveBots.map((bot, idx) => {
                   const Icon = bot.icon
                   return (
                     <div
