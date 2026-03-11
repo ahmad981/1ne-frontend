@@ -29,11 +29,6 @@ import {
   Image as ImageIcon,
 } from 'lucide-react'
 import {
-  getBrandingStrategies,
-  getDigitalMarketingChannels,
-  getMarketResearchMethods,
-  getMarketingStandards,
-  generateMarketingCampaign,
   getGradeLevels,
   getMarketingTopics,
   MarketingConcept,
@@ -44,7 +39,14 @@ import {
   MarketingCampaign,
 } from '../../utils/marketingUtils'
 import * as chatbotApi from '../../api/chatbots'
-import { mapMarketingConceptsResponseToUI } from '../../utils/marketingAdapters'
+import {
+  mapBrandingStrategiesResponseToUI,
+  mapDigitalMarketingChannelsResponseToUI,
+  mapMarketResearchMethodsResponseToUI,
+  mapMarketingCampaignResponseToUI,
+  mapMarketingConceptsResponseToUI,
+  mapMarketingStandardsResponseToUI,
+} from '../../utils/marketingAdapters'
 
 const MARKETING_STRATEGIST_SLUG = 'marketing-branding-strategist'
 
@@ -102,55 +104,101 @@ const MarketingBrandingStrategist = () => {
     }
   }
 
-  // Load Branding Strategies
+  // Load Branding Strategies (backend)
   const handleLoadBrandingStrategies = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const strategies = getBrandingStrategies()
+    try {
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'branding_strategies', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel },
+      })
+      const strategies = mapBrandingStrategiesResponseToUI(response.result as Record<string, unknown>)
       setBrandingStrategies(strategies)
+    } catch (e) {
+      console.error('Branding strategies:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Load Digital Marketing Channels
+  // Load Digital Marketing Channels (backend)
   const handleLoadDigitalChannels = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const channels = getDigitalMarketingChannels()
+    try {
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'digital_marketing_channels', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel },
+      })
+      const channels = mapDigitalMarketingChannelsResponseToUI(response.result as Record<string, unknown>)
       setDigitalChannels(channels)
+    } catch (e) {
+      console.error('Digital marketing channels:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Load Market Research Methods
+  // Load Market Research Methods (backend)
   const handleLoadResearchMethods = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const methods = getMarketResearchMethods()
+    try {
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'market_research_methods', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel },
+      })
+      const methods = mapMarketResearchMethodsResponseToUI(response.result as Record<string, unknown>)
       setResearchMethods(methods)
+    } catch (e) {
+      console.error('Market research methods:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Load Marketing Standards
+  // Load Marketing Standards (backend)
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getMarketingStandards()
+    try {
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'international_marketing_standards', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: { grade_level: gradeLevel },
+      })
+      const standards = mapMarketingStandardsResponseToUI(response.result as Record<string, unknown>)
       setMarketingStandards(standards)
+    } catch (e) {
+      console.error('Marketing standards:', e)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
-  // Generate Marketing Campaign
+  // Generate Marketing Campaign (backend)
   const handleGenerateCampaign = async () => {
     if (!product.trim() || !targetAudience.trim() || !objective.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const campaign = generateMarketingCampaign(product, targetAudience, objective)
+    try {
+      // Backend capability key is "compaign" (typo) — must match seed.
+      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'compaign', {
+        input: gradeLevel,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          product: product.trim(),
+          target_audience: targetAudience.trim(),
+          primary_objective: objective.trim(),
+        },
+      })
+      const campaign = mapMarketingCampaignResponseToUI(response.result as Record<string, unknown>)
       setGeneratedCampaign(campaign)
+    } catch (e) {
+      console.error('Marketing campaign:', e)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
@@ -162,6 +210,8 @@ const MarketingBrandingStrategist = () => {
     { id: 'standards' as TabType, label: 'Standards', icon: CheckCircle },
     { id: 'resources' as TabType, label: 'Resources', icon: FileText },
   ]
+  // Exclude last sub-chatbot from UI; data still from backend for rest
+  const visibleTabs = tabs.slice(0, -1)
 
   return (
     <div className="space-y-6">
@@ -217,7 +267,7 @@ const MarketingBrandingStrategist = () => {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="border-b border-gray-200">
           <div className="flex overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon
               return (
                 <button

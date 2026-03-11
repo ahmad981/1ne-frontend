@@ -286,8 +286,14 @@ export async function executeCapability(
   capabilityKey: string,
   request: ExecuteCapabilityRequest
 ): Promise<ExecuteCapabilityResponse> {
+  // Some capabilities don't require an input, but the backend enforces a min length of 1.
+  // Normalize empty inputs to a single space to avoid 422 validation errors.
+  const normalizedRequest: ExecuteCapabilityRequest = {
+    ...request,
+    input: request.input?.length ? request.input : ' ',
+  }
   return apiRequest<ExecuteCapabilityResponse>(`v1/chatbots/${slug}/capabilities/${capabilityKey}`, {
     method: 'POST',
-    body: request, // apiRequest will JSON.stringify it
+    body: normalizedRequest, // apiRequest will JSON.stringify it
   })
 }

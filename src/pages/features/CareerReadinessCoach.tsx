@@ -232,6 +232,8 @@ const CareerReadinessCoach = () => {
     { id: 'assessment' as TabType, label: 'Skills Assessment', icon: BarChart3 },
     { id: 'standards' as TabType, label: 'Standards Alignment', icon: CheckCircle },
   ]
+  // Exclude last sub-chatbot from UI; data still from backend for rest
+  const visibleTabs = tabs.slice(0, -1)
 
   return (
     <div className="space-y-6">
@@ -324,7 +326,7 @@ const CareerReadinessCoach = () => {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="border-b border-gray-200">
           <div className="flex overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon
               return (
                 <button

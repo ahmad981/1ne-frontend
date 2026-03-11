@@ -1,11 +1,22 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { StreamEvent } from '../api/types'
+import { flushSync } from 'react-dom'
+import { useSelector } from 'react-redux'
+import { StreamEvent, StreamedSection } from '../api/types'
 import { API_URL } from '../config/api'
 
+export interface StreamSectionSchema {
+  key: string
+  label: string
+  type: string
+}
+
 interface UseTemplateStreamReturn {
-  content: string // Accumulated JSON content from streaming
-  formattedContent: string // Accumulated formatted text (like Activity)
+  content: string
+  formattedContent: string
+  sections: StreamedSection[]
+  sectionsSchema: StreamSectionSchema[]
   isStreaming: boolean
+  completedSectionKeys: string[]
   error: string | null
   executionId: string | null
   startStream: (slug: string, data: Record<string, any>) => void
@@ -1356,16 +1367,24 @@ const extractFormattedText = (jsonContent: string, inputData?: Record<string, an
 export const useTemplateStream = (): UseTemplateStreamReturn => {
   const [content, setContent] = useState<string>('')
   const [formattedContent, setFormattedContent] = useState<string>('')
+  const [sections, setSections] = useState<StreamedSection[]>([])
+  const [sectionsSchema, setSectionsSchema] = useState<StreamSectionSchema[]>([])
   const [isStreaming, setIsStreaming] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [executionId, setExecutionId] = useState<string | null>(null)
-  
+  const authToken = useSelector((state: any) => state?.auth?.user?.token ?? null)
+
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
-  const formattedContentRef = useRef<string>('') // Track formatted content for immediate updates
-  const accumulatedContentRef = useRef<string>('') // Track accumulated JSON content (like Activity's accumulatedTexts)
-  const inputDataRef = useRef<Record<string, any>>({}) // Track input data for standards extraction
-  const previousFormattedRef = useRef<string>('') // Track previous formatted text to detect new content
+  const formattedContentRef = useRef<string>('')
+  const accumulatedContentRef = useRef<string>('')
+  const inputDataRef = useRef<Record<string, any>>({})
+  const previousFormattedRef = useRef<string>('')
+  const sectionsRef = useRef<StreamedSection[]>([])
+  const sectionsSchemaRef = useRef<StreamSectionSchema[]>([])
+  const sectionMapRef = useRef<Record<string, number>>({})
+  const completedSectionKeysRef = useRef<Set<string>>(new Set())
+  const [completedSectionKeys, setCompletedSectionKeys] = useState<string[]>([])
 
   const stopStream = useCallback(() => {
     // Close the reader if it exists
@@ -1389,9 +1408,16 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
     stopStream()
     setContent('')
     setFormattedContent('')
+    setSections([])
+    setSectionsSchema([])
+    completedSectionKeysRef.current = new Set()
+    setCompletedSectionKeys([])
     formattedContentRef.current = ''
     previousFormattedRef.current = ''
     accumulatedContentRef.current = ''
+    sectionsRef.current = []
+    sectionsSchemaRef.current = []
+    sectionMapRef.current = {}
     setError(null)
     setExecutionId(null)
   }, [stopStream])
@@ -1412,13 +1438,17 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
     const API_BASE_URL = API_URL.replace(/\/$/, '')
     const url = `${API_BASE_URL}/v1/templates/${slug}/execute-stream`
 
-    // Start fetch request
+    // Start fetch request (include auth so backend can associate execution with user)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    }
+    if (authToken) {
+      headers['Authorization'] = `Bearer ${authToken}`
+    }
     fetch(url, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'text/event-stream',
-      },
+      headers,
       body: JSON.stringify({ data }),
       signal: abortController.signal,
     })
@@ -1471,10 +1501,11 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
             buffer = lines.pop() || '' // Keep incomplete line in buffer
 
             for (const line of lines) {
-              if (line.startsWith('data: ')) {
+              const trimmedLine = line.trimEnd().replace(/\r$/, '') // Normalize CRLF / trailing \r
+              if (trimmedLine.startsWith('data: ')) {
                 let event: StreamEvent | null = null
                 try {
-                  const jsonStr = line.slice(6) // Remove 'data: ' prefix
+                  const jsonStr = trimmedLine.slice(6).trim() // Remove 'data: ' prefix
                   event = JSON.parse(jsonStr)
                 } catch (parseError) {
                   // CRITICAL: Don't stop on parse errors - just log and continue (like Activity line 446-448)
@@ -1488,80 +1519,129 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
                   continue
                 }
                 
-                // DEBUG: Log event type to verify events are being received
-                if (event.type === 'content') {
-                  console.log('Content event received, chunk length:', (event.chunk || '').length)
-                } else {
-                  console.log('SSE event received:', event.type)
-                }
-
                 try {
                   switch (event.type) {
                     case 'meta':
-                      // First event - metadata (template info)
+                      if (event.sections && Array.isArray(event.sections)) {
+                        sectionsSchemaRef.current = event.sections
+                        flushSync(() => setSectionsSchema(event.sections))
+                      }
                       break
+
+                    case 'section_start':
+                      setIsStreaming(true)
+                      if ('section' in event && 'label' in event) {
+                        const schema = sectionsSchemaRef.current.find((s) => s.key === event.section)
+                        const type = schema?.type || 'markdown'
+                        const arr = sectionsRef.current
+                        const existingIdx = arr.findIndex((s) => s.key === event.section)
+                        const next =
+                          existingIdx >= 0
+                            ? arr.map((s, i) => (i === existingIdx ? { ...s, label: event.label } : s))
+                            : [...arr, { key: event.section, label: event.label, content: '', type }]
+                        sectionsRef.current = next
+                        sectionMapRef.current[event.section] = existingIdx >= 0 ? existingIdx : next.length - 1
+                        flushSync(() => setSections(next))
+                      }
+                      break
+
+                    case 'section_content': {
+                      let chunk = (event.chunk ?? event.content) as string | undefined
+                      if (typeof chunk !== 'string') break
+                      chunk = chunk.replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+                      if (!chunk) break
+                      const sectionKey = event.section
+                      const arr = sectionsRef.current
+                      let idx = -1
+                      if (sectionKey !== undefined && sectionKey !== null) {
+                        idx = sectionMapRef.current[sectionKey] ?? arr.findIndex((s) => s.key === sectionKey)
+                        if (idx < 0 && sectionsSchemaRef.current.length > 0) {
+                          const schemaEntry = sectionsSchemaRef.current.find((s) => s.key === sectionKey)
+                          if (schemaEntry) {
+                            const newSec = { key: sectionKey, label: schemaEntry.label, content: chunk, type: schemaEntry.type || 'markdown' }
+                            const next = [...arr, newSec]
+                            sectionsRef.current = next
+                            sectionMapRef.current[sectionKey] = next.length - 1
+                            flushSync(() => setSections(next))
+                            break
+                          }
+                          if (arr.length > 0) idx = arr.length - 1
+                        }
+                      }
+                      if (idx < 0 && arr.length > 0) idx = arr.length - 1
+                      if (idx >= 0 && idx < arr.length) {
+                        const sec = arr[idx]
+                        const isPlaceholder = (sec.content || '').trim() === 'Content unavailable.'
+                        const newContent = isPlaceholder ? chunk : sec.content + chunk
+                        const next = [...arr.slice(0, idx), { ...sec, content: newContent }, ...arr.slice(idx + 1)]
+                        sectionsRef.current = next
+                        if (sectionKey != null) sectionMapRef.current[sectionKey] = idx
+                        flushSync(() => setSections(next))
+                      }
+                      break
+                    }
+
+                    case 'section_end': {
+                      const key = event.section
+                      if (key && !completedSectionKeysRef.current.has(key)) {
+                        completedSectionKeysRef.current.add(key)
+                        flushSync(() => setCompletedSectionKeys(Array.from(completedSectionKeysRef.current)))
+                      }
+                      break
+                    }
 
                     case 'content':
-                      // EXACTLY like Activity: accumulate markdown immediately, update state immediately
-                      // Backend now streams markdown word-by-word (not TOON), so just accumulate and display
-                      // Activity: accumulatedTexts[variantIdx] += data.content (NO FILTERING)
-                      const newChunk = event.chunk
-                      
-                      // CRITICAL: Ensure isStreaming is true when content arrives (like Activity line 372)
                       setIsStreaming(true)
-                      
-                      // CRITICAL: Accumulate ALL chunks - don't filter (like Activity)
-                      // Activity doesn't filter - it accumulates everything including spaces, punctuation, etc.
+                      const newChunk = event.chunk
                       if (newChunk && typeof newChunk === 'string') {
-                        // Accumulate markdown chunk (word-by-word from backend)
                         accumulatedContentRef.current += newChunk
-                        
-                        // Backend now sends markdown directly (like Activity), so no extraction needed
-                        // Just use accumulated markdown as-is - EXACTLY like Activity
                         formattedContentRef.current = accumulatedContentRef.current
-                        setFormattedContent(accumulatedContentRef.current)
-                        setContent(accumulatedContentRef.current)
-                        
-                        // DEBUG: Log first few chunks to verify they're arriving
-                        if (accumulatedContentRef.current.length < 100) {
-                          console.log('First chunk received:', newChunk.substring(0, 50))
-                        }
-                      } else {
-                        console.warn('Received non-string chunk:', typeof newChunk, newChunk)
+                        flushSync(() => {
+                          setFormattedContent(accumulatedContentRef.current)
+                          setContent(accumulatedContentRef.current)
+                        })
                       }
-                      
-                      // CRITICAL: Always continue reading - never stop on errors (like Activity/GPT)
-                      // Activity continues even on parse errors (line 446-448: "Don't stop on parse errors, just log them")
-                      // This ensures chunks are processed as fast as they arrive
                       break
 
-                    case 'done':
-                      // Stream complete - backend already sent markdown, just ensure state is set
-                      // EXACTLY like Activity: no extraction needed, just use accumulated markdown
-                      const finalContent = accumulatedContentRef.current
-                      // CRITICAL: Use content as-is, don't trim (Activity doesn't trim)
-                      if (finalContent && finalContent.length > 0) {
-                        formattedContentRef.current = finalContent
-                        setFormattedContent(finalContent)
-                        setContent(finalContent)
+                    case 'done': {
+                      sectionsRef.current.forEach((sec) => completedSectionKeysRef.current.add(sec.key))
+                      flushSync(() => setCompletedSectionKeys(Array.from(completedSectionKeysRef.current)))
+                      const outputData = event.output_data
+                      if (outputData && typeof outputData === 'object' && sectionsRef.current.length > 0) {
+                        const next = sectionsRef.current.map((sec) => {
+                          const val = outputData[sec.key]
+                          const text = typeof val === 'string' ? val.replace(/\[\[SECTION:[^\]]*\]\]/g, '') : sec.content
+                          return { ...sec, content: text || sec.content }
+                        })
+                        sectionsRef.current = next
+                        flushSync(() => setSections(next))
                       }
-                      
+                      if (sectionsRef.current.length > 0) {
+                        const fullText = sectionsRef.current
+                          .map((s) => (s.label ? `## ${s.label}\n\n${(s.content || '').replace(/\[\[SECTION:[^\]]*\]\]/g, '')}` : (s.content || '').replace(/\[\[SECTION:[^\]]*\]\]/g, '')))
+                          .join('\n\n')
+                        formattedContentRef.current = fullText
+                        setFormattedContent(fullText)
+                        setContent(fullText)
+                      } else if (accumulatedContentRef.current) {
+                        const cleaned = accumulatedContentRef.current.replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+                        formattedContentRef.current = cleaned
+                        setFormattedContent(cleaned)
+                        setContent(cleaned)
+                      }
                       setIsStreaming(false)
-                      if (event.execution_id) {
-                        setExecutionId(event.execution_id)
-                      }
+                      if (event.execution_id) setExecutionId(event.execution_id)
                       break
+                    }
 
                     case 'error':
-                      // Error event - log but don't stop stream
                       console.error('Stream error event:', event)
                       setError(event.message || 'Stream error occurred')
                       setIsStreaming(false)
                       break
 
                     default:
-                      // Unknown event type - log but continue
-                      console.warn('Unknown event type:', event.type)
+                      console.warn('Unknown event type:', (event as any).type)
                       break
                   }
                 } catch (eventError) {
@@ -1607,7 +1687,7 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
         setError(err.message || 'Failed to start stream')
         setIsStreaming(false)
       })
-  }, [reset])
+  }, [reset, authToken])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1619,7 +1699,10 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
   return {
     content,
     formattedContent,
+    sections,
+    sectionsSchema,
     isStreaming,
+    completedSectionKeys,
     error,
     executionId,
     startStream,

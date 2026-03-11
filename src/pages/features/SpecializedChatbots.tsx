@@ -226,10 +226,10 @@ const SpecializedChatbots = () => {
 
           if (!backendBot) return fallbackBot
 
+          // Preserve original UI copy for descriptions; only sync name from backend.
           return {
             ...fallbackBot,
             name: backendBot.name || fallbackBot.name,
-            description: backendBot.description || fallbackBot.description,
           }
         })
 

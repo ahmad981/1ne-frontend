@@ -225,6 +225,8 @@ const BusinessStudiesMentor = () => {
     { id: 'cultural' as TabType, label: 'Cross-Cultural Guide', icon: Globe },
     { id: 'assessment' as TabType, label: 'Assessment Tools', icon: FileText },
   ]
+  // Exclude last sub-chatbot (Trade Agreements) from UI; data still from backend for rest
+  const visibleTabs = tabs.filter((t) => t.id !== 'trade')
 
   return (
     <div className="space-y-6">
@@ -304,7 +306,7 @@ const BusinessStudiesMentor = () => {
       <div className="bg-white rounded-2xl border border-gray-200 shadow-sm">
         <div className="border-b border-gray-200">
           <div className="flex overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => {
+            {visibleTabs.map((tab) => {
               const Icon = tab.icon
               return (
                 <button

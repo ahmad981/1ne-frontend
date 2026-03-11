@@ -8,7 +8,8 @@
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test:templates": "node scripts/test-templates-api.js",
-    "test:all-templates": "node scripts/test-all-templates-schema.js"
+    "test:all-templates": "node scripts/test-all-templates-schema.js",
+    "test:stream": "node scripts/test-all-templates-stream.mjs"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -31,9 +32,11 @@
     "react": "^18.2.0",
     "react-apexcharts": "^1.9.0",
     "react-dom": "^18.2.0",
+    "react-markdown": "^10.1.0",
     "react-redux": "^9.2.0",
     "react-router-dom": "^6.20.0",
     "redux-persist": "^6.0.0",
+    "remark-gfm": "^4.0.1",
     "turndown": "^7.1.3"
   },
   "devDependencies": {

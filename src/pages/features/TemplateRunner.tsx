@@ -4,10 +4,15 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 import { saveAs } from 'file-saver'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import TurndownService from 'turndown'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 import { fetchTemplateDetail } from '../../api/templates'
 import { TemplateResponse } from '../../api/types'
 import { useTemplateStream } from '../../hooks/useTemplateStream'
+import { composeAiDocumentFromSections } from '../../lib/aiDocument'
+import { AiDocumentRenderer } from '../../components/ai/AiDocumentRenderer'
+import { normalizeStreamingContent } from '../../components/ai/SectionRenderer'
 
 type TemplateField = {
   name: string
@@ -34,8 +39,7 @@ const TemplateRunner = () => {
   const [showPromptEditor, setShowPromptEditor] = useState(true)
   const [showOutput, setShowOutput] = useState(false)
   
-  // Use real streaming hook
-  const { content: streamedContent, formattedContent, isStreaming, error: streamError, executionId, startStream, stopStream, reset: resetStream } = useTemplateStream()
+  const { content: streamedContent, formattedContent, sections, sectionsSchema, isStreaming, completedSectionKeys, error: streamError, executionId, startStream, stopStream, reset: resetStream } = useTemplateStream()
 
   // Initialize Turndown service for HTML to Markdown conversion (future-proof)
   const turndownServiceRef = useRef<TurndownService | null>(null)
@@ -221,35 +225,61 @@ const TemplateRunner = () => {
     setFormValues((prev) => ({ ...prev, [name]: value }))
   }
 
-  // Parse final content when streaming completes
+  // Parse markdown from backend stream into sections (matches output_schema structure)
+  const parseMarkdownToSections = (markdown: string): Record<string, string> | null => {
+    if (!markdown?.trim()) return null
+    const sections: Record<string, string> = {}
+    // Split by # or ## headings (backend dict_to_markdown uses # for top-level)
+    const headingRegex = /^(#{1,6})\s+(.+)$/gm
+    let match: RegExpExecArray | null
+    let lastKey: string | null = null
+    let lastEnd = 0
+    while ((match = headingRegex.exec(markdown)) !== null) {
+      if (lastKey !== null) {
+        const content = markdown.slice(lastEnd, match.index).trim()
+        if (content) sections[lastKey] = content
+      }
+      lastKey = match[2].trim()
+      lastEnd = headingRegex.lastIndex
+    }
+    if (lastKey !== null) {
+      const content = markdown.slice(lastEnd).trim()
+      if (content) sections[lastKey] = content
+    }
+    return Object.keys(sections).length > 0 ? sections : null
+  }
+
+  // When section-based stream completes, set parsedOutput from sections (for copy/export)
   useEffect(() => {
-    if (!isStreaming && streamedContent && executionId) {
+    if (!isStreaming && executionId && sections.length > 0) {
+      setParsedOutput(Object.fromEntries(sections.map((s) => [s.key, s.content])))
+    }
+  }, [isStreaming, executionId, sections])
+
+  // Parse final content when streaming completes (legacy blob or fallback)
+  useEffect(() => {
+    if (!isStreaming && streamedContent && executionId && sections.length === 0) {
       try {
-        // Final parse when streaming is complete
-        let parsed: any = null
-        
-        // First, try direct JSON parse
+        let parsed: Record<string, any> | null = null
         try {
           parsed = JSON.parse(streamedContent.trim())
+          if (!parsed || typeof parsed !== 'object') parsed = null
         } catch {
-          // If that fails, try to extract the largest JSON object from the content
           const jsonMatches = streamedContent.match(/\{[\s\S]*\}/g)
-          if (jsonMatches && jsonMatches.length > 0) {
-            // Try the largest match (likely the complete object)
-            const largestMatch = jsonMatches.reduce((a, b) => a.length > b.length ? a : b)
+          if (jsonMatches?.length) {
+            const largest = jsonMatches.reduce((a, b) => (a.length > b.length ? a : b))
             try {
-              parsed = JSON.parse(largestMatch)
+              parsed = JSON.parse(largest)
             } catch {
-              // If that fails, try the first match
               try {
                 parsed = JSON.parse(jsonMatches[0])
               } catch {
-                // Try to fix JS object notation
                 try {
-                  let fixedContent = streamedContent
-                    .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
-                    .replace(/'/g, '"')
-                  parsed = JSON.parse(fixedContent)
+                  parsed = JSON.parse(
+                    streamedContent
+                      .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":')
+                      .replace(/'/g, '"')
+                  )
                 } catch {
                   parsed = null
                 }
@@ -257,15 +287,15 @@ const TemplateRunner = () => {
             }
           }
         }
-        
-        if (parsed) {
-          setParsedOutput(parsed)
+        if (!parsed && streamedContent.includes('#')) {
+          parsed = parseMarkdownToSections(streamedContent)
         }
+        if (parsed) setParsedOutput(parsed)
       } catch (err) {
         console.error('Failed to parse streamed content:', err)
       }
     }
-  }, [isStreaming, streamedContent, executionId])
+  }, [isStreaming, streamedContent, executionId, sections.length])
 
   useEffect(() => {
     if (streamError) {
@@ -655,37 +685,32 @@ const TemplateRunner = () => {
    * 2. Extract from rendered HTML and convert to markdown - works with any HTML structure
    * 3. Convert parsedOutput to markdown - fallback for structured data
    */
+  const EXCLUDED_SECTION_KEYS = ['bloom_alignment', 'safety_precautions', 'teacher_notes']
+
   const handleCopyToClipboard = async () => {
     let textToCopy = ''
     
     try {
-      // Method 1: Use formattedContent if available (already in markdown format)
-      // This is the fastest and most accurate method
-      if (formattedContent && formattedContent.trim()) {
-        textToCopy = formattedContent
+      if (sections.length > 0) {
+        const doc = composeAiDocumentFromSections(sections, sectionsSchema, { excludeSectionKeys: EXCLUDED_SECTION_KEYS })
+        textToCopy = doc.plainText
       }
-      // Method 2: Extract from rendered HTML and convert to markdown
-      // This works with any HTML structure and is future-proof
-      else {
+      if (!textToCopy && formattedContent && formattedContent.trim()) {
+        textToCopy = formattedContent.replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+      }
+      if (!textToCopy && parsedOutput) {
+        textToCopy = formatOutputForCopy(parsedOutput, template?.slug).replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+      }
+      if (!textToCopy) {
         const outputElement = document.getElementById('ai-output-content')
         if (outputElement && turndownServiceRef.current) {
-          // Get the HTML content from the rendered output
           const htmlContent = outputElement.innerHTML
-          
-          // Convert HTML to markdown using turndown
           textToCopy = turndownServiceRef.current.turndown(htmlContent)
-          
-          // Clean up any extra whitespace
-          textToCopy = textToCopy
-            .replace(/\n{3,}/g, '\n\n') // Replace 3+ newlines with 2
+            .replace(/\n{3,}/g, '\n\n')
+            .replace(/\[\[SECTION:[^\]]*\]\]/g, '')
             .trim()
         }
-        // Method 3: Fallback - convert parsedOutput to markdown
-        else if (parsedOutput) {
-          textToCopy = formatOutputForCopy(parsedOutput, template?.slug)
-        } else {
-          return
-        }
+        if (!textToCopy) return
       }
       
       // Copy to clipboard
@@ -714,16 +739,18 @@ const TemplateRunner = () => {
   }
 
   const handleExport = async () => {
-    // Get content to export
     let contentToExport = ''
-    
-    if (parsedOutput) {
-      contentToExport = formatOutputForCopy(parsedOutput, template?.slug)
-    } else if (formattedContent) {
-      contentToExport = formattedContent
-    } else {
-      return
+    if (sections.length > 0) {
+      const doc = composeAiDocumentFromSections(sections, sectionsSchema, { excludeSectionKeys: EXCLUDED_SECTION_KEYS })
+      contentToExport = doc.plainText
     }
+    if (!contentToExport && parsedOutput) {
+      contentToExport = formatOutputForCopy(parsedOutput, template?.slug).replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+    }
+    if (!contentToExport && formattedContent) {
+      contentToExport = formattedContent.replace(/\[\[SECTION:[^\]]*\]\]/g, '')
+    }
+    if (!contentToExport) return
 
     try {
       // Convert text to paragraphs for DOCX
@@ -1282,9 +1309,35 @@ const TemplateRunner = () => {
     return <p className="text-[15px] leading-[1.8] text-gray-800 font-normal">{String(content)}</p>
   }
 
+  const formatMarkdownToHTML = (text: string): string => {
+    if (!text) return ''
+    let formatted = text
+      .replace(/^# (.+)$/gm, '<h1 class="text-3xl font-semibold text-gray-900 mb-4 mt-6 first:mt-0">$1</h1>')
+      .replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold text-gray-900 mb-4 mt-6">$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold text-gray-900 mb-3 mt-5">$1</h3>')
+      .replace(/^#### (.+)$/gm, '<h4 class="text-lg font-semibold text-gray-900 mb-2 mt-4">$1</h4>')
+    formatted = formatted.replace(/^- (.+)$/gm, '<li class="text-[15px] leading-[1.8] text-gray-800 mb-1">$1</li>')
+    formatted = formatted.replace(/(<li class="text-\[15px\] leading-\[1\.8\] text-gray-800 mb-1">.*<\/li>\n?)+/g, (match) => '<ul class="mb-4 ml-6 space-y-1 list-disc">' + match + '</ul>')
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
+    formatted = formatted.replace(/^\d+\.\s+(.+)$/gm, '<li class="text-[15px] leading-[1.8] text-gray-800 mb-1">$1</li>')
+    const lines = formatted.split('\n')
+    const out: string[] = []
+    let inList = false
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (line.startsWith('<')) {
+        if (line.includes('</ul>')) inList = false
+        else if (line.includes('<ul')) inList = true
+        out.push(line)
+      } else if (line) {
+        out.push(!inList && !line.startsWith('<') ? `<p class="mb-4 text-[15px] leading-[1.8] text-gray-800">${line}</p>` : line)
+      }
+    }
+    return out.join('\n')
+  }
+
   const renderPreviewContent = () => {
-    // Show placeholder if no result and not streaming
-    if (!parsedOutput && !isStreaming && !streamedContent && !showOutput) {
+    if (!parsedOutput && !isStreaming && !streamedContent && !showOutput && sections.length === 0) {
       return (
         <div className="flex h-full items-center justify-center">
           <div className="text-center max-w-md mx-auto px-6">
@@ -1301,174 +1354,62 @@ const TemplateRunner = () => {
       )
     }
 
-    // Sections to exclude
-    const excludedSections = ['BLOOM_ALIGNMENT', 'bloom_alignment', 'SAFETY_PRECAUTIONS', 'safety_precautions', 'TEACHER_NOTES', 'teacher_notes']
-
-    // Show streaming or final content
-    let contentToShow: Record<string, any> = {}
-    let showStreamingContent = false
-    
-    // Priority: parsedOutput (completed) > streaming content > loading
-    if (!isStreaming && parsedOutput) {
-      // After streaming completes, show formatted parsed content with sections
-      // This should remain visible permanently
-      contentToShow = parsedOutput
-    } else if (isStreaming && formattedContent && formattedContent.trim()) {
-      // During streaming, use formattedContent directly from hook (updated on every chunk)
-      // This ensures word-by-word display like Activity/ChatGPT
-      showStreamingContent = true
-      contentToShow = { _formatted_streaming: formattedContent }
-    } else if (isStreaming && !formattedContent) {
-      // Still streaming but no formatted content yet - show loading
-      // Only show this during active streaming
+    if (sections.length > 0) {
+      const doc = composeAiDocumentFromSections(sections, sectionsSchema, {
+        isStreaming,
+        completedSectionKeys,
+        excludeSectionKeys: EXCLUDED_SECTION_KEYS,
+      })
+      const lastSectionKey = doc.sections.length > 0 ? doc.sections[doc.sections.length - 1].key : null
       return (
-        <div className="flex items-center gap-2 text-sm text-gray-500">
-          <Loader2 className="h-4 w-4 animate-spin text-indigo-500" />
-          <span>Generating your content...</span>
-        </div>
-      )
-    } else if (!isStreaming && formattedContent && !parsedOutput) {
-      // Streaming just completed but parsedOutput not ready yet - show formattedContent as fallback
-      // This ensures content doesn't disappear during the brief moment between streaming end and parsing
-      showStreamingContent = true
-      contentToShow = { _formatted_streaming: formattedContent }
-    } else if (!isStreaming && streamedContent && !formattedContent && !parsedOutput) {
-      // Fallback: if we have raw content but no formatted, try to parse it
-      // This should not happen, but handle gracefully - NEVER show raw JSON
-      return (
-        <div className="text-red-500 p-4">
-          Error: Unable to format content. Please try again.
-        </div>
+        <AiDocumentRenderer
+          document={doc}
+          isStreaming={isStreaming}
+          lastSectionKey={lastSectionKey}
+        />
       )
     }
 
-    // Filter out excluded sections, but allow streaming sections
-    const filteredContent = Object.entries(contentToShow).filter(
-      ([section]) => !excludedSections.includes(section.toUpperCase()) && 
-                     section !== '_streaming'
-    )
-    
-    // If showing streaming content, format and display it EXACTLY like Activity
-    // Activity uses dangerouslySetInnerHTML with formatLessonPlan - we do the same
-    if (showStreamingContent && contentToShow._formatted_streaming) {
-      // Convert markdown to HTML string (like Activity's formatLessonPlan)
-      const formatMarkdownToHTML = (text: string): string => {
-        if (!text) return ''
-        
-        // Convert markdown-style headers to HTML - match project font styles
-        let formatted = text
-          .replace(/^# (.+)$/gm, '<h1 class="text-3xl font-semibold text-gray-900 mb-4 mt-6 first:mt-0">$1</h1>')
-          .replace(/^## (.+)$/gm, '<h2 class="text-2xl font-bold text-gray-900 mb-4 mt-6">$1</h2>')
-          .replace(/^### (.+)$/gm, '<h3 class="text-xl font-semibold text-gray-900 mb-3 mt-5">$1</h3>')
-          .replace(/^#### (.+)$/gm, '<h4 class="text-lg font-semibold text-gray-900 mb-2 mt-4">$1</h4>')
-        
-        // Convert bullet points - match project styles
-        formatted = formatted.replace(/^- (.+)$/gm, '<li class="text-[15px] leading-[1.8] text-gray-800 mb-1">$1</li>')
-        
-        // Wrap consecutive list items in ul tags
-        formatted = formatted.replace(/(<li class="text-\[15px\] leading-\[1\.8\] text-gray-800 mb-1">.*<\/li>\n?)+/g, (match) => {
-          return '<ul class="mb-4 ml-6 space-y-1 list-disc">' + match + '</ul>'
-        })
-        
-        // Convert bold text - match project styles
-        formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
-        
-        // Convert numbered lists
-        formatted = formatted.replace(/^\d+\.\s+(.+)$/gm, '<li class="text-[15px] leading-[1.8] text-gray-800 mb-1">$1</li>')
-        
-        // Split into paragraphs and format (like Activity)
-        const lines = formatted.split('\n')
-        const formattedLines: string[] = []
-        let inList = false
-        
-        for (let i = 0; i < lines.length; i++) {
-          const line = lines[i].trim()
-          
-          if (line.startsWith('<')) {
-            // Already formatted HTML
-            if (line.includes('</ul>')) {
-              inList = false
-            } else if (line.includes('<ul')) {
-              inList = true
-            }
-            formattedLines.push(line)
-          } else if (line) {
-            // Regular text line
-            if (!inList && !line.startsWith('<')) {
-              formattedLines.push(`<p class="mb-4 text-[15px] leading-[1.8] text-gray-800">${line}</p>`)
-            } else {
-              formattedLines.push(line)
-            }
-          }
-        }
-        
-        return formattedLines.join('\n')
-      }
-      
-      const htmlContent = formatMarkdownToHTML(contentToShow._formatted_streaming)
-      
+    if (isStreaming) {
       return (
-        <div className="space-y-6 max-w-4xl">
-          <div className="prose prose-gray max-w-none">
-            <div 
-              dangerouslySetInnerHTML={{__html: htmlContent}}
-              className="streaming-content"
-              id="streaming-text"
-            />
-            {/* Only show cursor during streaming, remove after completion */}
-            {isStreaming && (
-              <span className="inline-block w-0.5 h-5 bg-blue-500 ml-1 animate-pulse" />
-            )}
+        <div className="max-w-[800px] mx-auto py-8">
+          <div className="flex items-center gap-3 text-gray-600">
+            <Loader2 className="h-5 w-5 animate-spin text-indigo-500 flex-shrink-0" />
+            <span className="text-[15px]">Generating lesson plan...</span>
           </div>
         </div>
       )
     }
 
-    // After streaming completes, always show content if we have parsedOutput
-    // Don't return null - ensure content remains visible
-    if (filteredContent.length === 0 && !isStreaming && parsedOutput) {
-      // If all sections were filtered out but we have parsedOutput, show a message
+    if (!isStreaming && streamedContent && !sections.length) {
       return (
-        <div className="text-sm text-gray-500 p-4">
-          Content generated successfully. All sections were filtered out.
+        <div className="max-w-[800px] mx-auto py-4 text-sm text-gray-500">
+          Content generated. If sections do not appear, try running again.
         </div>
       )
     }
 
-    // If no content at all and not streaming, show nothing (but this shouldn't happen if parsedOutput exists)
-    if (filteredContent.length === 0 && !isStreaming && !parsedOutput && !formattedContent) {
-      return null
+    // Legacy: parsedOutput but no sections (e.g. old API) — compose document and render
+    if (!isStreaming && parsedOutput && Object.keys(parsedOutput).length > 0) {
+      const excludedSet = new Set(EXCLUDED_SECTION_KEYS.map((k) => k.toUpperCase().replace(/\s+/g, '_')))
+      const legacySections = Object.entries(parsedOutput)
+        .filter(([key]) => key !== '_streaming' && !excludedSet.has(key.toUpperCase().replace(/\s+/g, '_')))
+        .map(([key, content]) => ({
+          key,
+          label: key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+          content: typeof content === 'string' ? content : JSON.stringify(content),
+        }))
+      if (legacySections.length > 0) {
+        const doc = composeAiDocumentFromSections(legacySections, sectionsSchema, {
+          isStreaming: false,
+          completedSectionKeys: legacySections.map((s) => s.key),
+          excludeSectionKeys: EXCLUDED_SECTION_KEYS,
+        })
+        return <AiDocumentRenderer document={doc} />
+      }
     }
 
-    return (
-      <div className="space-y-8 max-w-4xl">
-        {filteredContent.length > 0 ? (
-          filteredContent.map(([section, content]) => {
-            const sectionTitle = section.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())
-            let displayContent = content
-
-            // Format Lesson Flow section specially
-            if (section.toLowerCase().includes('lesson_flow') || section.toLowerCase().includes('lesson flow')) {
-              displayContent = formatLessonFlow(content)
-            }
-
-            return (
-              <div key={section} className="pb-8 last:pb-0 border-b border-gray-200 last:border-b-0">
-                {/* Main Section Heading - Match project heading style */}
-                <h2 className="mb-6 text-2xl font-bold text-gray-900 tracking-tight leading-tight">
-                  {sectionTitle}
-                </h2>
-                
-                {/* Content Area - Use project font styles */}
-                <div className="prose-document">
-                  {formatContentForDisplay(displayContent)}
-                </div>
-              </div>
-            )
-          })
-        ) : null}
-      </div>
-    )
+    return null
   }
 
   if (loading) {
@@ -1620,7 +1561,7 @@ const TemplateRunner = () => {
         )}
 
         {/* Output Display - Chat-like Message */}
-        {(parsedOutput || isStreaming || formattedContent || showOutput) && (
+        {(parsedOutput || isStreaming || sections.length > 0 || showOutput) && (
           <div id="ai-output" className="mt-8">
             {/* AI Message Header */}
             <div className="mb-4">

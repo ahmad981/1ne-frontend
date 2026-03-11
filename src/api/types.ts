@@ -107,12 +107,21 @@ export interface TemplateExecuteResponse {
   result: TemplateExecutionResult
 }
 
+// Schema-driven section (from meta.sections)
+export interface StreamSectionSchema {
+  key: string
+  label: string
+  type: string
+}
+
 // Streaming Event Types
 export interface StreamMetaEvent {
   type: 'meta'
-  template_slug: string
-  template_name: string
-  timestamp: number
+  template_slug?: string
+  template?: string
+  template_name?: string
+  timestamp?: number
+  sections?: StreamSectionSchema[]
 }
 
 export interface StreamContentEvent {
@@ -121,10 +130,32 @@ export interface StreamContentEvent {
   template_slug: string
 }
 
+export interface StreamSectionStartEvent {
+  type: 'section_start'
+  section: string
+  label: string
+  template_slug: string
+}
+
+export interface StreamSectionContentEvent {
+  type: 'section_content'
+  section?: string
+  chunk?: string
+  content?: string
+  template_slug?: string
+}
+
+export interface StreamSectionEndEvent {
+  type: 'section_end'
+  section: string
+  template_slug?: string
+}
+
 export interface StreamDoneEvent {
   type: 'done'
   execution_id: string
   template_slug: string
+  output_data?: Record<string, unknown>
 }
 
 export interface StreamErrorEvent {
@@ -133,4 +164,18 @@ export interface StreamErrorEvent {
   template_slug: string
 }
 
-export type StreamEvent = StreamMetaEvent | StreamContentEvent | StreamDoneEvent | StreamErrorEvent
+export type StreamEvent =
+  | StreamMetaEvent
+  | StreamContentEvent
+  | StreamSectionStartEvent
+  | StreamSectionContentEvent
+  | StreamSectionEndEvent
+  | StreamDoneEvent
+  | StreamErrorEvent
+
+export interface StreamedSection {
+  key: string
+  label: string
+  content: string
+  type?: string
+}
