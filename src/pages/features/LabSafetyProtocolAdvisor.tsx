@@ -29,29 +29,31 @@ import {
   Droplets,
   Users,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
 import {
-  getSafetyStandards,
-  generateSafetyProtocol,
-  generateRiskAssessment,
-  getChemicalInfo,
-  getEquipmentSafety,
-  getEmergencyProcedure,
-  generateExperimentDesign,
   getLabTypes,
   getLabGradeLevels,
   getProtocolCategories,
-  SafetyStandard,
-  SafetyProtocol,
-  RiskAssessment,
-  ChemicalInfo,
-  EquipmentSafety,
-  EmergencyProcedure,
-  ExperimentDesign,
+  type SafetyStandard,
+  type SafetyProtocol,
+  type RiskAssessment,
+  type ChemicalInfo,
+  type EquipmentSafety,
+  type EmergencyProcedure,
+  type ExperimentDesign,
 } from '../../utils/labSafetyUtils'
+
+function toProtocolCategoryParam(category: string): string {
+  return category.toLowerCase().replace(/\s+/g, '-')
+}
+
+const LAB_SAFETY_SLUG = 'lab-safety-protocol-advisor'
 
 type TabType = 'standards' | 'protocols' | 'risk-assessment' | 'chemicals' | 'equipment' | 'emergency' | 'experiment-design' | 'compliance'
 
 const LabSafetyProtocolAdvisor = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('standards')
   const [labType, setLabType] = useState('Chemistry')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
@@ -93,79 +95,167 @@ const LabSafetyProtocolAdvisor = () => {
   // Load Safety Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getSafetyStandards()
-      setSafetyStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_safety_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: { lab_type: labType, grade_level: gradeLevel },
+      })
+      const list = (response.result?.standards ?? []) as SafetyStandard[]
+      setSafetyStandards(list)
+      toast.success(list.length ? 'Standards loaded' : 'No standards returned')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to load standards'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Safety Protocol
   const handleGenerateProtocol = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const protocol = generateSafetyProtocol(
-        labType.toLowerCase(),
-        protocolCategory.toLowerCase().replace(' ', '-'),
-        gradeLevel
-      )
-      setSafetyProtocol(protocol)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_safety_protocols', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+          protocol_category: toProtocolCategoryParam(protocolCategory),
+        },
+      })
+      setSafetyProtocol(response.result as SafetyProtocol)
+      toast.success('Protocol generated')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to generate protocol'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Risk Assessment
   const handleGenerateRiskAssessment = async () => {
-    if (!experimentName.trim()) return
+    if (!experimentName.trim()) {
+      toast.error('Enter an experiment name')
+      return
+    }
     setIsGenerating(true)
-    setTimeout(() => {
-      const assessment = generateRiskAssessment(experimentName, labType, gradeLevel)
-      setRiskAssessment(assessment)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_risk_assessment', {
+        input: experimentName.trim(),
+        input_type: 'text',
+        parameters: { lab_type: labType, grade_level: gradeLevel },
+      })
+      setRiskAssessment(response.result as RiskAssessment)
+      toast.success('Risk assessment generated')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to generate assessment'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Get Chemical Info
   const handleGetChemicalInfo = async () => {
-    if (!chemicalName.trim()) return
+    if (!chemicalName.trim()) {
+      toast.error('Enter a chemical name')
+      return
+    }
     setIsGenerating(true)
-    setTimeout(() => {
-      const info = getChemicalInfo(chemicalName)
-      setChemicalInfo(info)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_chemical_safety', {
+        input: chemicalName.trim(),
+        input_type: 'text',
+        parameters: { lab_type: labType, grade_level: gradeLevel },
+      })
+      setChemicalInfo(response.result as ChemicalInfo)
+      toast.success('Chemical safety info loaded')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to get chemical info'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Get Equipment Safety
   const handleGetEquipmentSafety = async () => {
-    if (!equipmentName.trim()) return
+    if (!equipmentName.trim()) {
+      toast.error('Enter equipment name')
+      return
+    }
     setIsGenerating(true)
-    setTimeout(() => {
-      const safety = getEquipmentSafety(equipmentName, labType.toLowerCase())
-      setEquipmentSafety(safety)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_equipment_safety', {
+        input: equipmentName.trim(),
+        input_type: 'text',
+        parameters: { lab_type: labType, grade_level: gradeLevel },
+      })
+      setEquipmentSafety(response.result as EquipmentSafety)
+      toast.success('Equipment safety guide loaded')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to get equipment safety'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Get Emergency Procedure
   const handleGetEmergencyProcedure = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const procedure = getEmergencyProcedure(emergencyType, 'moderate')
-      setEmergencyProcedure(procedure)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_emergency_procedures', {
+        input: ' ',
+        input_type: 'text',
+        parameters: { lab_type: labType, grade_level: gradeLevel, emergency_type: emergencyType },
+      })
+      setEmergencyProcedure(response.result as EmergencyProcedure)
+      toast.success('Emergency procedure loaded')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to get procedure'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Experiment Design
   const handleGenerateExperimentDesign = async () => {
-    if (!experimentTitle.trim() || !experimentObjective.trim()) return
+    if (!experimentTitle.trim() || !experimentObjective.trim()) {
+      toast.error('Enter experiment title and objective')
+      return
+    }
     setIsGenerating(true)
-    setTimeout(() => {
-      const design = generateExperimentDesign(experimentTitle, experimentObjective, labType, gradeLevel)
-      setExperimentDesign(design)
+    try {
+      const response = await chatbotApi.executeCapability(LAB_SAFETY_SLUG, 'lab_experiment_design', {
+        input: experimentTitle.trim(),
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+          experiment_title: experimentTitle.trim(),
+          experiment_objective: experimentObjective.trim(),
+        },
+      })
+      setExperimentDesign(response.result as ExperimentDesign)
+      toast.success('Experiment design generated')
+    } catch (e: any) {
+      const msg = e?.payload?.detail ?? e?.message ?? 'Failed to generate design'
+      toast.error(msg)
+      if (e?.status === 403) toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
