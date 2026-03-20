@@ -46,13 +46,19 @@ const teacherMenu = [
 ];
 
 const superAdminMenu = [
-  { path: '/administration', text: 'Administration', icon: Shield },
+  {
+    path: '/administration',
+    text: 'Administration',
+    icon: Shield,
+    child: [{ path: '/administration/learning-hub-content', text: 'Learning Hub content', icon: BookOpen }],
+  },
   { path: '/profile', text: 'Profile', icon: User },
   { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
 const orgAdminMenu = [
   { path: '/organization', text: 'Organization', icon: Building2 },
+  { path: '/administration/learning-hub-content', text: 'Learning Hub content', icon: BookOpen },
 ];
 
 const schoolAdminMenu = [

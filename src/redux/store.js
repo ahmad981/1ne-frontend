@@ -9,6 +9,11 @@ import signupSlice from './features/auth/signupSlice';
 import membershipSlice from './features/membership/membershipSlice';
 import snackbarReducer from './features/snackbarSlice/snackbarSlice';
 import templatesReducer from './features/templates/templatesSlice';
+import learningHubReducer from './features/learningHub/learningHubSlice';
+import profileContextReducer from './features/profileContext/profileContextSlice';
+import teacherIdentityReducer from './features/teacherIdentity/teacherIdentitySlice';
+import learningProgressReducer from './features/learningProgress/learningProgressSlice';
+import learningHubAdminReducer from './features/learningHubAdmin/learningHubAdminSlice';
 
 // Define the persist configuration
 const persistConfig = {
@@ -24,6 +29,11 @@ const rootReducer = combineReducers({
   membership: membershipSlice,
   snackbar: snackbarReducer,
   templates: templatesReducer,
+  learningHub: learningHubReducer,
+  profileContext: profileContextReducer,
+  teacherIdentity: teacherIdentityReducer,
+  learningProgress: learningProgressReducer,
+  learningHubAdmin: learningHubAdminReducer,
 });
 
 // Create a persisted reducer

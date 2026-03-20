@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   BookOpen,
   Play,
@@ -7,76 +8,31 @@ import {
   Users,
   Sparkles,
   Target,
-  TrendingUp,
   FileText,
   GraduationCap,
-  Lightbulb,
   CheckCircle2,
-  Clock,
-  Star,
-  BarChart3,
   Zap,
+  Info,
 } from 'lucide-react'
+import { fetchLearningHubHome } from '../../redux/features/learningHub/learningHubSlice'
+import {
+  recordRecommendationEvent,
+  startLearningSession,
+  recordLearningEvent,
+} from '../../redux/features/learningProgress/learningProgressSlice'
+import { fetchRecentSessions } from '../../redux/features/learningProgress/learningProgressSlice'
+import { resolveHubCardRoute } from '../../utils/learningHubDelivery'
 
-const microCourses = [
-  {
-    title: 'Quick wins: Classroom management essentials',
-    duration: '8 min',
-    category: 'Classroom management',
-    progress: 0,
-    difficulty: 'Beginner',
-  },
-  {
-    title: 'Formative assessment strategies that work',
-    duration: '6 min',
-    category: 'Assessment strategies',
-    progress: 100,
-    difficulty: 'Intermediate',
-  },
-  {
-    title: 'Differentiation made simple',
-    duration: '10 min',
-    category: 'Differentiation',
-    progress: 45,
-    difficulty: 'Beginner',
-  },
-  {
-    title: 'Engaging reluctant learners',
-    duration: '7 min',
-    category: 'Student engagement',
-    progress: 0,
-    difficulty: 'Intermediate',
-  },
-  {
-    title: 'AI tools for lesson planning',
-    duration: '9 min',
-    category: 'Digital literacy & AI readiness',
-    progress: 0,
-    difficulty: 'Advanced',
-  },
-]
+function persistHubRouteState(route: string, contentId: string, contentType: string) {
+  if (!route || !contentId) return
+  try {
+    sessionStorage.setItem(`learningHubRouteState:${route}`, JSON.stringify({ contentId, contentType }))
+  } catch {
+    // Best-effort only; never block navigation.
+  }
+}
 
-const tutorials = [
-  {
-    title: 'Mastering the lesson planner template',
-    type: 'Step-by-step walkthrough',
-    duration: '12 min',
-    completed: false,
-  },
-  {
-    title: 'Creating effective assessments',
-    type: 'Best practices',
-    duration: '15 min',
-    completed: false,
-  },
-  {
-    title: 'Real classroom: Differentiation in action',
-    type: 'Case study',
-    duration: '18 min',
-    completed: false,
-  },
-]
-
+// Static data: backend does not yet provide this. Kept for UI; pending backend integration.
 const researchInsights = [
   {
     title: "Hattie's Visible Learning: Effect sizes that matter",
@@ -128,27 +84,7 @@ const researchInsights = [
   },
 ]
 
-const aiRecommendations = [
-  {
-    skill: 'Advanced differentiation strategies',
-    reason: 'You frequently create lessons for diverse learners. Deepen your toolkit with tiered instruction frameworks.',
-    impact: 'High',
-    estimatedTime: '2 hours',
-  },
-  {
-    skill: 'AI-assisted assessment design',
-    reason: 'Your formative assessments could benefit from automated rubric generation and instant feedback loops.',
-    impact: 'Medium',
-    estimatedTime: '1.5 hours',
-  },
-  {
-    skill: 'Student engagement techniques',
-    reason: 'Based on your lesson patterns, explore gamification and inquiry-based learning hooks.',
-    impact: 'High',
-    estimatedTime: '3 hours',
-  },
-]
-
+// Static data: backend does not yet provide specialist tracks. Kept for UI; pending backend integration.
 const specialistTracks = [
   {
     title: 'STEM Mastery',
@@ -180,57 +116,185 @@ const specialistTracks = [
   },
 ]
 
-const certificates = [
-  {
-    name: 'Micro-Course: Formative Assessment',
-    date: '2024-01-15',
-    hours: 0.5,
-    badge: 'Assessment',
-  },
-  {
-    name: 'Specialist Track: Literacy Expert',
-    date: '2024-02-20',
-    hours: 15,
-    badge: 'Literacy',
-  },
-]
-
-const progressStats = {
-  coursesCompleted: 12,
-  hoursLogged: 24.5,
-  certificatesEarned: 2,
-  currentStreak: 5,
-}
-
 const ProfessionalLearningHub = () => {
   const navigate = useNavigate()
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const dispatch = useDispatch()
+  const {
+    microCourses = [],
+    tutorials = [],
+    aiRecommendations = [],
+    certificates = [],
+    progressStats = {
+      coursesCompleted: 0,
+      hoursLogged: 0,
+      certificatesEarned: 0,
+      currentStreak: 0,
+    },
+    loading = false,
+    error = null,
+    home = null,
+  } = useSelector((state: any) => state.learningHub) ?? {}
 
-  const handleCourseStart = (courseTitle: string) => {
-    const courseRoutes: Record<string, string> = {
-      'Quick wins: Classroom management essentials': '/learning-hub/classroom-management',
-      'Formative assessment strategies that work': '/learning-hub/assessment-strategies',
-      'Differentiation made simple': '/learning-hub/differentiation-course',
-      'Engaging reluctant learners': '/learning-hub/student-engagement-course',
-      'AI tools for lesson planning': '/learning-hub/digital-literacy-course',
+  const { activeSessionsByContentId = {}, inProgressContent = [] } = useSelector((state: any) => state.learningProgress) ?? {}
+
+  useEffect(() => {
+    dispatch(fetchLearningHubHome())
+    dispatch(fetchRecentSessions())
+  }, [dispatch])
+
+  // Fire a best-effort single \"shown\" recommendation event per item
+  const shownSetRef = useRef<Set<string> | null>(null)
+  if (!shownSetRef.current) {
+    shownSetRef.current = new Set()
+  }
+  useEffect(() => {
+    const shown = shownSetRef.current!
+    const items = [...(microCourses || []), ...(tutorials || [])]
+    items.forEach((item: any) => {
+      const cid = item?.contentId
+      if (!cid || shown.has(cid)) return
+      shown.add(cid)
+      dispatch(
+        recordRecommendationEvent({
+          content_id: cid,
+          content_type:
+            item?.contentType ||
+            (item?.route?.includes('tutorial') ? 'ai_guided_tutorial' : 'micro_course'),
+          recommendation_source: 'learning_hub_home',
+          event_type: 'shown',
+        })
+      )
+    })
+  }, [dispatch, microCourses, tutorials])
+
+  const handleCourseStart = (course: {
+    title: string
+    route?: string
+    contentId?: string
+    contentType?: string
+    contentSlug?: string | null
+    delivery?: Record<string, unknown> | null
+  }) => {
+    const contentId = course.contentId
+    const contentType = course.contentType || 'micro_course'
+    if (contentId) {
+      const existing = (activeSessionsByContentId as any)[contentId]
+      if (!existing) {
+        dispatch(
+          startLearningSession({
+            contentId,
+            contentType,
+          })
+        )
+      } else {
+        dispatch(
+          recordLearningEvent({
+            session_id: existing.sessionId,
+            content_id: contentId,
+            event_type: 'content_opened',
+          })
+        )
+      }
+      dispatch(
+        recordRecommendationEvent({
+          content_id: contentId,
+          content_type: contentType,
+          recommendation_source: 'learning_hub_home',
+          event_type: 'clicked',
+        })
+      )
     }
-    const route = courseRoutes[courseTitle]
-    if (route) {
-      navigate(route)
-    }
+    const target = resolveHubCardRoute(course)
+    // Persist mapping so Continue / Start path still works if `location.state` is missing.
+    persistHubRouteState(target, contentId, contentType)
+    navigate(target, {
+      state: {
+        contentId,
+        contentType,
+      },
+    })
   }
 
-  const handleTutorialWatch = (tutorialTitle: string) => {
-    const tutorialRoutes: Record<string, string> = {
-      'Mastering the lesson planner template': '/learning-hub/lesson-planner-tutorial',
-      'Creating effective assessments': '/learning-hub/assessment-tutorial',
-      'Real classroom: Differentiation in action': '/learning-hub/differentiation-tutorial',
+  const handleTutorialWatch = (tutorial: {
+    title: string
+    route?: string
+    contentId?: string
+    contentType?: string
+    contentSlug?: string | null
+    delivery?: Record<string, unknown> | null
+  }) => {
+    const contentId = tutorial.contentId
+    const contentType = tutorial.contentType || 'ai_guided_tutorial'
+    if (contentId) {
+      const existing = (activeSessionsByContentId as any)[contentId]
+      if (!existing) {
+        dispatch(
+          startLearningSession({
+            contentId,
+            contentType,
+          })
+        )
+      } else {
+        dispatch(
+          recordLearningEvent({
+            session_id: existing.sessionId,
+            content_id: contentId,
+            event_type: 'content_opened',
+          })
+        )
+      }
+      dispatch(
+        recordRecommendationEvent({
+          content_id: contentId,
+          content_type: contentType,
+          recommendation_source: 'learning_hub_home',
+          event_type: 'clicked',
+        })
+      )
     }
-    const route = tutorialRoutes[tutorialTitle]
-    if (route) {
-      navigate(route)
-    }
+    const target = resolveHubCardRoute(tutorial)
+    persistHubRouteState(target, contentId, contentType)
+    navigate(target, {
+      state: {
+        contentId,
+        contentType,
+      },
+    })
   }
+
+  const resolveContinueRoute = (contentId: string, recommendationMatch: any) => {
+    if (!contentId || contentId.startsWith('learning-hub:')) return '/learning-hub'
+    return resolveHubCardRoute(recommendationMatch || { contentId })
+  }
+
+  const continueItems = (inProgressContent || [])
+    .map((item: any) => {
+      const recommendationMatch =
+        [...microCourses, ...tutorials].find((candidate: any) => candidate?.contentId === item.contentId) || null
+      const route = resolveContinueRoute(item.contentId, recommendationMatch)
+      return {
+        ...item,
+        title: recommendationMatch?.title || 'Continue learning',
+        category: recommendationMatch?.category || '',
+        difficulty: recommendationMatch?.difficulty || '',
+        duration: recommendationMatch?.duration || '',
+        contentType: item.contentType || recommendationMatch?.contentType || 'micro_course',
+        route,
+      }
+    })
+    .filter(Boolean)
+
+  // Only show Continue Learning entries that still exist in the Learning Hub recommendations.
+  const knownHubContentIds = new Set(
+    [...(microCourses || []), ...(tutorials || [])]
+      .map((c: any) => c?.contentId)
+      .filter((id: any) => typeof id === 'string' && id.trim())
+  )
+  const filteredContinueItems = continueItems.filter(
+    (c: any) => c?.contentId && knownHubContentIds.has(c.contentId)
+  )
+
+  const learningHubMode = home?.mode || 'cold_start'
 
   const handleResearchReadMore = (researchTitle: string) => {
     const researchRoutes: Record<string, string> = {
@@ -249,14 +313,56 @@ const ProfessionalLearningHub = () => {
     }
   }
 
-  const handleStartPath = (skillName: string) => {
-    if (skillName === 'Student engagement techniques') {
-      navigate('/learning-hub/student-engagement-path')
-    } else if (skillName === 'Advanced differentiation strategies') {
-      navigate('/learning-hub/advanced-differentiation-path')
-    } else if (skillName === 'AI-assisted assessment design') {
-      navigate('/learning-hub/ai-assessment-path')
+  const handleStartPath = (rec: any) => {
+    const allCards = [...(microCourses || []), ...(tutorials || [])]
+    const fallbackCard = allCards[0] || null
+    const mappedCard = rec?.contentId
+      ? allCards.find((item: any) => item?.contentId === rec.contentId) || null
+      : null
+    const targetSource = mappedCard || rec || fallbackCard || {}
+    const target = resolveHubCardRoute(targetSource)
+
+    const contentId = mappedCard?.contentId || rec?.contentId
+    const contentType = mappedCard?.contentType || rec?.contentType || 'micro_course'
+    if (contentId) {
+      const existing = (activeSessionsByContentId as any)[contentId]
+      if (!existing) {
+        dispatch(
+          startLearningSession({
+            contentId,
+            contentType,
+          })
+        )
+      } else {
+        dispatch(
+          recordLearningEvent({
+            session_id: existing.sessionId,
+            content_id: contentId,
+            event_type: 'content_opened',
+          })
+        )
+      }
+      dispatch(
+        recordRecommendationEvent({
+          content_id: contentId,
+          content_type: contentType,
+          recommendation_source: 'learning_hub_growth_recommendations',
+          event_type: 'clicked',
+          event_metadata: {
+            source_skill: rec?.skill || '',
+          },
+        })
+      )
     }
+
+    const targetRoute = target || '/learning-hub'
+    if (contentId) persistHubRouteState(targetRoute, contentId, contentType)
+    navigate(targetRoute, {
+      state: {
+        contentId: contentId || undefined,
+        contentType,
+      },
+    })
   }
 
   const handleEnrollTrack = (trackTitle: string) => {
@@ -269,6 +375,42 @@ const ProfessionalLearningHub = () => {
 
   return (
     <div className="space-y-10">
+      {learningHubMode !== 'personalized' && (
+        <section
+          className={`rounded-3xl border p-4 shadow-sm ${
+            learningHubMode === 'cold_start'
+              ? 'border-amber-200 bg-amber-50'
+              : 'border-blue-200 bg-blue-50'
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Info className={`mt-0.5 h-5 w-5 ${learningHubMode === 'cold_start' ? 'text-amber-600' : 'text-blue-600'}`} />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {learningHubMode === 'cold_start'
+                    ? 'Tell us a bit about your teaching to personalize your learning.'
+                    : 'We’re personalizing your Learning Hub based on your profile.'}
+                </p>
+                {learningHubMode === 'cold_start' && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    Complete your teaching profile to unlock better recommendations.
+                  </p>
+                )}
+              </div>
+            </div>
+            {learningHubMode === 'cold_start' && (
+              <button
+                onClick={() => navigate('/profile')}
+                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-amber-700 border border-amber-200 hover:bg-amber-100"
+              >
+                Complete profile
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-8 py-10 text-white shadow-xl">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl space-y-5">
@@ -292,22 +434,91 @@ const ProfessionalLearningHub = () => {
           <div className="grid w-full max-w-md gap-4 rounded-2xl bg-white/10 p-6 text-white backdrop-blur">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Your progress</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.coursesCompleted} courses</p>
-              <p className="text-xs text-white/70">{progressStats.hoursLogged} PD hours completed</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.coursesCompleted} courses</p>
+              <p className="text-xs text-white/70">{loading ? 'Loading...' : `${progressStats.hoursLogged} PD hours completed`}</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Certificates earned</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.certificatesEarned}</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.certificatesEarned}</p>
               <p className="text-xs text-white/70">Ready for appraisals & portfolios</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Learning streak</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.currentStreak} days</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.currentStreak} days</p>
               <p className="text-xs text-white/70">Keep the momentum going!</p>
             </div>
           </div>
         </div>
       </section>
+
+      {filteredContinueItems.length > 0 && (
+        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <Zap className="h-5 w-5 text-amber-500" /> Continue Learning
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Pick up where you left off.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {filteredContinueItems.map((item: any) => (
+              <div
+                key={item.contentId}
+                className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {item.category && (
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                          {item.category}
+                        </p>
+                      )}
+                      {item.duration && <span className="text-xs text-gray-500">• {item.duration}</span>}
+                      {item.difficulty && <span className="text-xs text-gray-500">• {item.difficulty}</span>}
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold text-gray-900">{item.title}</h3>
+                    <div className="mt-3">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className="h-full bg-amber-500 transition-all"
+                          style={{ width: `${item.progressPercent}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">{Math.round(item.progressPercent)}% complete</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!item.contentId || item.contentId.startsWith('learning-hub:')) {
+                        navigate('/learning-hub')
+                        return
+                      }
+                      const target = item.route || '/learning-hub'
+                      if (item.contentId) {
+                        persistHubRouteState(target, item.contentId, item.contentType || 'micro_course')
+                      }
+                      navigate(target, {
+                        state: {
+                          contentId: item.contentId,
+                          contentType: item.contentType || 'micro_course',
+                        },
+                      })
+                    }}
+                    className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
         <div className="space-y-6">
@@ -326,43 +537,50 @@ const ProfessionalLearningHub = () => {
               </button>
             </div>
 
+            {error && (
+              <p className="mt-2 text-sm text-amber-600">{error}</p>
+            )}
             <div className="mt-6 space-y-4">
-              {microCourses.map((course) => (
-                <div
-                  key={course.title}
-                  className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">{course.category}</p>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">{course.duration}</span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">{course.difficulty}</span>
-                      </div>
-                      <h3 className="mt-2 text-sm font-semibold text-gray-900">{course.title}</h3>
-                      {course.progress > 0 && (
-                        <div className="mt-3">
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full bg-amber-500 transition-all"
-                              style={{ width: `${course.progress}%` }}
-                            />
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500">{course.progress}% complete</p>
+              {loading && microCourses.length === 0 ? (
+                <p className="text-sm text-gray-500">Loading recommendations...</p>
+              ) : (
+                microCourses.map((course) => (
+                  <div
+                    key={course.contentId || course.title}
+                    className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">{course.category}</p>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">{course.duration}</span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">{course.difficulty}</span>
                         </div>
-                      )}
+                        <h3 className="mt-2 text-sm font-semibold text-gray-900">{course.title}</h3>
+                        {course.progress > 0 && (
+                          <div className="mt-3">
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                              <div
+                                className="h-full bg-amber-500 transition-all"
+                                style={{ width: `${course.progress}%` }}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">{course.progress}% complete</p>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => handleCourseStart(course)}
+                        className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
+                      >
+                        {course.progress === 0 ? 'Start' : course.progress === 100 ? 'Review' : 'Continue'}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleCourseStart(course.title)}
-                      className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
-                    >
-                      {course.progress === 0 ? 'Start' : course.progress === 100 ? 'Review' : 'Continue'}
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -379,33 +597,37 @@ const ProfessionalLearningHub = () => {
             </div>
 
             <div className="mt-6 space-y-4">
-              {tutorials.map((tutorial) => (
-                <div
-                  key={tutorial.title}
-                  className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                      <Play className="h-5 w-5" />
+              {loading && tutorials.length === 0 ? (
+                <p className="text-sm text-gray-500">Loading tutorials...</p>
+              ) : (
+                tutorials.map((tutorial) => (
+                  <div
+                    key={tutorial.contentId || tutorial.title}
+                    className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                        <Play className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{tutorial.type}</p>
+                        <h3 className="mt-1 text-sm font-semibold text-gray-900">{tutorial.title}</h3>
+                        <p className="mt-1 text-xs text-gray-500">{tutorial.duration}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{tutorial.type}</p>
-                      <h3 className="mt-1 text-sm font-semibold text-gray-900">{tutorial.title}</h3>
-                      <p className="mt-1 text-xs text-gray-500">{tutorial.duration}</p>
-                    </div>
+                    {tutorial.completed ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    ) : (
+                      <button
+                        onClick={() => handleTutorialWatch(tutorial)}
+                        className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
+                      >
+                        Watch
+                      </button>
+                    )}
                   </div>
-                  {tutorial.completed ? (
-                    <CheckCircle2 className="h-5 w-5 text-green-500" />
-                  ) : (
-                    <button
-                      onClick={() => handleTutorialWatch(tutorial.title)}
-                      className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
-                    >
-                      Watch
-                    </button>
-                  )}
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -422,6 +644,9 @@ const ProfessionalLearningHub = () => {
               Based on your usage, here are the 3 skills that will improve your teaching impact right now.
             </p>
 
+            {loading && aiRecommendations.length === 0 ? (
+              <p className="mt-4 text-sm text-gray-500">Loading recommendations...</p>
+            ) : (
             <div className="mt-4 space-y-4">
               {aiRecommendations.map((rec, idx) => (
                 <div key={idx} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
@@ -440,7 +665,7 @@ const ProfessionalLearningHub = () => {
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-gray-500">{rec.estimatedTime}</span>
                     <button
-                      onClick={() => handleStartPath(rec.skill)}
+                      onClick={() => handleStartPath(rec)}
                       className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition"
                     >
                       Start path
@@ -449,6 +674,7 @@ const ProfessionalLearningHub = () => {
                 </div>
               ))}
             </div>
+            )}
           </div>
 
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
@@ -459,7 +685,10 @@ const ProfessionalLearningHub = () => {
             </div>
 
             <div className="mt-4 space-y-3">
-              {certificates.map((cert) => (
+              {certificates.length === 0 && !loading ? (
+                <p className="text-xs text-gray-500">No certificates yet. Complete courses to earn them.</p>
+              ) : (
+              certificates.map((cert) => (
                 <div key={cert.name} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -472,7 +701,8 @@ const ProfessionalLearningHub = () => {
                     <Award className="h-8 w-8 text-green-500" />
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
 
             <div className="mt-6 rounded-2xl bg-gray-50 p-4">

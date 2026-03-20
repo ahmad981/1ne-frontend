@@ -1,8 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
-  Play,
-  Pause,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -22,7 +20,6 @@ import {
   BarChart3,
   Award,
   X,
-  PlayCircle,
   SkipForward,
   SkipBack,
   Volume2,
@@ -31,6 +28,8 @@ import {
   ClipboardCheck,
   TrendingUp,
 } from 'lucide-react'
+import { useTutorialProgress } from '../../hooks/useTutorialProgress'
+import { TutorialMediaEmbed } from '../../components/learningHub/TutorialMediaEmbed'
 
 interface TutorialStep {
   id: number
@@ -46,9 +45,7 @@ interface TutorialStep {
 
 const AssessmentTutorial = () => {
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const location = useLocation()
   const [showTranscript, setShowTranscript] = useState(false)
 
   const tutorialSteps: TutorialStep[] = [
@@ -59,6 +56,7 @@ const AssessmentTutorial = () => {
       content: {
         type: 'video',
         data: {
+          videoUrl: 'https://www.youtube.com/watch?v=D5adh67I4es',
           description: 'Understand the fundamental purposes of assessment and how effective assessments drive student learning.',
           keyPoints: [
             'Assessment informs instruction and guides learning',
@@ -396,26 +394,49 @@ const AssessmentTutorial = () => {
     },
   ]
 
+  const contentId =
+    (location.state as { contentId?: string } | null)?.contentId ||
+    'ui-tutorial-creating-effective-assessments'
+
+  const {
+    currentStep,
+    completedSteps,
+    hydrated,
+    setStep,
+    goNext,
+    goPrev,
+    finishTutorial,
+  } = useTutorialProgress({
+    contentId,
+    contentType: 'ai_guided_tutorial',
+    totalSteps: tutorialSteps.length,
+  })
+
   const currentStepData = tutorialSteps[currentStep]
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
 
   const handleNext = () => {
-    if (!completedSteps.includes(currentStep)) {
-      setCompletedSteps([...completedSteps, currentStep])
+    if (currentStep >= tutorialSteps.length - 1) {
+      void finishTutorial().then(() => navigate('/learning-hub'))
+      return
     }
-    if (currentStep < tutorialSteps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    }
+    goNext()
   }
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
+    goPrev()
   }
 
   const handleStepClick = (stepIndex: number) => {
-    setCurrentStep(stepIndex)
+    setStep(stepIndex)
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-600">
+        Restoring your tutorial progress…
+      </div>
+    )
   }
 
   return (
@@ -531,29 +552,10 @@ const AssessmentTutorial = () => {
             {/* Content Based on Type */}
             {currentStepData.content.type === 'video' && (
               <div className="space-y-6">
-                <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-10 w-10" />
-                      ) : (
-                        <Play className="h-10 w-10 ml-1" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-white w-1/3 rounded-full" />
-                    </div>
-                    <div className="flex items-center justify-between mt-2 text-white text-xs">
-                      <span>0:00</span>
-                      <span>{currentStepData.duration}</span>
-                    </div>
-                  </div>
-                </div>
+                <TutorialMediaEmbed
+                  videoUrl={currentStepData.content.data.videoUrl}
+                  title={currentStepData.title}
+                />
 
                 {currentStepData.content.data.description && (
                   <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -809,10 +811,9 @@ const AssessmentTutorial = () => {
 
               <button
                 onClick={handleNext}
-                disabled={currentStep === tutorialSteps.length - 1}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition"
               >
-                {currentStep === tutorialSteps.length - 1 ? 'Complete Tutorial' : 'Next Step'}
+                {currentStep === tutorialSteps.length - 1 ? 'Complete tutorial' : 'Next step'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>
