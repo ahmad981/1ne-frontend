@@ -30,13 +30,6 @@ import {
   Gamepad2,
 } from 'lucide-react'
 import {
-  getMusicTheoryConcept,
-  getCompositionGuide,
-  getPerformanceTechnique,
-  getEnsembleGuide,
-  getPedagogicalMethods,
-  getMusicGames,
-  getMusicStandards,
   getInstruments,
   getMusicStyles,
   getEnsembleTypes,
@@ -50,10 +43,24 @@ import {
   MusicGame,
   MusicStandard,
 } from '../../utils/musicUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapMusicTheoryResult,
+  mapMusicCompositionResult,
+  mapPerformanceTechniqueResult,
+  mapEnsembleResult,
+  mapMusicPedagogyList,
+  mapMusicGamesList,
+  mapMusicStandardsList,
+} from '../../utils/musicAdapters'
+
+const CHATBOT_SLUG = 'music-performance-coach'
 
 type TabType = 'theory' | 'composition' | 'performance' | 'ensemble' | 'pedagogy' | 'games' | 'standards' | 'resources'
 
 const MusicPerformanceCoach = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('theory')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [selectedInstrument, setSelectedInstrument] = useState('Piano')
@@ -97,71 +104,195 @@ const MusicPerformanceCoach = () => {
   // Load Music Theory
   const handleLoadTheory = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const theory = getMusicTheoryConcept(theoryConcept)
-      setMusicTheoryInfo(theory)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_theory', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+          theory_concept: theoryConcept,
+        },
+      })
+      setMusicTheoryInfo(mapMusicTheoryResult(response.result))
+      toast.success('Music theory loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load music theory'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Composition Guide
   const handleLoadCompositionGuide = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guide = getCompositionGuide(compositionType, gradeLevel)
-      setCompositionGuide(guide)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_composition', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+          composition_type: compositionType,
+        },
+      })
+      setCompositionGuide(mapMusicCompositionResult(response.result, selectedStyle, gradeLevel))
+      toast.success('Composition guide loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load composition guide'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Performance Technique
   const handleLoadPerformanceTechnique = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const technique = getPerformanceTechnique(performanceTechnique, selectedInstrument)
-      setTechniqueInfo(technique)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'performance_techniques', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+          technique: performanceTechnique,
+        },
+      })
+      setTechniqueInfo(mapPerformanceTechniqueResult(response.result, performanceTechnique))
+      toast.success('Performance techniques loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load performance techniques'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Ensemble Guide
   const handleLoadEnsembleGuide = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guide = getEnsembleGuide(ensembleType)
-      setEnsembleGuide(guide)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ensemble_coordination', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+          ensemble_type: ensembleType,
+        },
+      })
+      setEnsembleGuide(mapEnsembleResult(response.result))
+      toast.success('Ensemble guide loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load ensemble guide'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Pedagogical Methods
   const handleLoadPedagogicalMethods = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const methods = getPedagogicalMethods()
-      setPedagogicalMethods(methods)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_pedagogy', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+        },
+      })
+      setPedagogicalMethods(mapMusicPedagogyList(response.result))
+      toast.success('Pedagogy methods loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load pedagogy methods'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Music Games
   const handleLoadGames = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const games = getMusicGames(gameCategory.toLowerCase())
-      setMusicGames(games)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_games', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+          game_category: gameCategory.toLowerCase(),
+        },
+      })
+      setMusicGames(mapMusicGamesList(response.result))
+      toast.success('Music games loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load music games'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Music Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getMusicStandards()
-      setMusicStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          instrument: selectedInstrument,
+          style: selectedStyle,
+        },
+      })
+      setMusicStandards(mapMusicStandardsList(response.result, gradeLevel))
+      toast.success('Music standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load music standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

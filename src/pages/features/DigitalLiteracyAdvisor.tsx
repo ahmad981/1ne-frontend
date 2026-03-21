@@ -30,12 +30,6 @@ import {
   Gamepad2,
 } from 'lucide-react'
 import {
-  getDigitalCitizenshipStandards,
-  getOnlineSafetyGuidelines,
-  getMediaLiteracyConcepts,
-  getTechnologyIntegrationStrategies,
-  generateDigitalCitizenshipLesson,
-  generateDigitalSafetyPlan,
   getGradeLevels,
   getDigitalCitizenshipTopics,
   getOnlineSafetyTopics,
@@ -46,10 +40,23 @@ import {
   DigitalCitizenshipLesson,
   DigitalSafetyPlan,
 } from '../../utils/digitalLiteracyUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapDigitalCitizenshipLessonResult,
+  mapDigitalStandardsToCitizenshipList,
+  mapOnlineSafetyToGuidelines,
+  mapOnlineSafetyToPlan,
+  mapMediaLiteracyResult,
+  mapTechIntegrationResult,
+} from '../../utils/digitalLiteracyAdapters'
+
+const CHATBOT_SLUG = 'digital-literacy-advisor'
 
 type TabType = 'digital-citizenship' | 'online-safety' | 'media-literacy' | 'technology-integration' | 'standards' | 'resources'
 
 const DigitalLiteracyAdvisor = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('digital-citizenship')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -82,63 +89,158 @@ const DigitalLiteracyAdvisor = () => {
   // Load Digital Citizenship Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getDigitalCitizenshipStandards()
-      setCitizenshipStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+        },
+      })
+      setCitizenshipStandards(mapDigitalStandardsToCitizenshipList(response.result, gradeLevel))
+      toast.success('Standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Digital Citizenship Lesson
   const handleGenerateLesson = async () => {
     if (!lessonTopic.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const lesson = generateDigitalCitizenshipLesson(lessonTopic, gradeLevel, lessonDuration)
-      setGeneratedLesson(lesson)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'digital_citizenship', {
+        input: lessonTopic.trim(),
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          lesson_topic: lessonTopic.trim(),
+          duration: lessonDuration,
+        },
+      })
+      setGeneratedLesson(mapDigitalCitizenshipLessonResult(response.result, gradeLevel))
+      toast.success('Lesson generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate lesson'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Load Online Safety Guidelines
   const handleLoadSafetyGuidelines = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guidelines = getOnlineSafetyGuidelines()
-      setSafetyGuidelines(guidelines)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
+        input: 'General online safety overview',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          safety_topic: 'General online safety overview',
+        },
+      })
+      setSafetyGuidelines(mapOnlineSafetyToGuidelines(response.result, gradeLevel))
+      toast.success('Safety guidelines loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load safety guidelines'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Safety Plan
   const handleGenerateSafetyPlan = async () => {
     if (!safetyTopic.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const plan = generateDigitalSafetyPlan(safetyTopic, gradeLevel)
-      setGeneratedSafetyPlan(plan)
+    try {
+      const topic = safetyTopic.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
+        input: topic,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          safety_topic: topic,
+        },
+      })
+      setGeneratedSafetyPlan(mapOnlineSafetyToPlan(response.result, topic, gradeLevel))
+      toast.success('Safety plan generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate safety plan'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Load Media Literacy Concepts
   const handleLoadMediaConcepts = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const concepts = getMediaLiteracyConcepts()
-      setMediaConcepts(concepts)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'media_literacy', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+        },
+      })
+      setMediaConcepts(mapMediaLiteracyResult(response.result, gradeLevel))
+      toast.success('Media literacy content loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load media literacy concepts'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Technology Integration Strategies
   const handleLoadStrategies = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const strategies = getTechnologyIntegrationStrategies()
-      setIntegrationStrategies(strategies)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'tech_integration', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+        },
+      })
+      setIntegrationStrategies(mapTechIntegrationResult(response.result, gradeLevel))
+      toast.success('Integration strategies loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load strategies'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

@@ -27,11 +27,6 @@ import {
   PlayCircle,
 } from 'lucide-react'
 import {
-  getAIConcepts,
-  getEthicalAIPrinciples,
-  getMLProjects,
-  getAIStandards,
-  getAIEthicsFrameworks,
   getGradeLevels,
   getDifficultyLevels,
   AIConcept,
@@ -40,10 +35,22 @@ import {
   AIStandard,
   AIEthicsFramework,
 } from '../../utils/aiMlUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapAiConceptsResult,
+  mapEthicalAiToPrinciples,
+  mapEthicalAiToFrameworks,
+  mapMlProjectsResult,
+  mapAiStandardsResult,
+} from '../../utils/aiMlAdapters'
+
+const CHATBOT_SLUG = 'ai-machine-learning-educator'
 
 type TabType = 'ai-concepts' | 'ethical-ai' | 'ml-projects' | 'standards' | 'resources'
 
 const AIMachineLearningEducator = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('ai-concepts')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [difficulty, setDifficulty] = useState('Beginner')
@@ -73,51 +80,131 @@ const AIMachineLearningEducator = () => {
   // Load AI Concepts
   const handleLoadAIConcepts = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const concepts = getAIConcepts()
-      setAiConcepts(concepts)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_concepts', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          difficulty,
+        },
+      })
+      setAiConcepts(mapAiConceptsResult(response.result, gradeLevel))
+      toast.success('AI concepts loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load AI concepts'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Ethical AI Principles
   const handleLoadEthicalPrinciples = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const principles = getEthicalAIPrinciples()
-      setEthicalPrinciples(principles)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          difficulty,
+        },
+      })
+      setEthicalPrinciples(mapEthicalAiToPrinciples(response.result))
+      toast.success('Ethical principles loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load ethical principles'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Ethics Frameworks
   const handleLoadEthicsFrameworks = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const frameworks = getAIEthicsFrameworks()
-      setEthicsFrameworks(frameworks)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          difficulty,
+        },
+      })
+      setEthicsFrameworks(mapEthicalAiToFrameworks(response.result))
+      toast.success('Ethics frameworks loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load ethics frameworks'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load ML Projects
   const handleLoadMLProjects = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const projects = getMLProjects()
-      setMlProjects(projects)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ml_projects', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          difficulty,
+        },
+      })
+      setMlProjects(mapMlProjectsResult(response.result, gradeLevel))
+      toast.success('ML projects loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load ML projects'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load AI Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getAIStandards()
-      setAiStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          difficulty,
+        },
+      })
+      setAiStandards(mapAiStandardsResult(response.result, gradeLevel))
+      toast.success('Standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

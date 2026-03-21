@@ -29,13 +29,6 @@ import {
   Zap,
 } from 'lucide-react'
 import {
-  getArtMovements,
-  getTechniqueGuide,
-  generatePortfolioAssessment,
-  generateCreativeProject,
-  analyzeArtwork,
-  findCulturalConnections,
-  generateAssessmentRubric,
   getAvailableArtMovements,
   getMediaTypes,
   getCulturalRegions,
@@ -47,10 +40,24 @@ import {
   CulturalConnection,
   AssessmentRubric,
 } from '../../utils/visualArtsUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapArtHistoryResult,
+  mapArtTechniqueResult,
+  mapPortfolioDevelopmentResult,
+  mapCreativeProjectResult,
+  mapVisualLiteracyResult,
+  mapCulturalConnectionsResult,
+  mapArtAssessmentRubricResult,
+} from '../../utils/visualArtsAdapters'
+
+const CHATBOT_SLUG = 'visual-arts-studio-assistant'
 
 type TabType = 'history' | 'technique' | 'portfolio' | 'projects' | 'literacy' | 'cultural' | 'assessment' | 'differentiation'
 
 const VisualArtsStudioAssistant = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('history')
   const [gradeLevel, setGradeLevel] = useState('6-12')
   const [mediaType, setMediaType] = useState('Mixed Media')
@@ -95,74 +102,204 @@ const VisualArtsStudioAssistant = () => {
   // Art History Explorer
   const handleExploreMovement = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const movements = getArtMovements()
-      const movement = movements.find(m => m.name.includes(selectedMovement)) || movements[0]
-      setArtMovement(movement)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_history_explorer', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          select_art_movement: selectedMovement,
+        },
+      })
+      setArtMovement(mapArtHistoryResult(response.result))
+      toast.success('Art movement profile loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load art movement'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Technique Guidance
   const handleGetTechnique = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const guide = getTechniqueGuide(selectedTechnique)
-      setTechniqueGuide(guide)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_technique_guidance', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          select_technique: selectedTechnique,
+        },
+      })
+      setTechniqueGuide(mapArtTechniqueResult(response.result))
+      toast.success('Technique guide loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load technique guide'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Portfolio Assessment
   const handleGeneratePortfolioAssessment = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const assessment = generatePortfolioAssessment(gradeLevel, portfolioType)
-      setPortfolioAssessment(assessment)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'portfolio_development', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          portfolio_type: portfolioType,
+        },
+      })
+      setPortfolioAssessment(mapPortfolioDevelopmentResult(response.result))
+      toast.success('Portfolio guidance generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate portfolio assessment'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Creative Project Generator
   const handleGenerateProject = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const project = generateCreativeProject(gradeLevel, mediaType, projectTheme, projectDuration)
-      setCreativeProject(project)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'creative_project_generator', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          project_theme: projectTheme,
+          duration: projectDuration,
+        },
+      })
+      setCreativeProject(mapCreativeProjectResult(response.result, mediaType))
+      toast.success('Creative project generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate project'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Visual Literacy Analysis
   const handleAnalyzeArtwork = async () => {
     if (!artworkTitle.trim() || !artistName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const analysis = analyzeArtwork(artworkTitle, artistName)
-      setVisualAnalysis(analysis)
+    try {
+      const title = artworkTitle.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'visual_literacy_analysis', {
+        input: title,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          artwork_title: title,
+          artist_name: artistName.trim(),
+        },
+      })
+      setVisualAnalysis(mapVisualLiteracyResult(response.result))
+      toast.success('Visual analysis generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to analyze artwork'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Cultural Connections
   const handleFindConnections = async () => {
     if (!connectionArtwork.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const connection = findCulturalConnections(connectionArtwork, connectionTheme)
-      setCulturalConnection(connection)
+    try {
+      const artwork = connectionArtwork.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'cultural_connections', {
+        input: artwork,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          artwork_or_theme: artwork,
+          theme_focus: connectionTheme,
+        },
+      })
+      setCulturalConnection(mapCulturalConnectionsResult(response.result))
+      toast.success('Cultural connections generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to find connections'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Assessment Rubric
   const handleGenerateRubric = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const rubric = generateAssessmentRubric(assessmentProjectType, gradeLevel)
-      setAssessmentRubric(rubric)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_assessment_builder', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          media: mediaType,
+          cultural_region: culturalRegion,
+          project_type: assessmentProjectType,
+        },
+      })
+      setAssessmentRubric(mapArtAssessmentRubricResult(response.result))
+      toast.success('Rubric generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate rubric'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

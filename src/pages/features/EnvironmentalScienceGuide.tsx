@@ -32,12 +32,6 @@ import {
   Eye,
 } from 'lucide-react'
 import {
-  getRegionalClimateImpacts,
-  getSustainabilityProjects,
-  getEcosystemInfo,
-  getEnvironmentalStandards,
-  generateSustainabilityAssessment,
-  generateActionPlan,
   getRegions,
   getProjectCategories,
   getEcosystemTypes,
@@ -49,10 +43,25 @@ import {
   SustainabilityAssessment,
   ActionPlan,
 } from '../../utils/environmentalUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapRegionalClimateResult,
+  mapSustainabilityProjectsResult,
+  mapEcosystemResult,
+  mapEnvironmentalStandardsResult,
+  mapSustainabilityAssessmentResult,
+  mapEnvironmentalActionPlanResult,
+  projectCategoryUiToApi,
+} from '../../utils/environmentalAdapters'
+
+const CHATBOT_SLUG = 'environmental-science-guide'
+const TEACHING_REGION = 'Global'
 
 type TabType = 'climate' | 'sustainability' | 'ecosystems' | 'regional' | 'standards' | 'projects' | 'assessment' | 'action-plan'
 
 const EnvironmentalScienceGuide = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('climate')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [selectedRegion, setSelectedRegion] = useState('Temperate')
@@ -95,72 +104,192 @@ const EnvironmentalScienceGuide = () => {
   // Load Climate Impact
   const handleLoadClimateImpact = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const impact = getRegionalClimateImpacts(climateRegion)
-      setClimateImpact(impact)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'global_climate_education', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          select_region: climateRegion,
+        },
+      })
+      setClimateImpact(mapRegionalClimateResult(response.result))
+      toast.success('Climate impact loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load climate data'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Sustainability Projects
   const handleLoadProjects = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const projects = getSustainabilityProjects(projectCategory, gradeLevel)
-      setSustainabilityProjects(projects)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_projects', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          project_category: projectCategoryUiToApi(projectCategory),
+        },
+      })
+      setSustainabilityProjects(mapSustainabilityProjectsResult(response.result))
+      toast.success('Projects loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load projects'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Ecosystem Info
   const handleLoadEcosystemInfo = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const info = getEcosystemInfo(ecosystemType)
-      setEcosystemInfo(info)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ecological_systems', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          ecosystem_type: ecosystemType,
+        },
+      })
+      setEcosystemInfo(mapEcosystemResult(response.result))
+      toast.success('Ecosystem profile loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load ecosystem info'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Regional Analysis
   const handleLoadRegionalAnalysis = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const analysis = getRegionalClimateImpacts(selectedRegion)
-      setRegionalAnalysis(analysis)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'regional_climate_analysis', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          select_region: selectedRegion,
+        },
+      })
+      setRegionalAnalysis(mapRegionalClimateResult(response.result))
+      toast.success('Regional analysis loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load regional analysis'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Environmental Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getEnvironmentalStandards()
-      setEnvironmentalStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: selectedRegion,
+        },
+      })
+      setEnvironmentalStandards(mapEnvironmentalStandardsResult(response.result))
+      toast.success('Standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Assessment
   const handleGenerateAssessment = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const assessment = generateSustainabilityAssessment(assessmentCategory)
-      setSustainabilityAssessment(assessment)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_assessment_tools', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          assessment_category: assessmentCategory,
+        },
+      })
+      setSustainabilityAssessment(mapSustainabilityAssessmentResult(response.result))
+      toast.success('Assessment generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate assessment'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Action Plan
   const handleGenerateActionPlan = async () => {
     if (!actionGoal.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const plan = generateActionPlan(actionGoal, actionTimeframe)
-      setActionPlan(plan)
+    try {
+      const goal = actionGoal.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_action_planning', {
+        input: goal,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          region: TEACHING_REGION,
+          action_goal: goal,
+          timeframe: actionTimeframe,
+        },
+      })
+      setActionPlan(mapEnvironmentalActionPlanResult(response.result))
+      toast.success('Action plan generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate action plan'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [

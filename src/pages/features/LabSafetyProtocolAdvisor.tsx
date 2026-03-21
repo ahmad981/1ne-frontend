@@ -30,13 +30,6 @@ import {
   Users,
 } from 'lucide-react'
 import {
-  getSafetyStandards,
-  generateSafetyProtocol,
-  generateRiskAssessment,
-  getChemicalInfo,
-  getEquipmentSafety,
-  getEmergencyProcedure,
-  generateExperimentDesign,
   getLabTypes,
   getLabGradeLevels,
   getProtocolCategories,
@@ -48,10 +41,25 @@ import {
   EmergencyProcedure,
   ExperimentDesign,
 } from '../../utils/labSafetyUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapLabSafetyStandardsResult,
+  mapLabSafetyProtocolResult,
+  mapLabRiskAssessmentResult,
+  mapLabChemicalResult,
+  mapLabEquipmentResult,
+  mapLabEmergencyResult,
+  mapLabExperimentDesignResult,
+  labProtocolCategoryToParam,
+} from '../../utils/labSafetyAdapters'
+
+const CHATBOT_SLUG = 'lab-safety-protocol-advisor'
 
 type TabType = 'standards' | 'protocols' | 'risk-assessment' | 'chemicals' | 'equipment' | 'emergency' | 'experiment-design' | 'compliance'
 
 const LabSafetyProtocolAdvisor = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('standards')
   const [labType, setLabType] = useState('Chemistry')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
@@ -93,79 +101,192 @@ const LabSafetyProtocolAdvisor = () => {
   // Load Safety Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getSafetyStandards()
-      setSafetyStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+        },
+      })
+      setSafetyStandards(mapLabSafetyStandardsResult(response.result))
+      toast.success('Safety standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Safety Protocol
   const handleGenerateProtocol = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const protocol = generateSafetyProtocol(
-        labType.toLowerCase(),
-        protocolCategory.toLowerCase().replace(' ', '-'),
-        gradeLevel
-      )
-      setSafetyProtocol(protocol)
+    try {
+      const context = `Lab safety protocol for ${labType} (${gradeLevel}). Focus: ${protocolCategory}.`
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_protocols', {
+        input: context,
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+          protocol_category: labProtocolCategoryToParam(protocolCategory),
+        },
+      })
+      setSafetyProtocol(mapLabSafetyProtocolResult(response.result))
+      toast.success('Protocol generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate protocol'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Risk Assessment
   const handleGenerateRiskAssessment = async () => {
     if (!experimentName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const assessment = generateRiskAssessment(experimentName, labType, gradeLevel)
-      setRiskAssessment(assessment)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_risk_assessment', {
+        input: experimentName.trim(),
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+        },
+      })
+      setRiskAssessment(mapLabRiskAssessmentResult(response.result))
+      toast.success('Risk assessment generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate risk assessment'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Get Chemical Info
   const handleGetChemicalInfo = async () => {
     if (!chemicalName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const info = getChemicalInfo(chemicalName)
-      setChemicalInfo(info)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_chemical_safety', {
+        input: chemicalName.trim(),
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+        },
+      })
+      setChemicalInfo(mapLabChemicalResult(response.result))
+      toast.success('Chemical information loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load chemical info'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Get Equipment Safety
   const handleGetEquipmentSafety = async () => {
     if (!equipmentName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const safety = getEquipmentSafety(equipmentName, labType.toLowerCase())
-      setEquipmentSafety(safety)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_equipment_safety', {
+        input: equipmentName.trim(),
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+        },
+      })
+      setEquipmentSafety(mapLabEquipmentResult(response.result))
+      toast.success('Equipment safety guide loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load equipment safety'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Get Emergency Procedure
   const handleGetEmergencyProcedure = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const procedure = getEmergencyProcedure(emergencyType, 'moderate')
-      setEmergencyProcedure(procedure)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_emergency_procedures', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+          emergency_type: emergencyType,
+        },
+      })
+      setEmergencyProcedure(mapLabEmergencyResult(response.result))
+      toast.success('Emergency procedure loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load emergency procedure'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Experiment Design
   const handleGenerateExperimentDesign = async () => {
     if (!experimentTitle.trim() || !experimentObjective.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const design = generateExperimentDesign(experimentTitle, experimentObjective, labType, gradeLevel)
-      setExperimentDesign(design)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_experiment_design', {
+        input: experimentTitle.trim(),
+        input_type: 'text',
+        parameters: {
+          lab_type: labType,
+          grade_level: gradeLevel,
+          experiment_title: experimentTitle.trim(),
+          experiment_objective: experimentObjective.trim(),
+        },
+      })
+      setExperimentDesign(mapLabExperimentDesignResult(response.result))
+      toast.success('Experiment design generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate experiment design'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [

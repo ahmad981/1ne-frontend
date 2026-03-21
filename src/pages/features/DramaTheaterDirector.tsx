@@ -31,13 +31,6 @@ import {
   Mic,
 } from 'lucide-react'
 import {
-  generateScriptAnalysis,
-  generateCharacterProfile,
-  generateStageDirection,
-  generateProductionPlan,
-  getActingMethods,
-  getTheaterStyles,
-  getTheaterStandards,
   getPlayGenres,
   getStageTypes,
   getProductionRoles,
@@ -50,10 +43,24 @@ import {
   TheaterStyle,
   TheaterStandard,
 } from '../../utils/dramaUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapScriptAnalysisResult,
+  mapCharacterProfileResult,
+  mapStageDirectionResult,
+  mapProductionPlanResult,
+  mapActingMethodsList,
+  mapTheaterStylesList,
+  mapTheaterStandardsList,
+} from '../../utils/dramaAdapters'
+
+const CHATBOT_SLUG = 'drama-theater-director'
 
 type TabType = 'script-analysis' | 'character' | 'stage-direction' | 'production' | 'acting-methods' | 'theater-styles' | 'standards' | 'resources'
 
 const DramaTheaterDirector = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('script-analysis')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [playGenre, setPlayGenre] = useState('Drama')
@@ -100,74 +107,204 @@ const DramaTheaterDirector = () => {
   const handleGenerateScriptAnalysis = async () => {
     if (!playTitle.trim() || !playwright.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const analysis = generateScriptAnalysis(playTitle, playwright)
-      setScriptAnalysis(analysis)
+    try {
+      const title = playTitle.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'script_analysis_tools', {
+        input: title,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+          play_title: title,
+          playwright: playwright.trim(),
+        },
+      })
+      setScriptAnalysis(mapScriptAnalysisResult(response.result))
+      toast.success('Script analysis generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to analyze script'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Generate Character Profile
   const handleGenerateCharacterProfile = async () => {
     if (!characterName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const profile = generateCharacterProfile(characterName, characterRole)
-      setCharacterProfile(profile)
+    try {
+      const name = characterName.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'character_development', {
+        input: name,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+          character_name: name,
+          role: characterRole,
+        },
+      })
+      setCharacterProfile(mapCharacterProfileResult(response.result))
+      toast.success('Character profile generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate character profile'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Stage Direction
   const handleGenerateStageDirection = async () => {
     if (!sceneName.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const direction = generateStageDirection(sceneName, stageType)
-      setStageDirection(direction)
+    try {
+      const scene = sceneName.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'stage_direction', {
+        input: scene,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+          scene_name: scene,
+        },
+      })
+      setStageDirection(mapStageDirectionResult(response.result))
+      toast.success('Stage direction generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate stage direction'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Production Plan
   const handleGenerateProductionPlan = async () => {
     if (!productionTitle.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const plan = generateProductionPlan(productionTitle, productionDuration)
-      setProductionPlan(plan)
+    try {
+      const title = productionTitle.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'production_planning', {
+        input: title,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+          production_title: title,
+          duration: productionDuration,
+        },
+      })
+      setProductionPlan(mapProductionPlanResult(response.result))
+      toast.success('Production plan generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate production plan'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Load Acting Methods
   const handleLoadActingMethods = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const methods = getActingMethods()
-      setActingMethods(methods)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'acting_methods', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+        },
+      })
+      setActingMethods(mapActingMethodsList(response.result))
+      toast.success('Acting methods loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load acting methods'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Theater Styles
   const handleLoadTheaterStyles = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const styles = getTheaterStyles()
-      setTheaterStyles(styles)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_styles', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+        },
+      })
+      setTheaterStyles(mapTheaterStylesList(response.result))
+      toast.success('Theater styles loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load theater styles'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Load Theater Standards
   const handleLoadStandards = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const standards = getTheaterStandards()
-      setTheaterStandards(standards)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_standards', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          genre: playGenre,
+          stage_type: stageType,
+        },
+      })
+      setTheaterStandards(mapTheaterStandardsList(response.result, gradeLevel))
+      toast.success('Theater standards loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load standards'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   const tabs = [

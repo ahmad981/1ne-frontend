@@ -30,13 +30,6 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import {
-  analyzeCompetitionProblem,
-  getAlgorithmExplanation,
-  getDebuggingStrategy,
-  generateProjectPlan,
-  getComputationalThinkingFramework,
-  generateCompetitionRoadmap,
-  checkStandardsAlignment,
   getCompetitions,
   getProgrammingLanguages,
   CompetitionProblem,
@@ -47,10 +40,24 @@ import {
   CompetitionRoadmap,
   StandardsAlignment,
 } from '../../utils/codingUtils'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapCompetitionAnalyzerToProblem,
+  mapAlgorithmTutorResult,
+  mapDebuggingAssistantResult,
+  mapProjectPlannerToMilestones,
+  mapComputationalThinkingResult,
+  mapCompetitionRoadmapResult,
+  mapCodingStandardsAlignmentResult,
+} from '../../utils/codingTutorAdapters'
+
+const CHATBOT_SLUG = 'coding-programming-tutor'
 
 type TabType = 'competition' | 'algorithm' | 'debugging' | 'pbl' | 'thinking' | 'roadmap' | 'standards'
 
 const CodingProgrammingTutor = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<TabType>('competition')
   const [gradeLevel, setGradeLevel] = useState('9-12')
   const [programmingLanguage, setProgrammingLanguage] = useState('python')
@@ -95,72 +102,202 @@ const CodingProgrammingTutor = () => {
   const handleAnalyzeProblem = async () => {
     if (!problemText.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const problem = analyzeCompetitionProblem(problemText, selectedCompetition)
-      setCompetitionProblem(problem)
+    try {
+      const text = problemText.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_analyzer', {
+        input: text,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          problem_description: text,
+        },
+      })
+      setCompetitionProblem(mapCompetitionAnalyzerToProblem(response.result, selectedCompetition, text))
+      toast.success('Problem analyzed')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to analyze problem'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Algorithm Explanation
   const handleGetAlgorithm = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const explanation = getAlgorithmExplanation(selectedAlgorithm, programmingLanguage)
-      setAlgorithmExplanation(explanation)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'algorithm_tutor', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          select_algorithm: selectedAlgorithm,
+        },
+      })
+      setAlgorithmExplanation(mapAlgorithmTutorResult(response.result, programmingLanguage))
+      toast.success('Algorithm explanation loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load algorithm'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Debugging Strategy
   const handleGetDebuggingStrategy = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const strategy = getDebuggingStrategy(errorType)
-      setDebuggingStrategy(strategy)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'debugging_assistant', {
+        input: codeInput.trim() || ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          error_type: errorType,
+        },
+      })
+      setDebuggingStrategy(mapDebuggingAssistantResult(response.result))
+      toast.success('Debugging guidance loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load debugging strategy'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
   }
 
   // Generate Project Plan
   const handleGenerateProject = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const milestones = generateProjectPlan(projectType, gradeLevel, projectDuration)
-      setProjectMilestones(milestones)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'project_planner', {
+        input: projectType,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          project_type: projectType,
+          duration: projectDuration,
+        },
+      })
+      setProjectMilestones(mapProjectPlannerToMilestones(response.result))
+      toast.success('Project plan generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate project plan'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Get Computational Thinking Framework
   const handleGetComputationalThinking = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const framework = getComputationalThinkingFramework()
-      setComputationalThinking(framework)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'computational_thinking', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+        },
+      })
+      setComputationalThinking(mapComputationalThinkingResult(response.result))
+      toast.success('Computational thinking activities loaded')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to load computational thinking content'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 1000)
+    }
   }
 
   // Generate Competition Roadmap
   const handleGenerateRoadmap = async () => {
     setIsGenerating(true)
-    setTimeout(() => {
-      const roadmapData = generateCompetitionRoadmap(selectedCompetition, currentLevel, targetLevel)
-      setRoadmap(roadmapData)
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_roadmap', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          current_level: currentLevel,
+          target_level: targetLevel,
+        },
+      })
+      setRoadmap(mapCompetitionRoadmapResult(response.result, selectedCompetition, targetLevel))
+      toast.success('Roadmap generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate roadmap'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   // Check Standards Alignment
   const handleCheckStandards = async () => {
     if (!contentInput.trim()) return
     setIsGenerating(true)
-    setTimeout(() => {
-      const alignment = checkStandardsAlignment(contentInput, standardsFramework, gradeLevel)
-      setStandardsAlignment(alignment)
+    try {
+      const content = contentInput.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'standards_alignment', {
+        input: content,
+        input_type: 'text',
+        parameters: {
+          grade_level: gradeLevel,
+          language: programmingLanguage,
+          competition: selectedCompetition,
+          standards_framework: standardsFramework,
+          content_to_analyze: content,
+        },
+      })
+      setStandardsAlignment(mapCodingStandardsAlignmentResult(response.result, standardsFramework, gradeLevel))
+      toast.success('Standards alignment analyzed')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to analyze standards alignment'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
+      }
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [

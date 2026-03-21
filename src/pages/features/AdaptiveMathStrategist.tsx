@@ -16,7 +16,6 @@ import {
   Clock,
   Star,
   Lock,
-  Layers,
   Brain,
   Zap,
   Compass,
@@ -25,78 +24,34 @@ import {
   PieChart,
   Grid3x3,
   Shapes,
-  BookOpen,
   FileText,
-  PlayCircle,
   Eye,
-  Wand2,
-  Settings,
-  Filter,
   GraduationCap,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import {
+  mapDifferentiatedProblemsResult,
+  mapAdaptiveLearningPathResult,
+  mapConceptualLearningResult,
+  mapInterventionStrategiesResult,
+  parseProblemCountOption,
+  type ProblemSetUI as ProblemSet,
+  type AdaptivePathUI as AdaptivePath,
+  type ConceptualUnderstandingUI as ConceptualUnderstanding,
+  type InterventionStrategyUI as InterventionStrategy,
+} from '../../utils/adaptiveMathAdapters'
 
-interface ProblemSet {
-  problems: {
-    id: number
-    question: string
-    difficulty: 'emerging' | 'on-level' | 'advanced'
-    solution: string
-    steps: string[]
-    visualAid?: string
-    realWorldContext?: string
-  }[]
-  learningObjective: string
-  standard: string
-}
-
-interface AdaptivePath {
-  studentLevel: string
-  currentTopic: string
-  recommendedPath: {
-    step: number
-    activity: string
-    duration: string
-    resources: string[]
-  }[]
-  masteryCheckpoints: {
-    checkpoint: string
-    status: 'not-started' | 'in-progress' | 'mastered'
-  }[]
-}
-
-interface ConceptualUnderstanding {
-  concept: string
-  explanation: string
-  visualRepresentations: {
-    type: string
-    description: string
-    example: string
-  }[]
-  commonMisconceptions: {
-    misconception: string
-    correction: string
-    strategy: string
-  }[]
-  realWorldConnections: string[]
-}
-
-interface InterventionStrategy {
-  area: string
-  diagnostic: string
-  strategies: {
-    strategy: string
-    description: string
-    activities: string[]
-  }[]
-  progressMonitoring: string[]
-}
+const CHATBOT_SLUG = 'adaptive-math-strategist'
 
 const AdaptiveMathStrategist = () => {
+  const { toast } = useSnackbar()
   const [activeTab, setActiveTab] = useState<'problems' | 'adaptive' | 'concepts' | 'intervention' | 'visual' | 'assessment'>('problems')
   const [gradeLevel, setGradeLevel] = useState('5')
   const [topic, setTopic] = useState('')
   const [standard, setStandard] = useState('')
   const [studentLevel, setStudentLevel] = useState('on-level')
+  const [problemCountOption, setProblemCountOption] = useState('3 (One per level)')
   const [isGenerating, setIsGenerating] = useState(false)
   const [problemSet, setProblemSet] = useState<ProblemSet | null>(null)
   const [adaptivePath, setAdaptivePath] = useState<AdaptivePath | null>(null)
@@ -106,205 +61,110 @@ const AdaptiveMathStrategist = () => {
   const handleGenerateProblems = async () => {
     if (!topic.trim()) return
     setIsGenerating(true)
-    
-    setTimeout(() => {
-      const mockProblemSet: ProblemSet = {
-        learningObjective: `Students will ${topic} with accuracy and understanding`,
-        standard: standard || 'CCSS.MATH.CONTENT.5.NBT.B.5',
-        problems: [
-          {
-            id: 1,
-            question: 'Sarah has 3 bags of apples. Each bag has 12 apples. How many apples does Sarah have in total?',
-            difficulty: 'emerging',
-            solution: '36 apples',
-            steps: [
-              'Identify what we know: 3 bags, 12 apples per bag',
-              'Use repeated addition: 12 + 12 + 12 = 36',
-              'Or use multiplication: 3 × 12 = 36',
-            ],
-            visualAid: 'Visual representation with 3 groups of 12',
-            realWorldContext: 'Grocery shopping scenario',
-          },
-          {
-            id: 2,
-            question: 'A rectangular garden is 8 meters long and 5 meters wide. What is the area of the garden?',
-            difficulty: 'on-level',
-            solution: '40 square meters',
-            steps: [
-              'Identify the formula: Area = length × width',
-              'Substitute values: Area = 8 × 5',
-              'Calculate: Area = 40',
-              'Include units: 40 square meters',
-            ],
-            visualAid: 'Grid diagram showing 8 by 5 rectangle',
-            realWorldContext: 'Gardening and landscaping',
-          },
-          {
-            id: 3,
-            question: 'A store offers a 20% discount on all items. If a jacket originally costs $75, what is the sale price?',
-            difficulty: 'advanced',
-            solution: '$60',
-            steps: [
-              'Calculate discount amount: 20% of $75 = 0.20 × 75 = $15',
-              'Subtract discount from original: $75 - $15 = $60',
-              'Alternative: Calculate 80% of original (100% - 20%): 0.80 × 75 = $60',
-            ],
-            visualAid: 'Percentage bar model showing 100% to 80%',
-            realWorldContext: 'Shopping and financial literacy',
-          },
-        ],
+    try {
+      const mathTopic = topic.trim()
+      const n = parseProblemCountOption(problemCountOption)
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'differentiated_problems', {
+        input: mathTopic,
+        input_type: 'text',
+        parameters: {
+          grade_level: String(gradeLevel),
+          math_topic: mathTopic,
+          ...(standard.trim() ? { standard: standard.trim() } : {}),
+          number_of_problems: n,
+        },
+      })
+      setProblemSet(mapDifferentiatedProblemsResult(response.result))
+      toast.success('Problem set generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate problem set'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setProblemSet(mockProblemSet)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const handleGenerateAdaptivePath = async () => {
+    if (!topic.trim()) {
+      toast.error('Please enter a current topic')
+      return
+    }
     setIsGenerating(true)
-    
-    setTimeout(() => {
-      const mockPath: AdaptivePath = {
-        studentLevel: studentLevel,
-        currentTopic: topic || 'Multiplication',
-        recommendedPath: [
-          {
-            step: 1,
-            activity: 'Diagnostic Assessment',
-            duration: '10 min',
-            resources: ['Pre-assessment quiz', 'Skill inventory', 'Learning style survey'],
-          },
-          {
-            step: 2,
-            activity: 'Conceptual Introduction',
-            duration: '15 min',
-            resources: ['Visual models', 'Manipulatives', 'Real-world examples'],
-          },
-          {
-            step: 3,
-            activity: 'Guided Practice',
-            duration: '20 min',
-            resources: ['Scaffolded problems', 'Step-by-step solutions', 'Peer collaboration'],
-          },
-          {
-            step: 4,
-            activity: 'Independent Practice',
-            duration: '15 min',
-            resources: ['Differentiated problem sets', 'Self-checking tools', 'Hints available'],
-          },
-          {
-            step: 5,
-            activity: 'Mastery Check',
-            duration: '10 min',
-            resources: ['Quick assessment', 'Exit ticket', 'Self-reflection'],
-          },
-        ],
-        masteryCheckpoints: [
-          { checkpoint: 'Understands concept', status: 'in-progress' },
-          { checkpoint: 'Can solve with support', status: 'not-started' },
-          { checkpoint: 'Can solve independently', status: 'not-started' },
-          { checkpoint: 'Can apply to new situations', status: 'not-started' },
-        ],
+    try {
+      const currentTopic = topic.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'adaptive_learning_path', {
+        input: currentTopic,
+        input_type: 'text',
+        parameters: {
+          student_level: studentLevel,
+          current_topic: currentTopic,
+        },
+      })
+      setAdaptivePath(mapAdaptiveLearningPathResult(response.result))
+      toast.success('Learning path generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate learning path'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setAdaptivePath(mockPath)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const handleConceptualUnderstanding = async () => {
     if (!topic.trim()) return
     setIsGenerating(true)
-    
-    setTimeout(() => {
-      const mockConcept: ConceptualUnderstanding = {
-        concept: topic || 'Fractions',
-        explanation: 'Fractions represent parts of a whole. The numerator (top number) tells us how many parts we have, and the denominator (bottom number) tells us how many equal parts the whole is divided into.',
-        visualRepresentations: [
-          {
-            type: 'Area Model',
-            description: 'Shading parts of a rectangle or circle',
-            example: 'A circle divided into 4 equal parts with 3 parts shaded represents 3/4',
-          },
-          {
-            type: 'Number Line',
-            description: 'Placing fractions on a number line to show relative size',
-            example: '1/2 is halfway between 0 and 1 on a number line',
-          },
-          {
-            type: 'Set Model',
-            description: 'Showing fractions as parts of a set of objects',
-            example: '3 out of 5 apples are red, representing 3/5',
-          },
-        ],
-        commonMisconceptions: [
-          {
-            misconception: 'Larger denominator means larger fraction',
-            correction: 'Actually, larger denominator means smaller parts (1/8 < 1/4)',
-            strategy: 'Use visual models and number lines to compare fractions',
-          },
-          {
-            misconception: 'Only whole numbers can be added',
-            correction: 'Fractions can be added by finding common denominators',
-            strategy: 'Use manipulatives and visual representations to show addition',
-          },
-        ],
-        realWorldConnections: [
-          'Cooking: Measuring ingredients (1/2 cup flour, 1/4 teaspoon salt)',
-          'Time: Quarter past the hour, half an hour',
-          'Money: Quarters (1/4 dollar), dimes (1/10 dollar)',
-          'Sports: Game scores, statistics (3 out of 5 shots made)',
-        ],
+    try {
+      const concept = topic.trim()
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'conceptual_learning', {
+        input: concept,
+        input_type: 'text',
+        parameters: {
+          math_concept: concept,
+          grade_level: String(gradeLevel),
+        },
+      })
+      setConceptualUnderstanding(mapConceptualLearningResult(response.result))
+      toast.success('Concept analysis ready')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to analyze concept'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setConceptualUnderstanding(mockConcept)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const handleInterventionStrategy = async () => {
     setIsGenerating(true)
-    
-    setTimeout(() => {
-      const mockIntervention: InterventionStrategy = {
-        area: 'Place Value Understanding',
-        diagnostic: 'Student struggles with regrouping in multi-digit addition and subtraction. Assessment shows difficulty understanding that 10 ones = 1 ten, 10 tens = 1 hundred.',
-        strategies: [
-          {
-            strategy: 'Base-10 Manipulatives',
-            description: 'Use physical or digital base-10 blocks to model place value',
-            activities: [
-              'Build numbers using blocks (e.g., 234 = 2 hundreds, 3 tens, 4 ones)',
-              'Exchange activities (10 ones for 1 ten)',
-              'Compare numbers using blocks',
-            ],
-          },
-          {
-            strategy: 'Visual Place Value Charts',
-            description: 'Use place value charts to show the value of each digit',
-            activities: [
-              'Fill in place value charts for given numbers',
-              'Identify the value of underlined digits',
-              'Write numbers in expanded form',
-            ],
-          },
-          {
-            strategy: 'Real-World Context',
-            description: 'Connect place value to money, measurement, and counting',
-            activities: [
-              'Count money (dollars, dimes, pennies)',
-              'Measure objects and discuss units',
-              'Count collections of objects by grouping',
-            ],
-          },
-        ],
-        progressMonitoring: [
-          'Weekly place value assessment',
-          'Observation checklist during activities',
-          'Exit tickets after each lesson',
-          'Student self-reflection journal',
-        ],
+    try {
+      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'intervention_strategies', {
+        input: ' ',
+        input_type: 'text',
+        parameters: {},
+      })
+      setInterventionStrategy(mapInterventionStrategiesResult(response.result))
+      toast.success('Intervention strategies generated')
+    } catch (error: unknown) {
+      const err = error as { detail?: string; message?: string; status?: number }
+      const msg = err?.detail || err?.message || 'Failed to generate intervention strategies'
+      toast.error(msg)
+      if (err?.status === 403 || String(msg).includes('Premium')) {
+        toast.info('Upgrade to Premium to use this feature', { duration: 5000 })
       }
-      setInterventionStrategy(mockIntervention)
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
   const tabs = [
@@ -486,11 +346,15 @@ const AdaptiveMathStrategist = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Number of Problems
                     </label>
-                    <select className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100">
-                      <option>3 (One per level)</option>
-                      <option>6 (Two per level)</option>
-                      <option>9 (Three per level)</option>
-                      <option>12 (Four per level)</option>
+                    <select
+                      value={problemCountOption}
+                      onChange={(e) => setProblemCountOption(e.target.value)}
+                      className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm text-gray-900 focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-100"
+                    >
+                      <option value="3 (One per level)">3 (One per level)</option>
+                      <option value="6 (Two per level)">6 (Two per level)</option>
+                      <option value="9 (Three per level)">9 (Three per level)</option>
+                      <option value="12 (Four per level)">12 (Four per level)</option>
                     </select>
                   </div>
                   <button
@@ -649,7 +513,7 @@ const AdaptiveMathStrategist = () => {
                   </div>
                   <button
                     onClick={handleGenerateAdaptivePath}
-                    disabled={isGenerating}
+                    disabled={!topic.trim() || isGenerating}
                     className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isGenerating ? (
