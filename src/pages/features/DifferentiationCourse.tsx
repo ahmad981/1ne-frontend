@@ -661,6 +661,7 @@ const DifferentiationCourse = () => {
   const currentLessonData = courseData.lessons[currentLesson]
   const currentContent = currentLessonData?.content[currentContentIndex]
   const progress = ((completedLessons.length + (currentLesson > 0 ? 1 : 0)) / courseData.lessons.length) * 100
+  const hideGeneratedDurations = typeof contentId === 'string' && contentId.startsWith('factory-')
 
   // Load generated micro-course content when the route carries an AI-generated `factory-*` contentId.
   useEffect(() => {
@@ -885,10 +886,12 @@ const DifferentiationCourse = () => {
             <div className="border-2 border-green-200 rounded-2xl p-8 mb-6 bg-gradient-to-br from-green-50 to-emerald-50">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">{courseData.title}</h2>
               <div className="flex items-center justify-center gap-4 text-sm text-gray-600 mb-4">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {courseData.duration}
-                </span>
+                {!hideGeneratedDurations && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {courseData.duration}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Target className="w-4 h-4" />
                   {courseData.difficulty}
@@ -1114,8 +1117,12 @@ const DifferentiationCourse = () => {
               <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
                 {courseData.category}
               </span>
-              <span className="text-white/80">•</span>
-              <span className="text-white/80 text-sm">{courseData.duration}</span>
+              {!hideGeneratedDurations && (
+                <>
+                  <span className="text-white/80">•</span>
+                  <span className="text-white/80 text-sm">{courseData.duration}</span>
+                </>
+              )}
               <span className="text-white/80">•</span>
               <span className="text-white/80 text-sm">{courseData.difficulty}</span>
             </div>
@@ -1190,7 +1197,9 @@ const DifferentiationCourse = () => {
                         }`}>
                           {lesson.title}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{lesson.duration}</p>
+                        {!hideGeneratedDurations && (
+                          <p className="text-xs text-gray-500 mt-0.5">{lesson.duration}</p>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -1207,8 +1216,12 @@ const DifferentiationCourse = () => {
             <div className="mb-6 pb-6 border-b border-gray-200">
               <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                 <span>Lesson {currentLesson + 1} of {courseData.lessons.length}</span>
-                <span>•</span>
-                <span>{currentLessonData.duration}</span>
+                {!hideGeneratedDurations && (
+                  <>
+                    <span>•</span>
+                    <span>{currentLessonData.duration}</span>
+                  </>
+                )}
               </div>
               <h2 className="text-2xl font-bold text-gray-900">{currentLessonData.title}</h2>
             </div>

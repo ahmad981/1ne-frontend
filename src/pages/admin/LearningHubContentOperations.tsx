@@ -11,12 +11,14 @@ import {
 import {
   approveContentJob,
   clearLearningHubAdminErrors,
+  deleteContentJob,
   fetchContentGenerationJobDetail,
   fetchContentGenerationJobs,
   fetchJobReviews,
   fetchJobsSummary,
   fetchRegistryItems,
   rejectContentJob,
+  retryContentJob,
   requestMicroCourseGeneration,
   stopGapGenerationWorker,
   requestContentJobChanges,
@@ -96,6 +98,15 @@ function registryOriginLabel(item: {
   return 'Other'
 }
 
+function asStringList(v: unknown): string[] {
+  if (Array.isArray(v)) return v.map((x) => String(x)).filter(Boolean)
+  return []
+}
+
+function countArray(v: unknown): number {
+  return Array.isArray(v) ? v.length : 0
+}
+
 const LearningHubContentOperations = () => {
   const dispatch = useDispatch()
   const user = useSelector((state: { auth?: { user?: { role?: string } } }) => state.auth?.user)
@@ -133,6 +144,7 @@ const LearningHubContentOperations = () => {
   const [genGradeBand, setGenGradeBand] = useState('')
   const [genDifficulty, setGenDifficulty] = useState('')
   const [genLocale, setGenLocale] = useState('en')
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
 
   const loadJobs = useCallback(() => {
     dispatch(fetchContentGenerationJobs({ ...jobFilters, limit: 100 }))
@@ -168,6 +180,38 @@ const LearningHubContentOperations = () => {
     const so = jobDetail?.step_outputs
     if (!so || typeof so !== 'object') return []
     return Object.keys(so)
+  }, [jobDetail])
+
+  const generatedPreview = useMemo(() => {
+    const so = jobDetail?.step_outputs
+    if (!so || typeof so !== 'object') return null
+    const curriculum = (so as any).curriculum || {}
+    const structure = (so as any).structure || {}
+    const assessment = (so as any).assessment || {}
+    const pedagogy = (so as any).pedagogy || {}
+    const review = (so as any).review || {}
+    const quality = (so as any).quality || {}
+
+    const objectives = asStringList(curriculum.learning_objectives).slice(0, 6)
+    const strategies = asStringList(pedagogy.teaching_strategies).slice(0, 6)
+    const modules = Array.isArray(structure.modules) ? structure.modules : []
+    const lessons = Array.isArray(structure.lessons) ? structure.lessons : []
+    const steps = Array.isArray(structure.steps) ? structure.steps : []
+
+    return {
+      objectives,
+      strategies,
+      modules,
+      lessons,
+      steps,
+      reflectionCount: countArray(assessment.reflection_prompts),
+      practiceCount: countArray(assessment.practice_tasks),
+      quizCount: countArray(assessment.mini_quizzes),
+      reviewStatus: review?.review_status || '—',
+      reviewIssues: asStringList(review?.issues_found).slice(0, 5),
+      qualityScore: quality?.quality_score ?? jobDetail?.quality_score ?? null,
+      qualityFeedback: String(quality?.quality_feedback || '').trim(),
+    }
   }, [jobDetail])
 
   const onRowClick = (id: string) => {
@@ -221,6 +265,34 @@ const LearningHubContentOperations = () => {
     }
   }
 
+  const handleRetrySelectedJob = async () => {
+    if (!selectedJobId || !canReview) return
+    try {
+      const job = await dispatch(retryContentJob(selectedJobId)).unwrap()
+      dispatch(selectJob(job.id))
+      await afterAction()
+    } catch {
+      /* error surfaced in actionError */
+    }
+  }
+
+  const handleDeleteSelectedJob = async () => {
+    if (!selectedJobId || !canReview) return
+    setConfirmDeleteOpen(true)
+  }
+
+  const confirmDeleteSelectedJob = async () => {
+    if (!selectedJobId || !canReview) return
+    try {
+      await dispatch(deleteContentJob(selectedJobId)).unwrap()
+      dispatch(selectJob(null))
+      setConfirmDeleteOpen(false)
+      await afterAction()
+    } catch {
+      /* error surfaced in actionError */
+    }
+  }
+
   const handleGenerateMicroCourse = async () => {
     if (!canReview) return
     const topic = genTopic.trim()
@@ -254,6 +326,8 @@ const LearningHubContentOperations = () => {
   }
 
   const awaitingApproval = String(jobDetail?.status || '') === 'awaiting_human_approval'
+  const canRetrySelected =
+    String(jobDetail?.status || '') === 'failed' || String(jobDetail?.status || '') === 'rejected'
   const canGenerateMicroCourse =
     genGenerationMode === 'on_demand' ? Boolean(genTopic.trim()) : Boolean(genSubject.trim())
 
@@ -650,6 +724,121 @@ const LearningHubContentOperations = () => {
               </div>
             ) : null}
 
+            {generatedPreview && (
+              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+                <p className="text-xs font-semibold text-blue-900">Generated content preview</p>
+                <p className="mt-1 text-[11px] text-blue-900/80">
+                  Use this preview to decide whether to keep, retry, or delete this job.
+                </p>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-3">
+                  <div className="rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Structure</p>
+                    <p className="mt-1 text-xs text-gray-700">
+                      Modules: <strong>{generatedPreview.modules.length}</strong>
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Lessons: <strong>{generatedPreview.lessons.length}</strong>
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Steps: <strong>{generatedPreview.steps.length}</strong>
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Assessment</p>
+                    <p className="mt-1 text-xs text-gray-700">
+                      Reflection prompts: <strong>{generatedPreview.reflectionCount}</strong>
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Practice tasks: <strong>{generatedPreview.practiceCount}</strong>
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Mini quizzes: <strong>{generatedPreview.quizCount}</strong>
+                    </p>
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Quality</p>
+                    <p className="mt-1 text-xs text-gray-700">
+                      Score: <strong>{generatedPreview.qualityScore != null ? String(generatedPreview.qualityScore) : '—'}</strong>
+                    </p>
+                    <p className="text-xs text-gray-700">
+                      Review status: <strong>{generatedPreview.reviewStatus}</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Learning objectives</p>
+                    {generatedPreview.objectives.length ? (
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-gray-700">
+                        {generatedPreview.objectives.map((o, i) => (
+                          <li key={`${i}-${o.slice(0, 16)}`}>{o}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">No objectives in output.</p>
+                    )}
+                  </div>
+                  <div className="rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">Teaching strategies</p>
+                    {generatedPreview.strategies.length ? (
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-gray-700">
+                        {generatedPreview.strategies.map((s, i) => (
+                          <li key={`${i}-${s.slice(0, 16)}`}>{s}</li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-1 text-xs text-gray-500">No strategies in output.</p>
+                    )}
+                  </div>
+                </div>
+
+                {(generatedPreview.reviewIssues.length > 0 || generatedPreview.qualityFeedback) && (
+                  <div className="mt-3 rounded-lg border border-blue-100 bg-white p-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-blue-700">
+                      Review / quality notes
+                    </p>
+                    {generatedPreview.reviewIssues.length > 0 && (
+                      <ul className="mt-1 list-disc space-y-0.5 pl-4 text-xs text-gray-700">
+                        {generatedPreview.reviewIssues.map((iss, i) => (
+                          <li key={`${i}-${iss.slice(0, 16)}`}>{iss}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {generatedPreview.qualityFeedback && (
+                      <p className="mt-1 text-xs text-gray-700">{generatedPreview.qualityFeedback}</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {canReview && jobDetail && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading || !canRetrySelected}
+                  onClick={() => handleRetrySelectedJob()}
+                  className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  title={canRetrySelected ? 'Retry this failed/rejected job' : 'Retry is available only for failed/rejected jobs'}
+                >
+                  {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+                  Retry job
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleDeleteSelectedJob()}
+                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Delete selected job"
+                >
+                  <XCircle className="h-3 w-3" />
+                  Delete job
+                </button>
+              </div>
+            )}
+
             <div className="mt-4">
               <p className="text-xs font-semibold text-gray-500">Review history</p>
               {jobReviewsLoading ? (
@@ -828,6 +1017,35 @@ const LearningHubContentOperations = () => {
           )}
         </div>
       </section>
+
+      {confirmDeleteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-2xl">
+            <h3 className="text-sm font-semibold text-gray-900">Delete selected job?</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              This action permanently deletes the job and its review history.
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDeleteOpen(false)}
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => confirmDeleteSelectedJob()}
+                className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-2 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {actionLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <XCircle className="h-3 w-3" />}
+                Delete permanently
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

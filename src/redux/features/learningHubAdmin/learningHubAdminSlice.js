@@ -157,6 +157,32 @@ export const requestContentJobChanges = createAsyncThunk(
   }
 );
 
+export const retryContentJob = createAsyncThunk(
+  'learningHubAdmin/retryContentJob',
+  async (jobId, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.post(`/api/v1/content-factory/jobs/${jobId}/retry`);
+      return res.data;
+    } catch (error) {
+      console.error('[learningHubAdmin] retryContentJob', error);
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
+export const deleteContentJob = createAsyncThunk(
+  'learningHubAdmin/deleteContentJob',
+  async (jobId, { rejectWithValue }) => {
+    try {
+      await axiosInstance.delete(`/api/v1/content-factory/jobs/${jobId}`);
+      return { jobId };
+    } catch (error) {
+      console.error('[learningHubAdmin] deleteContentJob', error);
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
 export const fetchRegistryItems = createAsyncThunk(
   'learningHubAdmin/fetchRegistryItems',
   async (filters = {}, { rejectWithValue }) => {
@@ -337,6 +363,38 @@ const learningHubAdminSlice = createSlice({
         state.jobDetail = action.payload;
       })
       .addCase(requestContentJobChanges.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.actionError = action.payload;
+      })
+      .addCase(retryContentJob.pending, (state) => {
+        state.actionLoading = true;
+        state.actionError = null;
+      })
+      .addCase(retryContentJob.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        state.jobDetail = action.payload;
+      })
+      .addCase(retryContentJob.rejected, (state, action) => {
+        state.actionLoading = false;
+        state.actionError = action.payload;
+      })
+      .addCase(deleteContentJob.pending, (state) => {
+        state.actionLoading = true;
+        state.actionError = null;
+      })
+      .addCase(deleteContentJob.fulfilled, (state, action) => {
+        state.actionLoading = false;
+        const id = action.payload?.jobId;
+        if (id) {
+          state.jobs = state.jobs.filter((j) => j.id !== id);
+          if (state.selectedJobId === id) {
+            state.selectedJobId = null;
+            state.jobDetail = null;
+            state.jobReviews = [];
+          }
+        }
+      })
+      .addCase(deleteContentJob.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload;
       })

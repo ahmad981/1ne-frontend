@@ -116,6 +116,56 @@ const specialistTracks = [
   },
 ]
 
+// Dummy UI data used as a safe fallback when the backend structure is temporarily missing/changed.
+// We intentionally keep Redux slice integration intact; this only affects what the UI renders.
+const aiRecommendationsDummy = [
+  {
+    impact: 'High',
+    skill: 'Questioning that deepens thinking',
+    reason: 'You engage students best when you ask targeted follow-ups instead of repeating prompts.',
+    estimatedTime: '1–2 hours',
+    route: '/learning-hub/student-engagement-course',
+  },
+  {
+    impact: 'Medium',
+    skill: 'Differentiation by learning needs',
+    reason: 'Your learners benefit from flexible grouping and clear success criteria for each tier.',
+    estimatedTime: '1–2 hours',
+    route: '/learning-hub/differentiation-course',
+  },
+  {
+    impact: 'Low',
+    skill: 'Assessment for actionable feedback',
+    reason: 'Short cycles of feedback improve student ownership of progress and next steps.',
+    estimatedTime: '1–2 hours',
+    route: '/learning-hub/assessment-strategies',
+  },
+]
+
+const tutorialsDummy = [
+  {
+    type: 'Template walkthrough',
+    title: 'Build a clear lesson flow (Hook → Teach → Check → Extend)',
+    duration: '8 min',
+    completed: false,
+    route: '/learning-hub/lesson-planner-tutorial',
+  },
+  {
+    type: 'AI demonstration',
+    title: 'Turn objectives into a micro-quiz in under 5 minutes',
+    duration: '5 min',
+    completed: false,
+    route: '/learning-hub/lesson-planner-tutorial',
+  },
+  {
+    type: 'Step-by-step guide',
+    title: 'Differentiate one lesson for three ability bands',
+    duration: '10 min',
+    completed: true,
+    route: '/learning-hub/differentiation-course',
+  },
+]
+
 const ProfessionalLearningHub = () => {
   const navigate = useNavigate()
   const dispatch = useDispatch()
@@ -136,6 +186,10 @@ const ProfessionalLearningHub = () => {
   } = useSelector((state: any) => state.learningHub) ?? {}
 
   const { activeSessionsByContentId = {}, inProgressContent = [] } = useSelector((state: any) => state.learningProgress) ?? {}
+  // For now, render the historical frontend dummy UI for these two panels.
+  // We still keep slice fetching intact (micro-courses/progress/etc.) for later integration.
+  const effectiveAiRecommendations = aiRecommendationsDummy
+  const effectiveTutorials = tutorialsDummy
 
   useEffect(() => {
     dispatch(fetchLearningHubHome())
@@ -223,8 +277,22 @@ const ProfessionalLearningHub = () => {
     contentSlug?: string | null
     delivery?: Record<string, unknown> | null
   }) => {
-    const contentId = tutorial.contentId
-    const contentType = tutorial.contentType || 'ai_guided_tutorial'
+    const target = resolveHubCardRoute(tutorial)
+
+    // Sidebar UI may render dummy tutorial cards (no contentId).
+    // If so, map the click to the real slice card whose resolved route matches.
+    let contentId = tutorial.contentId
+    let contentType = tutorial.contentType || 'ai_guided_tutorial'
+    if (!contentId) {
+      const candidates = [...(tutorials || []), ...(microCourses || [])].filter((c: any) => resolveHubCardRoute(c) === target)
+      const candidate =
+        candidates.find((c: any) => typeof c?.contentId === 'string' && c.contentId.startsWith('factory-')) ||
+        candidates[0] ||
+        null
+      contentId = candidate?.contentId
+      contentType = candidate?.contentType || contentType
+    }
+
     if (contentId) {
       const existing = (activeSessionsByContentId as any)[contentId]
       if (!existing) {
@@ -252,7 +320,6 @@ const ProfessionalLearningHub = () => {
         })
       )
     }
-    const target = resolveHubCardRoute(tutorial)
     persistHubRouteState(target, contentId, contentType)
     navigate(target, {
       state: {
@@ -322,8 +389,20 @@ const ProfessionalLearningHub = () => {
     const targetSource = mappedCard || rec || fallbackCard || {}
     const target = resolveHubCardRoute(targetSource)
 
-    const contentId = mappedCard?.contentId || rec?.contentId
-    const contentType = mappedCard?.contentType || rec?.contentType || 'micro_course'
+    // Sidebar may show dummy recommendation cards (no contentId).
+    // Map them to the real slice card so the destination pages load correctly.
+    let contentId = mappedCard?.contentId || rec?.contentId
+    let contentType = mappedCard?.contentType || rec?.contentType || 'micro_course'
+    if (!contentId) {
+      const candidates = allCards.filter((c: any) => resolveHubCardRoute(c) === target)
+      const candidate =
+        candidates.find((c: any) => typeof c?.contentId === 'string' && c.contentId.startsWith('factory-')) ||
+        candidates[0] ||
+        allCards.find((c: any) => c?.route === rec?.route) ||
+        null
+      contentId = candidate?.contentId
+      contentType = candidate?.contentType || contentType
+    }
     if (contentId) {
       const existing = (activeSessionsByContentId as any)[contentId]
       if (!existing) {
@@ -597,37 +676,33 @@ const ProfessionalLearningHub = () => {
             </div>
 
             <div className="mt-6 space-y-4">
-              {loading && tutorials.length === 0 ? (
-                <p className="text-sm text-gray-500">Loading tutorials...</p>
-              ) : (
-                tutorials.map((tutorial) => (
-                  <div
-                    key={tutorial.contentId || tutorial.title}
-                    className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                        <Play className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{tutorial.type}</p>
-                        <h3 className="mt-1 text-sm font-semibold text-gray-900">{tutorial.title}</h3>
-                        <p className="mt-1 text-xs text-gray-500">{tutorial.duration}</p>
-                      </div>
+              {effectiveTutorials.map((tutorial) => (
+                <div
+                  key={tutorial.contentId || tutorial.title}
+                  className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                      <Play className="h-5 w-5" />
                     </div>
-                    {tutorial.completed ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <button
-                        onClick={() => handleTutorialWatch(tutorial)}
-                        className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
-                      >
-                        Watch
-                      </button>
-                    )}
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">{tutorial.type}</p>
+                      <h3 className="mt-1 text-sm font-semibold text-gray-900">{tutorial.title}</h3>
+                      <p className="mt-1 text-xs text-gray-500">{tutorial.duration}</p>
+                    </div>
                   </div>
-                ))
-              )}
+                  {tutorial.completed ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <button
+                      onClick={() => handleTutorialWatch(tutorial)}
+                      className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
+                    >
+                      Watch
+                    </button>
+                  )}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -644,11 +719,8 @@ const ProfessionalLearningHub = () => {
               Based on your usage, here are the 3 skills that will improve your teaching impact right now.
             </p>
 
-            {loading && aiRecommendations.length === 0 ? (
-              <p className="mt-4 text-sm text-gray-500">Loading recommendations...</p>
-            ) : (
             <div className="mt-4 space-y-4">
-              {aiRecommendations.map((rec, idx) => (
+              {effectiveAiRecommendations.map((rec, idx) => (
                 <div key={idx} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Skill {idx + 1}</p>
@@ -674,7 +746,6 @@ const ProfessionalLearningHub = () => {
                 </div>
               ))}
             </div>
-            )}
           </div>
 
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">

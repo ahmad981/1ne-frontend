@@ -44,10 +44,15 @@ const transformMicroCourses = (homePayload, progressMap = new Map()) => {
   const primary = homePayload.primary_recommendations || [];
   const secondary = homePayload.secondary_recommendations || [];
   const all = [...primary, ...secondary];
+  const seenFingerprints = new Set();
   const filtered = all.filter((card) => {
     if (!card) return false;
     const ct = normalizeContentType(card.content_type);
-    return ct === CONTENT_TYPE_MICRO_COURSE || ct === CONTENT_TYPE_LEARNING_PATH;
+    if (!(ct === CONTENT_TYPE_MICRO_COURSE || ct === CONTENT_TYPE_LEARNING_PATH)) return false;
+    const fp = `${ct}|${String(card.category || '').toLowerCase().trim()}|${String(card.title || '').toLowerCase().trim()}`;
+    if (seenFingerprints.has(fp)) return false;
+    seenFingerprints.add(fp);
+    return true;
   });
   return filtered.map((card) => {
     const summary = card?.content_id ? progressMap.get(card.content_id) : undefined;
@@ -79,9 +84,16 @@ const transformTutorials = (homePayload, progressMap = new Map()) => {
   const primary = homePayload.primary_recommendations || [];
   const secondary = homePayload.secondary_recommendations || [];
   const all = [...primary, ...secondary];
-  const filtered = all.filter(
-    (card) => card && normalizeContentType(card.content_type) === CONTENT_TYPE_AI_GUIDED_TUTORIAL
-  );
+  const seenFingerprints = new Set();
+  const filtered = all.filter((card) => {
+    if (!card) return false;
+    const ct = normalizeContentType(card.content_type);
+    if (ct !== CONTENT_TYPE_AI_GUIDED_TUTORIAL) return false;
+    const fp = `${ct}|${String(card.category || '').toLowerCase().trim()}|${String(card.title || '').toLowerCase().trim()}`;
+    if (seenFingerprints.has(fp)) return false;
+    seenFingerprints.add(fp);
+    return true;
+  });
   return filtered.map((card) => {
     const summary = card?.content_id ? progressMap.get(card.content_id) : undefined;
     const completed =
