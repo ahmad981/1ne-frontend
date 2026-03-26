@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowRight,
@@ -30,6 +30,8 @@ import {
 } from 'lucide-react'
 import { useTutorialProgress } from '../../hooks/useTutorialProgress'
 import { TutorialMediaEmbed } from '../../components/learningHub/TutorialMediaEmbed'
+import axiosInstance from '../../redux/http'
+import { parseTutorialStepsFromRegistry } from '../../utils/learningHubGeneratedContent'
 
 interface TutorialStep {
   id: number
@@ -48,7 +50,7 @@ const LessonPlannerTutorial = () => {
   const location = useLocation()
   const [showTranscript, setShowTranscript] = useState(false)
 
-  const tutorialSteps: TutorialStep[] = [
+  const staticTutorialSteps: TutorialStep[] = [
     {
       id: 1,
       title: 'Introduction: Getting Started with the Lesson Planner',
@@ -331,6 +333,32 @@ const LessonPlannerTutorial = () => {
   const contentId =
     (location.state as { contentId?: string } | null)?.contentId ||
     'starter-en-lesson-planning-with-ai'
+  const [tutorialSteps, setTutorialSteps] = useState<TutorialStep[]>(staticTutorialSteps)
+
+  useEffect(() => {
+    const shouldFetch = typeof contentId === 'string' && contentId.startsWith('factory-')
+    if (!shouldFetch) {
+      setTutorialSteps(staticTutorialSteps)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/content-registry/by-content-id/${encodeURIComponent(contentId)}`)
+        const parsed = parseTutorialStepsFromRegistry(res?.data)
+        if (!cancelled && Array.isArray(parsed) && parsed.length > 0) {
+          setTutorialSteps(parsed as TutorialStep[])
+        } else if (!cancelled) {
+          setTutorialSteps(staticTutorialSteps)
+        }
+      } catch {
+        if (!cancelled) setTutorialSteps(staticTutorialSteps)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [contentId])
 
   const {
     currentStep,
@@ -374,7 +402,7 @@ const LessonPlannerTutorial = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="tutorial" data-content-id={contentId || ''} data-content-type="ai_guided_tutorial">
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-rose-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Target,
@@ -32,6 +32,8 @@ import {
   ClipboardCheck,
   Rocket,
 } from 'lucide-react'
+import axiosInstance from '../../redux/http'
+import { parseLearningPathFromRegistry } from '../../utils/learningHubGeneratedContent'
 
 interface LearningModule {
   id: string
@@ -80,11 +82,21 @@ interface AIGuidance {
 
 const AIAssistedAssessmentPath = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [completedModules, setCompletedModules] = useState<string[]>([])
   const [currentLevel, setCurrentLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner')
+  const persisted = (() => {
+    try {
+      const raw = sessionStorage.getItem(`learningHubRouteState:${location.pathname}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })()
+  const contentId = (location.state as any)?.contentId || persisted?.contentId || null
 
-  const learningModules: LearningModule[] = [
+  const staticLearningModules: LearningModule[] = [
     {
       id: 'ai-assessment-intro',
       title: 'Introduction to AI in Assessment',
@@ -267,7 +279,7 @@ const AIAssistedAssessmentPath = () => {
     },
   ]
 
-  const skillImpacts: SkillImpact[] = [
+  const staticSkillImpacts: SkillImpact[] = [
     {
       skill: 'Assessment Efficiency',
       before: 55,
@@ -305,7 +317,7 @@ const AIAssistedAssessmentPath = () => {
     },
   ]
 
-  const aiGuidance: AIGuidance = {
+  const staticAiGuidance: AIGuidance = {
     recommendation: 'Start with Automated Rubrics, then explore Instant Feedback',
     reason: 'Your formative assessments could benefit from automated rubric generation and instant feedback loops. Start with rubrics to establish clear criteria, then add instant feedback to accelerate learning.',
     nextSteps: [
@@ -316,6 +328,37 @@ const AIAssistedAssessmentPath = () => {
     ],
     personalizedTip: 'You create detailed assessments regularly. AI can help you generate rubrics quickly while you focus on refining them for your specific students.',
   }
+
+  const [learningModules, setLearningModules] = useState<LearningModule[]>(staticLearningModules)
+  const [skillImpacts, setSkillImpacts] = useState<SkillImpact[]>(staticSkillImpacts)
+  const [aiGuidance, setAiGuidance] = useState<AIGuidance>(staticAiGuidance)
+
+  useEffect(() => {
+    const shouldFetch = typeof contentId === 'string' && contentId.startsWith('factory-')
+    if (!shouldFetch) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/content-registry/by-content-id/${encodeURIComponent(contentId)}`)
+        const parsed = parseLearningPathFromRegistry(res?.data)
+        if (cancelled) return
+        if (Array.isArray(parsed.learningModules) && parsed.learningModules.length > 0) {
+          setLearningModules(parsed.learningModules as LearningModule[])
+        }
+        if (Array.isArray(parsed.skillImpacts) && parsed.skillImpacts.length > 0) {
+          setSkillImpacts(parsed.skillImpacts as SkillImpact[])
+        }
+        if (parsed.aiGuidance && parsed.aiGuidance.recommendation) {
+          setAiGuidance(parsed.aiGuidance as AIGuidance)
+        }
+      } catch {
+        // keep static fallback
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [contentId])
 
   // Load completed modules from localStorage
   useEffect(() => {
@@ -388,7 +431,7 @@ const AIAssistedAssessmentPath = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="growth_path" data-content-id={contentId || ''} data-content-type="learning_path">
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">

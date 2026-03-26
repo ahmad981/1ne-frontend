@@ -1108,7 +1108,7 @@ const DifferentiationCourse = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="micro_course" data-content-id={contentId || ''} data-content-type={contentType || 'micro_course'}>
       {/* Header */}
       <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">

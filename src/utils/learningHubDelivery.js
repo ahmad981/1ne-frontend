@@ -5,13 +5,19 @@
 
 export const SLUG_TO_ROUTE = {
   'classroom-management-quick-wins': '/learning-hub/classroom-management',
-  'classroom-management-learning-path': '/learning-hub/classroom-management',
+  'classroom-management-learning-path': '/learning-hub/student-engagement-path',
   'student-engagement-strategies': '/learning-hub/student-engagement-course',
   'formative-assessment-essentials': '/learning-hub/assessment-strategies',
   'differentiation-made-simple': '/learning-hub/differentiation-course',
   'lesson-planning-with-ai': '/learning-hub/lesson-planner-tutorial',
-  'lesson-planning-learning-path': '/learning-hub/digital-literacy-course',
+  'lesson-planning-learning-path': '/learning-hub/ai-assessment-path',
 };
+
+const GROWTH_PATH_ROUTES = new Set([
+  '/learning-hub/student-engagement-path',
+  '/learning-hub/advanced-differentiation-path',
+  '/learning-hub/ai-assessment-path',
+]);
 
 /**
  * @param {string | undefined} contentId e.g. starter-en-formative-assessment-essentials
@@ -45,8 +51,10 @@ export function isAllowedHubPath(path) {
  */
 export function resolveHubCardRoute(card) {
   if (!card || typeof card !== 'object') return '/learning-hub';
+  const ct = String(card.contentType || card.content_type || '').toLowerCase().trim();
+  const isPathType = ct === 'learning_path' || ct === 'path_module';
   const raw = card.route;
-  if (raw && isAllowedHubPath(raw)) {
+  if (raw && isAllowedHubPath(raw) && (!isPathType || GROWTH_PATH_ROUTES.has(String(raw).trim()))) {
     return String(raw).trim().startsWith('/') ? String(raw).trim() : `/${String(raw).trim()}`;
   }
 
@@ -54,6 +62,9 @@ export function resolveHubCardRoute(card) {
   // so we need a deterministic safe course route for Continue rows where only contentId is provided.
   const cid = card.contentId || card.content_id;
   if (typeof cid === 'string' && cid.startsWith('factory-')) {
+    if (ct === 'learning_path' || ct === 'path_module') {
+      return '/learning-hub/student-engagement-path';
+    }
     return '/learning-hub/differentiation-course';
   }
 
@@ -62,10 +73,14 @@ export function resolveHubCardRoute(card) {
     card.content_slug ||
     (card.delivery && card.delivery.slug) ||
     parseStarterContentSlug(card.contentId || card.content_id);
-  if (slug && SLUG_TO_ROUTE[slug]) return SLUG_TO_ROUTE[slug];
+  if (slug && SLUG_TO_ROUTE[slug]) {
+    const mapped = SLUG_TO_ROUTE[slug];
+    if (!isPathType || GROWTH_PATH_ROUTES.has(mapped)) return mapped;
+  }
   const dRoute = card.delivery && card.delivery.route;
-  if (dRoute && isAllowedHubPath(dRoute)) {
+  if (dRoute && isAllowedHubPath(dRoute) && (!isPathType || GROWTH_PATH_ROUTES.has(String(dRoute).trim()))) {
     return String(dRoute).trim().startsWith('/') ? String(dRoute).trim() : `/${String(dRoute).trim()}`;
   }
+  if (isPathType) return '/learning-hub/student-engagement-path';
   return '/learning-hub';
 }

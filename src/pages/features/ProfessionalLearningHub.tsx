@@ -32,6 +32,12 @@ function persistHubRouteState(route: string, contentId: string, contentType: str
   }
 }
 
+const GROWTH_PATH_ROUTES = new Set([
+  '/learning-hub/student-engagement-path',
+  '/learning-hub/advanced-differentiation-path',
+  '/learning-hub/ai-assessment-path',
+])
+
 // Static data: backend does not yet provide this. Kept for UI; pending backend integration.
 const researchInsights = [
   {
@@ -116,53 +122,49 @@ const specialistTracks = [
   },
 ]
 
-// Dummy UI data used as a safe fallback when the backend structure is temporarily missing/changed.
-// We intentionally keep Redux slice integration intact; this only affects what the UI renders.
+// Safe fallback only: real backend data is preferred whenever available.
 const aiRecommendationsDummy = [
   {
     impact: 'High',
-    skill: 'Questioning that deepens thinking',
-    reason: 'You engage students best when you ask targeted follow-ups instead of repeating prompts.',
-    estimatedTime: '1–2 hours',
-    route: '/learning-hub/student-engagement-course',
+    skill: 'Advanced differentiation strategies',
+    reason: 'You frequently create lessons for diverse learners. Deepen your toolkit with tiered instruction frameworks.',
+    estimatedTime: '2 hours',
   },
   {
     impact: 'Medium',
-    skill: 'Differentiation by learning needs',
-    reason: 'Your learners benefit from flexible grouping and clear success criteria for each tier.',
-    estimatedTime: '1–2 hours',
-    route: '/learning-hub/differentiation-course',
+    skill: 'AI-assisted assessment design',
+    reason: 'Your formative assessments could benefit from automated rubric generation and instant feedback loops.',
+    estimatedTime: '1.5 hours',
   },
   {
-    impact: 'Low',
-    skill: 'Assessment for actionable feedback',
-    reason: 'Short cycles of feedback improve student ownership of progress and next steps.',
-    estimatedTime: '1–2 hours',
-    route: '/learning-hub/assessment-strategies',
+    impact: 'High',
+    skill: 'Student engagement techniques',
+    reason: 'Based on your lesson patterns, explore gamification and inquiry-based learning hooks.',
+    estimatedTime: '3 hours',
   },
 ]
 
 const tutorialsDummy = [
   {
-    type: 'Template walkthrough',
-    title: 'Build a clear lesson flow (Hook → Teach → Check → Extend)',
-    duration: '8 min',
+    type: 'Step-by-step walkthrough',
+    title: 'Mastering the lesson planner template',
+    duration: '12 min',
     completed: false,
     route: '/learning-hub/lesson-planner-tutorial',
   },
   {
-    type: 'AI demonstration',
-    title: 'Turn objectives into a micro-quiz in under 5 minutes',
-    duration: '5 min',
+    type: 'Best practices',
+    title: 'Creating effective assessments',
+    duration: '15 min',
     completed: false,
-    route: '/learning-hub/lesson-planner-tutorial',
+    route: '/learning-hub/assessment-tutorial',
   },
   {
-    type: 'Step-by-step guide',
-    title: 'Differentiate one lesson for three ability bands',
-    duration: '10 min',
-    completed: true,
-    route: '/learning-hub/differentiation-course',
+    type: 'Case study',
+    title: 'Real classroom: Differentiation in action',
+    duration: '18 min',
+    completed: false,
+    route: '/learning-hub/differentiation-tutorial',
   },
 ]
 
@@ -186,10 +188,10 @@ const ProfessionalLearningHub = () => {
   } = useSelector((state: any) => state.learningHub) ?? {}
 
   const { activeSessionsByContentId = {}, inProgressContent = [] } = useSelector((state: any) => state.learningProgress) ?? {}
-  // For now, render the historical frontend dummy UI for these two panels.
-  // We still keep slice fetching intact (micro-courses/progress/etc.) for later integration.
-  const effectiveAiRecommendations = aiRecommendationsDummy
-  const effectiveTutorials = tutorialsDummy
+  // Prefer real backend-generated cards (no dummy dominance).
+  // If backend returns empty, we intentionally show fewer/empty cards rather than dummy data.
+  const effectiveAiRecommendations = Array.isArray(aiRecommendations) ? aiRecommendations : []
+  const effectiveTutorials = Array.isArray(tutorials) ? tutorials : []
 
   useEffect(() => {
     dispatch(fetchLearningHubHome())
@@ -381,28 +383,36 @@ const ProfessionalLearningHub = () => {
   }
 
   const handleStartPath = (rec: any) => {
-    const allCards = [...(microCourses || []), ...(tutorials || [])]
-    const fallbackCard = allCards[0] || null
-    const mappedCard = rec?.contentId
-      ? allCards.find((item: any) => item?.contentId === rec.contentId) || null
-      : null
-    const targetSource = mappedCard || rec || fallbackCard || {}
-    const target = resolveHubCardRoute(targetSource)
-
-    // Sidebar may show dummy recommendation cards (no contentId).
-    // Map them to the real slice card so the destination pages load correctly.
-    let contentId = mappedCard?.contentId || rec?.contentId
-    let contentType = mappedCard?.contentType || rec?.contentType || 'micro_course'
-    if (!contentId) {
-      const candidates = allCards.filter((c: any) => resolveHubCardRoute(c) === target)
-      const candidate =
-        candidates.find((c: any) => typeof c?.contentId === 'string' && c.contentId.startsWith('factory-')) ||
-        candidates[0] ||
-        allCards.find((c: any) => c?.route === rec?.route) ||
-        null
-      contentId = candidate?.contentId
-      contentType = candidate?.contentType || contentType
+    const isPathType = (ct: any) => {
+      const n = String(ct || '').toLowerCase().trim()
+      return n === 'learning_path' || n === 'path_module'
     }
+    if (isPathType(rec?.contentType) || isPathType(rec?.content_type)) {
+      const target = resolveHubCardRoute(rec)
+      const cid = rec?.contentId || rec?.content_id
+      const ctype = rec?.contentType || rec?.content_type || 'learning_path'
+      if (cid) persistHubRouteState(target, cid, ctype)
+      navigate(target || '/learning-hub', {
+        state: {
+          contentId: cid || undefined,
+          contentType: ctype,
+        },
+      })
+      return
+    }
+
+    // Deterministic routing fallback for legacy skill labels.
+    // Prefer real backend routing/contentId when present.
+    const explicitPathRoutes: Record<string, string> = {
+      'Student engagement techniques': '/learning-hub/student-engagement-path',
+      'Advanced differentiation strategies': '/learning-hub/advanced-differentiation-path',
+      'AI-assisted assessment design': '/learning-hub/ai-assessment-path',
+    }
+
+    const target = resolveHubCardRoute(rec)
+    let contentId = rec?.contentId || rec?.content_id
+    let contentType = rec?.contentType || rec?.content_type || 'learning_path'
+    const title = rec?.skill || rec?.title || ''
     if (contentId) {
       const existing = (activeSessionsByContentId as any)[contentId]
       if (!existing) {
@@ -434,12 +444,30 @@ const ProfessionalLearningHub = () => {
       )
     }
 
-    const targetRoute = target || '/learning-hub'
+    const explicit = explicitPathRoutes[rec?.skill]
+    const skillText = String(rec?.skill || '').toLowerCase()
+    const keywordRoute =
+      skillText.includes('differentiat')
+        ? '/learning-hub/advanced-differentiation-path'
+        : skillText.includes('assess') || skillText.includes('rubric')
+        ? '/learning-hub/ai-assessment-path'
+        : skillText.includes('engage') || skillText.includes('motivat') || skillText.includes('behavior')
+        ? '/learning-hub/student-engagement-path'
+        : null
+    const backendRoute = rec?.route && rec?.route !== '/learning-hub' ? rec.route : null
+    const targetRoute =
+      explicit ||
+      keywordRoute ||
+      (target && target !== '/learning-hub' && GROWTH_PATH_ROUTES.has(target) ? target : null) ||
+      backendRoute ||
+      '/learning-hub/student-engagement-path'
     if (contentId) persistHubRouteState(targetRoute, contentId, contentType)
     navigate(targetRoute, {
       state: {
         contentId: contentId || undefined,
         contentType,
+        title,
+        sourceSection: 'ai_growth_recommendations',
       },
     })
   }
@@ -626,6 +654,11 @@ const ProfessionalLearningHub = () => {
                 microCourses.map((course) => (
                   <div
                     key={course.contentId || course.title}
+                    data-section="micro-course"
+                    data-content-id={course.contentId || ''}
+                    data-content-type={course.contentType || ''}
+                    data-route={course.route || ''}
+                    data-title={course.title || ''}
                     className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -651,6 +684,11 @@ const ProfessionalLearningHub = () => {
                         )}
                       </div>
                       <button
+                        data-action="start-course"
+                        data-content-id={course.contentId || ''}
+                        data-content-type={course.contentType || ''}
+                        data-route={course.route || ''}
+                        data-title={course.title || ''}
                         onClick={() => handleCourseStart(course)}
                         className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
                       >
@@ -679,6 +717,11 @@ const ProfessionalLearningHub = () => {
               {effectiveTutorials.map((tutorial) => (
                 <div
                   key={tutorial.contentId || tutorial.title}
+                  data-section="tutorial"
+                  data-content-id={tutorial.contentId || ''}
+                  data-content-type={tutorial.contentType || ''}
+                  data-route={tutorial.route || ''}
+                  data-title={tutorial.title || ''}
                   className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
                 >
                   <div className="flex items-start gap-3">
@@ -695,6 +738,11 @@ const ProfessionalLearningHub = () => {
                     <CheckCircle2 className="h-5 w-5 text-green-500" />
                   ) : (
                     <button
+                      data-action="watch-tutorial"
+                      data-content-id={tutorial.contentId || ''}
+                      data-content-type={tutorial.contentType || ''}
+                      data-route={tutorial.route || ''}
+                      data-title={tutorial.title || ''}
                       onClick={() => handleTutorialWatch(tutorial)}
                       className="rounded-full bg-blue-50 px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-100 transition"
                     >
@@ -721,7 +769,15 @@ const ProfessionalLearningHub = () => {
 
             <div className="mt-4 space-y-4">
               {effectiveAiRecommendations.map((rec, idx) => (
-                <div key={idx} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
+                <div
+                  key={idx}
+                  data-section="growth"
+                  data-content-id={rec.contentId || rec.content_id || ''}
+                  data-content-type={rec.contentType || rec.content_type || ''}
+                  data-route={rec.route || ''}
+                  data-title={rec.skill || rec.title || ''}
+                  className="rounded-2xl border border-gray-100 bg-gray-50 p-4"
+                >
                   <div className="flex items-center justify-between">
                     <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Skill {idx + 1}</p>
                     <span
@@ -737,6 +793,11 @@ const ProfessionalLearningHub = () => {
                   <div className="mt-3 flex items-center justify-between">
                     <span className="text-xs text-gray-500">{rec.estimatedTime}</span>
                     <button
+                      data-action="start-path"
+                      data-content-id={rec.contentId || rec.content_id || ''}
+                      data-content-type={rec.contentType || rec.content_type || ''}
+                      data-route={rec.route || ''}
+                      data-title={rec.skill || rec.title || ''}
                       onClick={() => handleStartPath(rec)}
                       className="text-xs font-semibold text-amber-600 hover:text-amber-500 transition"
                     >
