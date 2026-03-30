@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   ArrowLeft,
   BookOpen,
@@ -38,7 +40,9 @@ interface ReleaseStage {
   examples: string[]
 }
 
-const ScaffoldingResearch = () => {
+const SCAFFOLDING_SLUG = 'scaffolding-research'
+
+function ScaffoldingResearchInner() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<'overview' | 'zpd' | 'techniques' | 'release' | 'implementation'>('overview')
 
@@ -568,7 +572,18 @@ const ScaffoldingResearch = () => {
   )
 }
 
-export default ScaffoldingResearch
+export function ScaffoldingResearchView({ item }: { item: LearningHubSectionItem }) {
+  if (!item.researchInsightContent) return null
+  return <ScaffoldingResearchInner />
+}
+
+export default function ScaffoldingResearch() {
+  const row = getSectionItemBySlug('research-insights-library', SCAFFOLDING_SLUG)
+  if (!row?.researchInsightContent) {
+    return <Navigate to="/learning-hub" replace />
+  }
+  return <ScaffoldingResearchView item={row} />
+}
 
 
 

@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   ArrowLeft,
   BookOpen,
@@ -39,7 +41,9 @@ interface SELCompetency {
   researchEvidence: string
 }
 
-const SELBehaviorResearch = () => {
+const SEL_SLUG = 'sel-behavior-research'
+
+function SELBehaviorResearchInner() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<'overview' | 'restorative' | 'sel' | 'implementation' | 'tools'>('overview')
 
@@ -665,5 +669,16 @@ const SELBehaviorResearch = () => {
   )
 }
 
-export default SELBehaviorResearch
+export function SELBehaviorResearchView({ item }: { item: LearningHubSectionItem }) {
+  if (!item.researchInsightContent) return null
+  return <SELBehaviorResearchInner />
+}
+
+export default function SELBehaviorResearch() {
+  const row = getSectionItemBySlug('research-insights-library', SEL_SLUG)
+  if (!row?.researchInsightContent) {
+    return <Navigate to="/learning-hub" replace />
+  }
+  return <SELBehaviorResearchView item={row} />
+}
 

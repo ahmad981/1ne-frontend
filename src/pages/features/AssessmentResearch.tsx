@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   ArrowLeft,
   BookOpen,
@@ -38,7 +40,9 @@ interface FormativeAssessmentStrategy {
   examples: string[]
 }
 
-const AssessmentResearch = () => {
+const ASSESSMENT_SLUG = 'assessment-research'
+
+function AssessmentResearchInner() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<'overview' | 'research' | 'feedback' | 'strategies' | 'implementation'>('overview')
 
@@ -636,7 +640,18 @@ const AssessmentResearch = () => {
   )
 }
 
-export default AssessmentResearch
+export function AssessmentResearchView({ item }: { item: LearningHubSectionItem }) {
+  if (!item.researchInsightContent) return null
+  return <AssessmentResearchInner />
+}
+
+export default function AssessmentResearch() {
+  const row = getSectionItemBySlug('research-insights-library', ASSESSMENT_SLUG)
+  if (!row?.researchInsightContent) {
+    return <Navigate to="/learning-hub" replace />
+  }
+  return <AssessmentResearchView item={row} />
+}
 
 
 

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   Play,
   Pause,
@@ -31,304 +33,16 @@ import {
   Sparkles,
   Layers,
 } from 'lucide-react'
+import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
 
-interface TutorialStep {
-  id: number
-  title: string
-  duration: string
-  content: {
-    type: 'video' | 'text' | 'interactive' | 'example'
-    data: any
-  }
-  keyTakeaways: string[]
-  reflection: string
-}
-
-const LessonPlannerTutorial = () => {
+export function LessonPlannerTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [showTranscript, setShowTranscript] = useState(false)
 
-  const tutorialSteps: TutorialStep[] = [
-    {
-      id: 1,
-      title: 'Introduction: Getting Started with the Lesson Planner',
-      duration: '2 min',
-      content: {
-        type: 'video',
-        data: {
-          description: 'Learn how the AI-powered lesson planner can save you time while creating high-quality, standards-aligned lesson plans.',
-          keyPoints: [
-            'The lesson planner uses AI to generate comprehensive lesson plans',
-            'You provide key information and the AI creates structured, detailed plans',
-            'All plans are aligned to curriculum standards and frameworks',
-            'You can customize and refine the generated plans',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'The planner is a tool to enhance your teaching, not replace your expertise',
-        'The more specific your inputs, the better the output',
-        'Always review and personalize AI-generated content',
-      ],
-      reflection: 'What aspects of lesson planning take you the most time? How could AI help streamline your process?',
-    },
-    {
-      id: 2,
-      title: 'Step 1: Basic Information',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Start with the fundamentals: grade, subject, topic, and duration',
-          examples: [
-            {
-              scenario: 'Planning a Science Lesson',
-              grade: 'Grade 5',
-              subject: 'Science',
-              topic: 'Water Cycle',
-              duration: '45 minutes',
-              tip: 'Be specific with topics. "Water Cycle" is better than "Science"',
-            },
-            {
-              scenario: 'Planning a Math Lesson',
-              grade: 'Grade 3',
-              subject: 'Mathematics',
-              topic: 'Multiplication Tables (2s and 5s)',
-              duration: '30 minutes',
-              tip: 'Include specific learning focus in the topic field',
-            },
-          ],
-          implementation: [
-            'Select or enter the grade level',
-            'Choose the subject from the dropdown',
-            'Enter a specific topic (not just the subject name)',
-            'Set the lesson duration',
-            'Choose your curriculum profile (e.g., US Common Core, UK National Curriculum)',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Specific topics generate better lesson plans',
-        'Duration affects the depth and number of activities',
-        'Curriculum profile ensures standards alignment',
-      ],
-      reflection: 'Think of an upcoming lesson. What specific topic will you enter?',
-    },
-    {
-      id: 3,
-      title: 'Step 2: Learning Objectives',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Define clear, measurable learning objectives',
-          examples: [
-            {
-              scenario: 'Good Learning Objectives',
-              objectives: [
-                'Students will explain the stages of the water cycle',
-                'Students will identify the role of evaporation and condensation',
-                'Students will create a diagram showing the water cycle process',
-              ],
-            },
-            {
-              scenario: 'Weak Learning Objectives',
-              objectives: [
-                'Students will learn about the water cycle',
-                'Students will understand science',
-                'Students will do activities',
-              ],
-            },
-          ],
-          implementation: [
-            'Start with action verbs (explain, identify, create, analyze)',
-            'Make objectives specific and measurable',
-            'Align objectives with curriculum standards',
-            'Include 2-4 objectives per lesson',
-            'Use Bloom\'s Taxonomy levels appropriately',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Use action verbs from Bloom\'s Taxonomy',
-        'Objectives should be observable and measurable',
-        'Fewer, clearer objectives are better than many vague ones',
-      ],
-      reflection: 'Write 2-3 learning objectives for your next lesson. Are they specific and measurable?',
-    },
-    {
-      id: 4,
-      title: 'Step 3: Prior Knowledge & Teaching Methods',
-      duration: '2 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Prior Knowledge: Describe what students already know or should know',
-            'This helps the AI create appropriate scaffolding and connections',
-            'Be specific: "Students know basic addition facts" is better than "Students know math"',
-            'Teaching Methods: Choose the approach that fits your lesson',
-            'Options include: inquiry-based, direct instruction, project-based, collaborative, etc.',
-          ],
-          tools: [
-            'Prior Knowledge Examples:',
-            '- "Students can identify nouns and verbs"',
-            '- "Students understand that plants need water and sunlight"',
-            '- "Students have practiced addition with regrouping"',
-            '',
-            'Teaching Method Selection:',
-            '- Inquiry-based: For exploration and discovery',
-            '- Direct instruction: For introducing new concepts',
-            '- Project-based: For extended, real-world applications',
-            '- Collaborative: For group work and peer learning',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Prior knowledge helps AI create appropriate content',
-        'Teaching method selection influences activity types',
-        'Be honest about what students know',
-      ],
-      reflection: 'What prior knowledge do your students have for your next lesson?',
-    },
-    {
-      id: 5,
-      title: 'Step 4: Materials & Student Grouping',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Specify available materials and preferred grouping strategies',
-          examples: [
-            {
-              scenario: 'Materials Available',
-              materials: ['Whiteboard', 'Chart paper', 'Markers', 'Internet access', 'Tablets'],
-              tip: 'List what you actually have access to',
-            },
-            {
-              scenario: 'Student Grouping Options',
-              options: [
-                'Whole class',
-                'Pairs',
-                'Groups of 3-4',
-                'Individual work',
-                'Flexible grouping',
-              ],
-            },
-          ],
-          implementation: [
-            'List all materials you have available',
-            'Be realistic about technology access',
-            'Choose grouping that supports your learning objectives',
-            'Consider your classroom space and management',
-            'You can mix grouping strategies within one lesson',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Realistic material lists prevent impractical suggestions',
-        'Grouping affects activity design',
-        'Consider your classroom context',
-      ],
-      reflection: 'What materials do you typically have available? How do you usually group students?',
-    },
-    {
-      id: 6,
-      title: 'Step 5: Differentiation Options',
-      duration: '2 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Enable differentiation if you have diverse learners',
-            'The AI will suggest strategies for emerging and advanced learners',
-            'Differentiation can include: content, process, product, or environment',
-            'Even if you don\'t enable it, you can add differentiation later',
-          ],
-          tools: [
-            'When to Enable Differentiation:',
-            '- Mixed ability levels in your class',
-            '- Students with IEPs or 504 plans',
-            '- English language learners',
-            '- Students who need enrichment',
-            '',
-            'What Gets Generated:',
-            '- Support strategies for struggling learners',
-            '- Extension activities for advanced learners',
-            '- Multiple entry points for activities',
-            '- Varied assessment options',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Differentiation makes lessons accessible to all learners',
-        'You can always add more differentiation manually',
-        'Consider your specific student needs',
-      ],
-      reflection: 'Do you have students who would benefit from differentiated instruction?',
-    },
-    {
-      id: 7,
-      title: 'Step 6: Generating & Reviewing Your Lesson Plan',
-      duration: '2 min',
-      content: {
-        type: 'example',
-        data: {
-          classroom: {
-            grade: 5,
-            subject: 'Science',
-            students: 24,
-            diversity: 'Mixed abilities, 2 ELL students',
-          },
-          challenge: 'Creating a comprehensive lesson plan that meets all students\' needs',
-          approach: 'Using AI to generate a draft, then personalizing it',
-        },
-      },
-      keyTakeaways: [
-        'Review the generated plan carefully',
-        'Check alignment with your objectives',
-        'Personalize activities for your students',
-        'Adjust timing if needed',
-      ],
-      reflection: 'What will you look for when reviewing an AI-generated lesson plan?',
-    },
-    {
-      id: 8,
-      title: 'Best Practices & Pro Tips',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Maximize the effectiveness of your AI-generated lesson plans',
-          steps: [
-            'Always review and edit the generated plan',
-            'Add personal touches and connections to your students',
-            'Verify that activities match your available time',
-            'Check that assessments align with learning objectives',
-            'Customize differentiation for your specific students',
-            'Save successful plans as templates for future use',
-            'Iterate and refine based on what works',
-          ],
-          resources: [
-            'Lesson plan template library',
-            'Standards alignment guide',
-            'Differentiation strategy bank',
-            'Assessment rubric examples',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'AI is a starting point, not the final product',
-        'Your expertise makes the plan effective',
-        'Save and reuse successful elements',
-        'Continuous improvement is key',
-      ],
-      reflection: 'What is your action plan for using the lesson planner effectively?',
-    },
-  ]
+  const c = item.aiGuidedTutorialContent!
+  const tutorialSteps = c.steps
 
   const currentStepData = tutorialSteps[currentStep]
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
@@ -368,14 +82,14 @@ const LessonPlannerTutorial = () => {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold uppercase tracking-wide">
-                    Step-by-step walkthrough
+                    {c.heroSubtitle}
                   </span>
                   <span className="text-white/80">•</span>
-                  <span className="text-white/80 text-sm">12 min</span>
+                  <span className="text-white/80 text-sm">{c.headerDurationLabel ?? item.duration}</span>
                 </div>
-                <h1 className="text-3xl font-bold">Mastering the Lesson Planner Template</h1>
+                <h1 className="text-3xl font-bold">{item.title}</h1>
                 <p className="mt-2 text-amber-100">
-                  Learn how to use the AI-powered lesson planner to create comprehensive, standards-aligned lesson plans efficiently
+                  {c.heroDescription}
                 </p>
               </div>
             </div>
@@ -465,29 +179,63 @@ const LessonPlannerTutorial = () => {
             {/* Content Based on Type */}
             {currentStepData.content.type === 'video' && (
               <div className="space-y-6">
-                <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-10 w-10" />
-                      ) : (
-                        <Play className="h-10 w-10 ml-1" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-white w-1/3 rounded-full" />
+                {(() => {
+                  const vd = currentStepData.content.data as {
+                    media?: LearningHubMediaVideo
+                  }
+                  const media = vd.media
+                  const ytEmbed =
+                    media?.provider === 'youtube' && media.url ? youtubeWatchUrlToEmbedUrl(media.url) : null
+                  if (ytEmbed) {
+                    return (
+                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+                        <iframe
+                          className="absolute inset-0 h-full w-full"
+                          src={`${ytEmbed}?rel=0`}
+                          title={media?.title ?? currentStepData.title}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      </div>
+                    )
+                  }
+                  if (media?.provider === 'mp4' && media.url) {
+                    return (
+                      <video
+                        className="aspect-video w-full rounded-xl bg-black"
+                        controls={media.controls !== false}
+                        src={media.url}
+                        title={media.title}
+                      />
+                    )
+                  }
+                  return (
+                    <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
+                        >
+                          {isPlaying ? (
+                            <Pause className="h-10 w-10" />
+                          ) : (
+                            <Play className="h-10 w-10 ml-1" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div className="h-full bg-white w-1/3 rounded-full" />
+                        </div>
+                        <div className="flex items-center justify-between mt-2 text-white text-xs">
+                          <span>0:00</span>
+                          <span>{currentStepData.duration}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-2 text-white text-xs">
-                      <span>0:00</span>
-                      <span>{currentStepData.duration}</span>
-                    </div>
-                  </div>
-                </div>
+                  )
+                })()}
 
                 {currentStepData.content.data.description && (
                   <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -512,41 +260,87 @@ const LessonPlannerTutorial = () => {
               </div>
             )}
 
-            {currentStepData.content.type === 'example' && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.grade}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.subject}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.students}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.diversity}</p>
-                    </div>
-                  </div>
-                </div>
+            {currentStepData.content.type === 'example' && (() => {
+              const d = currentStepData.content.data as Record<string, unknown>
+              const classroom = d.classroom as
+                | { grade?: unknown; subject?: unknown; students?: unknown; diversity?: unknown }
+                | undefined
+              const exampleList = Array.isArray(d.examples) ? d.examples : null
 
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
-                  <p className="text-gray-700">{currentStepData.content.data.challenge}</p>
-                </div>
+              return (
+                <div className="space-y-6">
+                  {classroom ? (
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.grade ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.subject ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.students ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.diversity ?? '—')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
-                <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
-                  <p className="text-gray-700">{currentStepData.content.data.approach}</p>
+                  {exampleList && exampleList.length > 0 ? (
+                    <div className="space-y-4">
+                      {exampleList.map((ex: Record<string, unknown>, idx: number) => (
+                        <div key={idx} className="bg-white rounded-lg p-6 border border-amber-200 shadow-sm">
+                          {ex.scenario ? (
+                            <h4 className="text-base font-semibold text-gray-900 mb-3">{String(ex.scenario)}</h4>
+                          ) : null}
+                          <div className="space-y-2 text-sm text-gray-700">
+                            {ex.task ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Task: </span>
+                                {String(ex.task)}
+                              </p>
+                            ) : null}
+                            {ex.output ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Output: </span>
+                                {String(ex.output)}
+                              </p>
+                            ) : null}
+                            {ex.result ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Result: </span>
+                                {String(ex.result)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {d.challenge ? (
+                    <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
+                      <p className="text-gray-700">{String(d.challenge)}</p>
+                    </div>
+                  ) : null}
+
+                  {d.approach ? (
+                    <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
+                      <p className="text-gray-700">{String(d.approach)}</p>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {currentStepData.content.type === 'interactive' && (
               <div className="space-y-6">
@@ -619,6 +413,62 @@ const LessonPlannerTutorial = () => {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {currentStepData.content.data.examples &&
+                    Array.isArray(currentStepData.content.data.examples) &&
+                    currentStepData.content.data.examples.length > 0 &&
+                    typeof currentStepData.content.data.examples[0] === 'object' &&
+                    (currentStepData.content.data.examples[0] as { weak?: string }).weak != null &&
+                    (currentStepData.content.data.examples[0] as { strong?: string }).strong != null && (
+                    <div className="space-y-4 mb-6">
+                      {(currentStepData.content.data.examples as Array<{ weak: string; strong: string }>).map(
+                        (pair, idx: number) => (
+                          <div key={idx} className="grid gap-3 md:grid-cols-2 rounded-lg border border-amber-200 bg-white p-4">
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Weak</p>
+                              <p className="text-sm text-gray-800">{pair.weak}</p>
+                            </div>
+                            <div className="rounded-lg bg-amber-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-1">Strong</p>
+                              <p className="text-sm font-medium text-amber-900">{pair.strong}</p>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {currentStepData.content.data.examples &&
+                    Array.isArray(currentStepData.content.data.examples) &&
+                    currentStepData.content.data.examples.length > 0 &&
+                    typeof currentStepData.content.data.examples[0] === 'object' &&
+                    Array.isArray((currentStepData.content.data.examples[0] as { roles?: string[] }).roles) && (
+                    <div className="space-y-4 mb-6">
+                      {(currentStepData.content.data.examples as Array<{ roles: string[]; benefit?: string }>).map(
+                        (ex, idx: number) => (
+                          <div key={idx} className="rounded-lg border border-amber-200 bg-white p-5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Roles</p>
+                            <ul className="mb-3 flex flex-wrap gap-2">
+                              {ex.roles.map((role: string, rIdx: number) => (
+                                <li
+                                  key={rIdx}
+                                  className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-900"
+                                >
+                                  {role}
+                                </li>
+                              ))}
+                            </ul>
+                            {ex.benefit ? (
+                              <p className="text-sm text-gray-800">
+                                <span className="font-semibold text-gray-900">Why it works: </span>
+                                {ex.benefit}
+                              </p>
+                            ) : null}
+                          </div>
+                        )
+                      )}
                     </div>
                   )}
 
@@ -754,7 +604,9 @@ const LessonPlannerTutorial = () => {
   )
 }
 
-export default LessonPlannerTutorial
-
-
+export default function LessonPlannerTutorial() {
+  const item = getSectionItemBySlug('ai-guided-tutorials-demonstrations', 'mastering-lesson-planner-template')
+  if (!item?.aiGuidedTutorialContent) return null
+  return <LessonPlannerTutorialView item={item} />
+}
 

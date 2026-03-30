@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   Play,
   Pause,
@@ -31,18 +33,7 @@ import {
   Settings,
   AlertTriangle,
 } from 'lucide-react'
-
-interface TutorialStep {
-  id: number
-  title: string
-  duration: string
-  content: {
-    type: 'video' | 'text' | 'interactive' | 'example'
-    data: any
-  }
-  keyTakeaways: string[]
-  reflection: string
-}
+import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
 
 interface ClassroomExample {
   scenario: string
@@ -53,296 +44,16 @@ interface ClassroomExample {
   studentFeedback: string[]
 }
 
-const DifferentiationTutorial = () => {
+export function DifferentiationTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [showTranscript, setShowTranscript] = useState(false)
 
-  const tutorialSteps: TutorialStep[] = [
-    {
-      id: 1,
-      title: 'Introduction: Understanding Differentiation',
-      duration: '3 min',
-      content: {
-        type: 'video',
-        data: {
-          description: 'Learn the fundamentals of differentiation and why it matters in today\'s diverse classrooms.',
-          keyPoints: [
-            'Differentiation is not about creating different lessons for each student',
-            'It\'s about providing multiple pathways to learning',
-            'Focus on content, process, product, and learning environment',
-            'All students work toward the same learning goals',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Differentiation is a mindset, not a set of activities',
-        'It requires knowing your students deeply',
-        'Flexibility and responsiveness are key',
-      ],
-      reflection: 'Think about a time when you adjusted your teaching for a student. What did you change and why?',
-    },
-    {
-      id: 2,
-      title: 'Case Study: Ms. Rodriguez\'s 5th Grade Class',
-      duration: '5 min',
-      content: {
-        type: 'example',
-        data: {
-          classroom: {
-            grade: 5,
-            subject: 'Mathematics - Fractions',
-            students: 24,
-            diversity: 'Mixed ability levels, 3 ELL students, 2 students with IEPs',
-          },
-          challenge: 'Teaching equivalent fractions to a class with varying levels of understanding',
-          approach: 'Tiered activities with multiple entry points',
-        },
-      },
-      keyTakeaways: [
-        'Start with pre-assessment to understand student readiness',
-        'Design activities at 3-4 different complexity levels',
-        'All students work on the same concept but at appropriate levels',
-      ],
-      reflection: 'How would you assess student readiness before planning differentiated activities?',
-    },
-    {
-      id: 3,
-      title: 'Strategy 1: Content Differentiation',
-      duration: '4 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Varying what students learn based on readiness, interest, or learning profile',
-          examples: [
-            {
-              scenario: 'Teaching the American Revolution',
-              tier1: 'Students read simplified text with key vocabulary highlighted',
-              tier2: 'Students read grade-level text with guided questions',
-              tier3: 'Students read primary source documents and analyze multiple perspectives',
-            },
-          ],
-          implementation: [
-            'Use pre-assessment to determine student readiness',
-            'Create materials at different complexity levels',
-            'Ensure all materials address the same learning objectives',
-            'Provide choice when possible',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Content differentiation doesn\'t mean different topics',
-        'Use varied texts, resources, and materials',
-        'Maintain high expectations for all students',
-      ],
-      reflection: 'What resources do you currently use that could be adapted for different readiness levels?',
-    },
-    {
-      id: 4,
-      title: 'Strategy 2: Process Differentiation',
-      duration: '4 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Varying how students make sense of the content',
-          examples: [
-            {
-              scenario: 'Learning about the water cycle',
-              visual: 'Students create diagrams and flowcharts',
-              kinesthetic: 'Students act out the water cycle process',
-              auditory: 'Students listen to and discuss a podcast',
-              reading: 'Students read and annotate scientific articles',
-            },
-          ],
-          implementation: [
-            'Identify multiple ways to explore the same concept',
-            'Provide learning centers or stations',
-            'Offer choice in how students process information',
-            'Use flexible grouping strategies',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Different learning styles require different processes',
-        'Flexible grouping allows for peer learning',
-        'Process differentiation increases engagement',
-      ],
-      reflection: 'Which learning styles are most common in your classroom? How can you address them?',
-    },
-    {
-      id: 5,
-      title: 'Strategy 3: Product Differentiation',
-      duration: '3 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Varying how students demonstrate their learning',
-          examples: [
-            'Written essay or report',
-            'Multimedia presentation',
-            'Artistic representation',
-            'Oral presentation or debate',
-            'Performance or demonstration',
-            'Portfolio of work',
-          ],
-          rubrics: 'Use the same rubric criteria but allow different formats',
-        },
-      },
-      keyTakeaways: [
-        'Product differentiation honors different strengths',
-        'Students can demonstrate understanding in authentic ways',
-        'Clear rubrics ensure fairness across different products',
-      ],
-      reflection: 'What product options could you offer for your next unit?',
-    },
-    {
-      id: 6,
-      title: 'Real Classroom Implementation',
-      duration: '5 min',
-      content: {
-        type: 'example',
-        data: {
-          examples: [
-            {
-              scenario: 'Teaching persuasive writing',
-              challenge: 'Students have varying writing abilities and interests',
-              differentiationStrategy: 'Tiered writing prompts with choice',
-              implementation: [
-                'Tier 1: Write a letter to the principal about a school issue',
-                'Tier 2: Write an opinion article for the school newspaper',
-                'Tier 3: Write a persuasive speech on a current event',
-              ],
-              results: '95% of students met or exceeded learning objectives',
-              studentFeedback: [
-                'I liked choosing my own topic',
-                'The prompts helped me know what to write',
-                'I felt challenged but not overwhelmed',
-              ],
-            },
-            {
-              scenario: 'Science experiment on plant growth',
-              challenge: 'Mixed ability levels and language barriers',
-              differentiationStrategy: 'Multiple entry points and language supports',
-              implementation: [
-                'Visual instructions with pictures for all students',
-                'Simplified data collection sheets for emerging learners',
-                'Extended analysis questions for advanced learners',
-                'Bilingual vocabulary cards available',
-              ],
-              results: 'All students successfully completed the experiment',
-              studentFeedback: [
-                'The pictures helped me understand',
-                'I could work at my own pace',
-                'I learned new vocabulary',
-              ],
-            },
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Differentiation works best when planned intentionally',
-        'Student choice increases motivation',
-        'Multiple entry points ensure all students can participate',
-      ],
-      reflection: 'Which of these strategies could you implement in your classroom this week?',
-    },
-    {
-      id: 7,
-      title: 'Assessment and Monitoring',
-      duration: '3 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Use ongoing formative assessment to adjust instruction',
-            'Track individual student progress toward learning goals',
-            'Use exit tickets to check understanding',
-            'Confer with students regularly',
-            'Adjust groups and activities based on data',
-          ],
-          tools: [
-            'Pre-assessments before new units',
-            'Quick checks during lessons',
-            'Student self-assessments',
-            'Portfolio reviews',
-            'Observation notes',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Assessment drives differentiation decisions',
-        'Regular check-ins help adjust instruction',
-        'Students should be involved in monitoring their progress',
-      ],
-      reflection: 'How do you currently assess student understanding? How could you make it more frequent?',
-    },
-    {
-      id: 8,
-      title: 'Common Challenges and Solutions',
-      duration: '4 min',
-      content: {
-        type: 'text',
-        data: {
-          challenges: [
-            {
-              challenge: 'Time management',
-              solution: 'Start small with one subject or one strategy. Use station rotations to manage multiple activities.',
-            },
-            {
-              challenge: 'Planning complexity',
-              solution: 'Use templates and frameworks. Plan with colleagues. Reuse and adapt successful activities.',
-            },
-            {
-              challenge: 'Student resistance',
-              solution: 'Explain the "why" behind differentiation. Start with choice to build buy-in.',
-            },
-            {
-              challenge: 'Grading fairness',
-              solution: 'Use clear rubrics with the same criteria. Focus on growth and progress.',
-            },
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Start small and build gradually',
-        'Collaborate with colleagues',
-        'Be transparent with students about differentiation',
-      ],
-      reflection: 'What challenges do you anticipate? How will you address them?',
-    },
-    {
-      id: 9,
-      title: 'Action Plan: Your Next Steps',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          steps: [
-            'Identify one unit or lesson to differentiate',
-            'Choose one differentiation strategy to try',
-            'Plan activities for 2-3 readiness levels',
-            'Prepare materials and resources',
-            'Implement and observe',
-            'Reflect and adjust',
-          ],
-          resources: [
-            'Differentiation planning template',
-            'Pre-assessment examples',
-            'Tiered activity examples',
-            'Rubric templates',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Start with one strategy in one subject',
-        'Reflection is key to improvement',
-        'Build your differentiation toolkit gradually',
-      ],
-      reflection: 'What is your first step toward implementing differentiation in your classroom?',
-    },
-  ]
+  const c = item.aiGuidedTutorialContent!
+  const tutorialSteps = c.steps
+
 
   const currentStepData = tutorialSteps[currentStep]
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
@@ -382,14 +93,14 @@ const DifferentiationTutorial = () => {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold uppercase tracking-wide">
-                    Case Study
+                    {c.heroSubtitle}
                   </span>
                   <span className="text-white/80">•</span>
                   <span className="text-white/80 text-sm">{currentStepData.duration}</span>
                 </div>
-                <h1 className="text-3xl font-bold">Real Classroom: Differentiation in Action</h1>
+                <h1 className="text-3xl font-bold">{item.title}</h1>
                 <p className="mt-2 text-blue-100">
-                  Step-by-step walkthrough showing how to implement differentiation strategies effectively
+                  {c.heroDescription}
                 </p>
               </div>
             </div>
@@ -494,37 +205,71 @@ const DifferentiationTutorial = () => {
             {/* Content Based on Type */}
             {currentStepData.content.type === 'video' && (
               <div className="space-y-6">
-                <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-10 w-10" />
-                      ) : (
-                        <Play className="h-10 w-10 ml-1" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-white w-1/3 rounded-full" />
+                {(() => {
+                  const vd = currentStepData.content.data as {
+                    media?: LearningHubMediaVideo
+                  }
+                  const media = vd.media
+                  const ytEmbed =
+                    media?.provider === 'youtube' && media.url ? youtubeWatchUrlToEmbedUrl(media.url) : null
+                  if (ytEmbed) {
+                    return (
+                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+                        <iframe
+                          className="absolute inset-0 h-full w-full"
+                          src={`${ytEmbed}?rel=0`}
+                          title={media?.title ?? currentStepData.title}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      </div>
+                    )
+                  }
+                  if (media?.provider === 'mp4' && media.url) {
+                    return (
+                      <video
+                        className="aspect-video w-full rounded-xl bg-black"
+                        controls={media.controls !== false}
+                        src={media.url}
+                        title={media.title}
+                      />
+                    )
+                  }
+                  return (
+                    <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
+                        >
+                          {isPlaying ? (
+                            <Pause className="h-10 w-10" />
+                          ) : (
+                            <Play className="h-10 w-10 ml-1" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div className="h-full bg-white w-1/3 rounded-full" />
+                        </div>
+                        <div className="flex items-center justify-between mt-2 text-white text-xs">
+                          <span>0:00</span>
+                          <span>{currentStepData.duration}</span>
+                        </div>
+                      </div>
+                      <div className="absolute top-4 right-4 flex gap-2">
+                        <button type="button" className="p-2 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30">
+                          <Maximize2 className="h-4 w-4" />
+                        </button>
+                        <button type="button" className="p-2 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30">
+                          <Settings className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-2 text-white text-xs">
-                      <span>0:00</span>
-                      <span>{currentStepData.duration}</span>
-                    </div>
-                  </div>
-                  <div className="absolute top-4 right-4 flex gap-2">
-                    <button className="p-2 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30">
-                      <Maximize2 className="h-4 w-4" />
-                    </button>
-                    <button className="p-2 bg-white/20 backdrop-blur-sm rounded-lg text-white hover:bg-white/30">
-                      <Settings className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
+                  )
+                })()}
 
                 {currentStepData.content.data.description && (
                   <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -549,96 +294,153 @@ const DifferentiationTutorial = () => {
               </div>
             )}
 
-            {currentStepData.content.type === 'example' && (
-              <div className="space-y-6">
-                {currentStepData.content.data.examples ? (
-                  currentStepData.content.data.examples.map((example: ClassroomExample, idx: number) => (
-                    <div key={idx} className="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-6">
-                      <div className="mb-4">
-                        <h3 className="text-lg font-bold text-gray-900 mb-2">{example.scenario}</h3>
-                        <div className="flex flex-wrap gap-2 mb-3">
-                          <span className="px-3 py-1 rounded-full bg-white text-indigo-700 text-xs font-semibold">
-                            {example.challenge}
-                          </span>
-                        </div>
-                      </div>
+            {currentStepData.content.type === 'example' && (() => {
+              const d = currentStepData.content.data as Record<string, unknown>
+              const classroom = d.classroom as
+                | { grade?: unknown; subject?: unknown; students?: unknown; diversity?: unknown }
+                | undefined
+              const exampleList = Array.isArray(d.examples) ? d.examples : null
 
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Differentiation Strategy</h4>
-                        <p className="text-gray-900 font-medium">{example.differentiationStrategy}</p>
-                      </div>
+              const isDifferentiationCaseCard = (ex: Record<string, unknown>) =>
+                ex.differentiationStrategy != null && Array.isArray(ex.implementation)
 
-                      <div className="mb-4">
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Implementation</h4>
-                        <ul className="space-y-2">
-                          {example.implementation.map((item, itemIdx) => (
-                            <li key={itemIdx} className="flex items-start gap-2 text-sm text-gray-700">
-                              <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-semibold">
-                                {itemIdx + 1}
-                              </span>
-                              <span>{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+              return (
+                <div className="space-y-6">
+                  {exampleList && exampleList.length > 0
+                    ? exampleList.map((raw, idx) => {
+                        const example = raw as Record<string, unknown>
+                        if (isDifferentiationCaseCard(example)) {
+                          const ex = example as unknown as ClassroomExample
+                          return (
+                            <div key={idx} className="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-6">
+                              <div className="mb-4">
+                                <h3 className="text-lg font-bold text-gray-900 mb-2">{ex.scenario}</h3>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                  <span className="px-3 py-1 rounded-full bg-white text-indigo-700 text-xs font-semibold">
+                                    {ex.challenge}
+                                  </span>
+                                </div>
+                              </div>
 
-                      <div className="mb-4 bg-white rounded-lg p-4 border border-indigo-200">
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Results</h4>
-                        <p className="text-gray-900">{example.results}</p>
-                      </div>
+                              <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                                  Differentiation Strategy
+                                </h4>
+                                <p className="text-gray-900 font-medium">{ex.differentiationStrategy}</p>
+                              </div>
 
-                      <div>
-                        <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Student Feedback</h4>
-                        <div className="space-y-2">
-                          {example.studentFeedback.map((feedback, feedbackIdx) => (
-                            <div key={feedbackIdx} className="bg-white rounded-lg p-3 border border-indigo-200">
-                              <div className="flex items-start gap-2">
-                                <MessageSquare className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
-                                <p className="text-sm text-gray-700 italic">"{feedback}"</p>
+                              <div className="mb-4">
+                                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                                  Implementation
+                                </h4>
+                                <ul className="space-y-2">
+                                  {ex.implementation.map((item, itemIdx) => (
+                                    <li key={itemIdx} className="flex items-start gap-2 text-sm text-gray-700">
+                                      <span className="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-semibold">
+                                        {itemIdx + 1}
+                                      </span>
+                                      <span>{item}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              <div className="mb-4 bg-white rounded-lg p-4 border border-indigo-200">
+                                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">Results</h4>
+                                <p className="text-gray-900">{ex.results}</p>
+                              </div>
+
+                              <div>
+                                <h4 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                                  Student Feedback
+                                </h4>
+                                <div className="space-y-2">
+                                  {ex.studentFeedback.map((feedback, feedbackIdx) => (
+                                    <div key={feedbackIdx} className="bg-white rounded-lg p-3 border border-indigo-200">
+                                      <div className="flex items-start gap-2">
+                                        <MessageSquare className="h-4 w-4 text-indigo-600 mt-0.5 flex-shrink-0" />
+                                        <p className="text-sm text-gray-700 italic">"{feedback}"</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             </div>
-                          ))}
+                          )
+                        }
+
+                        return (
+                          <div key={idx} className="rounded-xl border-2 border-indigo-200 bg-indigo-50 p-6">
+                            {example.scenario ? (
+                              <h3 className="text-lg font-bold text-gray-900 mb-3">{String(example.scenario)}</h3>
+                            ) : null}
+                            <div className="space-y-2 text-sm text-gray-800">
+                              {example.task ? (
+                                <p>
+                                  <span className="font-semibold">Task: </span>
+                                  {String(example.task)}
+                                </p>
+                              ) : null}
+                              {example.output ? (
+                                <p>
+                                  <span className="font-semibold">Output: </span>
+                                  {String(example.output)}
+                                </p>
+                              ) : null}
+                              {example.result ? (
+                                <p>
+                                  <span className="font-semibold">Result: </span>
+                                  {String(example.result)}
+                                </p>
+                              ) : null}
+                            </div>
+                          </div>
+                        )
+                      })
+                    : null}
+
+                  {!exampleList && classroom ? (
+                    <div className="space-y-4">
+                      <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
+                            <p className="text-sm font-semibold text-gray-900">{String(classroom.grade ?? '—')}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
+                            <p className="text-sm font-semibold text-gray-900">{String(classroom.subject ?? '—')}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
+                            <p className="text-sm font-semibold text-gray-900">{String(classroom.students ?? '—')}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
+                            <p className="text-sm font-semibold text-gray-900">{String(classroom.diversity ?? '—')}</p>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="space-y-4">
-                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
-                          <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.grade}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
-                          <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.subject}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
-                          <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.students}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
-                          <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.diversity}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
-                      <p className="text-gray-700">{currentStepData.content.data.challenge}</p>
-                    </div>
+                      {d.challenge ? (
+                        <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
+                          <p className="text-gray-700">{String(d.challenge)}</p>
+                        </div>
+                      ) : null}
 
-                    <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
-                      <p className="text-gray-700">{currentStepData.content.data.approach}</p>
+                      {d.approach ? (
+                        <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                          <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
+                          <p className="text-gray-700">{String(d.approach)}</p>
+                        </div>
+                      ) : null}
                     </div>
-                  </div>
-                )}
-              </div>
-            )}
+                  ) : null}
+                </div>
+              )
+            })()}
 
             {currentStepData.content.type === 'interactive' && (
               <div className="space-y-6">
@@ -703,6 +505,62 @@ const DifferentiationTutorial = () => {
                           </div>
                         </div>
                       ))}
+                    </div>
+                  )}
+
+                  {currentStepData.content.data.examples &&
+                    Array.isArray(currentStepData.content.data.examples) &&
+                    currentStepData.content.data.examples.length > 0 &&
+                    typeof currentStepData.content.data.examples[0] === 'object' &&
+                    (currentStepData.content.data.examples[0] as { weak?: string }).weak != null &&
+                    (currentStepData.content.data.examples[0] as { strong?: string }).strong != null && (
+                    <div className="space-y-4 mb-6">
+                      {(currentStepData.content.data.examples as Array<{ weak: string; strong: string }>).map(
+                        (pair, idx: number) => (
+                          <div key={idx} className="grid gap-3 md:grid-cols-2 rounded-lg border border-purple-200 bg-white p-4">
+                            <div className="rounded-lg bg-gray-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-1">Weak</p>
+                              <p className="text-sm text-gray-800">{pair.weak}</p>
+                            </div>
+                            <div className="rounded-lg bg-purple-50 p-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-purple-800 mb-1">Strong</p>
+                              <p className="text-sm font-medium text-purple-900">{pair.strong}</p>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+
+                  {currentStepData.content.data.examples &&
+                    Array.isArray(currentStepData.content.data.examples) &&
+                    currentStepData.content.data.examples.length > 0 &&
+                    typeof currentStepData.content.data.examples[0] === 'object' &&
+                    Array.isArray((currentStepData.content.data.examples[0] as { roles?: string[] }).roles) && (
+                    <div className="space-y-4 mb-6">
+                      {(currentStepData.content.data.examples as Array<{ roles: string[]; benefit?: string }>).map(
+                        (ex, idx: number) => (
+                          <div key={idx} className="rounded-lg border border-purple-200 bg-white p-5">
+                            <p className="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Roles</p>
+                            <ul className="mb-3 flex flex-wrap gap-2">
+                              {ex.roles.map((role: string, rIdx: number) => (
+                                <li
+                                  key={rIdx}
+                                  className="rounded-full bg-purple-100 px-3 py-1 text-xs font-medium text-purple-900"
+                                >
+                                  {role}
+                                </li>
+                              ))}
+                            </ul>
+                            {ex.benefit ? (
+                              <p className="text-sm text-gray-800">
+                                <span className="font-semibold text-gray-900">Why it works: </span>
+                                {ex.benefit}
+                              </p>
+                            ) : null}
+                          </div>
+                        )
+                      )}
                     </div>
                   )}
 
@@ -915,8 +773,10 @@ const DifferentiationTutorial = () => {
               <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-600 mb-4">
                 <Award className="h-8 w-8 text-white" />
               </div>
-              <h3 className="text-2xl font-bold text-gray-900 mb-2">Congratulations!</h3>
-              <p className="text-gray-700 mb-6">You've completed the Differentiation in Action tutorial.</p>
+              <h3 className="text-2xl font-bold text-gray-900 mb-2">{c.completionTitle ?? 'Congratulations!'}</h3>
+              <p className="text-gray-700 mb-6">
+                {c.completionBody ?? "You've completed the Differentiation in Action tutorial."}
+              </p>
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => navigate('/learning-hub')}
@@ -936,5 +796,9 @@ const DifferentiationTutorial = () => {
   )
 }
 
-export default DifferentiationTutorial
+export default function DifferentiationTutorial() {
+  const item = getSectionItemBySlug('ai-guided-tutorials-demonstrations', 'differentiation-in-action')
+  if (!item?.aiGuidedTutorialContent) return null
+  return <DifferentiationTutorialView item={item} />
+}
 

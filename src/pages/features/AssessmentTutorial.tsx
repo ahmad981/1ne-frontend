@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   Play,
   Pause,
@@ -31,370 +33,18 @@ import {
   ClipboardCheck,
   TrendingUp,
 } from 'lucide-react'
+import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
 
-interface TutorialStep {
-  id: number
-  title: string
-  duration: string
-  content: {
-    type: 'video' | 'text' | 'interactive' | 'example'
-    data: any
-  }
-  keyTakeaways: string[]
-  reflection: string
-}
-
-const AssessmentTutorial = () => {
+export function AssessmentTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [completedSteps, setCompletedSteps] = useState<number[]>([])
   const [showTranscript, setShowTranscript] = useState(false)
 
-  const tutorialSteps: TutorialStep[] = [
-    {
-      id: 1,
-      title: 'Introduction: The Purpose of Assessment',
-      duration: '2 min',
-      content: {
-        type: 'video',
-        data: {
-          description: 'Understand the fundamental purposes of assessment and how effective assessments drive student learning.',
-          keyPoints: [
-            'Assessment informs instruction and guides learning',
-            'Formative assessment happens during learning',
-            'Summative assessment evaluates learning at the end',
-            'Good assessments align with learning objectives',
-            'Assessment should be fair, valid, and reliable',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Assessment is a tool for learning, not just evaluation',
-        'Different types serve different purposes',
-        'Alignment with objectives is critical',
-      ],
-      reflection: 'What is the primary purpose of assessment in your classroom?',
-    },
-    {
-      id: 2,
-      title: 'Understanding Assessment Types',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Know when and how to use formative vs summative assessments',
-          examples: [
-            {
-              scenario: 'Formative Assessment Examples',
-              assessments: [
-                'Exit tickets',
-                'Thumbs up/down',
-                'Quick quizzes',
-                'Observations',
-                'Student self-assessments',
-                'Peer feedback',
-              ],
-              purpose: 'To check understanding during instruction and adjust teaching',
-            },
-            {
-              scenario: 'Summative Assessment Examples',
-              assessments: [
-                'Unit tests',
-                'Final projects',
-                'End-of-term exams',
-                'Portfolio reviews',
-                'Performance assessments',
-              ],
-              purpose: 'To evaluate learning at the end of a unit or period',
-            },
-          ],
-          implementation: [
-            'Use formative assessment frequently during instruction',
-            'Use summative assessment at natural endpoints',
-            'Balance both types throughout the year',
-            'Ensure summative assessments reflect what was taught',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Formative = during learning, Summative = after learning',
-        'Both types are essential',
-        'Frequency matters more for formative',
-      ],
-      reflection: 'What types of assessments do you currently use? Are they balanced?',
-    },
-    {
-      id: 3,
-      title: 'Aligning Assessments with Learning Objectives',
-      duration: '2 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Every assessment should measure specific learning objectives',
-            'Match the cognitive level of the objective',
-            'If the objective is "analyze," the assessment should require analysis',
-            'Use Bloom\'s Taxonomy to ensure alignment',
-            'Avoid assessing things you didn\'t teach',
-          ],
-          tools: [
-            'Alignment Checklist:',
-            '✓ Does the assessment measure the stated objective?',
-            '✓ Is the cognitive level appropriate?',
-            '✓ Can students demonstrate mastery through this assessment?',
-            '✓ Have students had opportunities to practice this skill?',
-            '',
-            'Bloom\'s Taxonomy Levels:',
-            '- Remember: Multiple choice, fill-in-the-blank',
-            '- Understand: Explain, summarize, describe',
-            '- Apply: Solve problems, use in new situations',
-            '- Analyze: Compare, contrast, examine',
-            '- Evaluate: Judge, critique, justify',
-            '- Create: Design, construct, produce',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Alignment ensures validity',
-        'Match cognitive levels',
-        'Assess what you taught',
-      ],
-      reflection: 'Review a recent assessment. Does it align with your learning objectives?',
-    },
-    {
-      id: 4,
-      title: 'Creating Effective Questions',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Design questions that accurately measure understanding',
-          examples: [
-            {
-              scenario: 'Multiple Choice Questions',
-              good: 'Which of the following best explains why plants need sunlight?',
-              bad: 'Do plants need sunlight?',
-              tip: 'Avoid yes/no questions. Use "which best" to require deeper thinking',
-            },
-            {
-              scenario: 'Short Answer Questions',
-              good: 'Explain how photosynthesis converts sunlight into energy. Include the role of chlorophyll.',
-              bad: 'What is photosynthesis?',
-              tip: 'Be specific about what you want students to explain',
-            },
-            {
-              scenario: 'Essay Questions',
-              good: 'Compare and contrast the water cycle and the carbon cycle. Include at least three similarities and three differences.',
-              bad: 'Write about cycles.',
-              tip: 'Provide clear structure and expectations',
-            },
-          ],
-          implementation: [
-            'Use clear, unambiguous language',
-            'Avoid trick questions',
-            'Ensure questions are grade-level appropriate',
-            'Include specific criteria for open-ended questions',
-            'Test one concept per question when possible',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Clarity prevents confusion',
-        'Specific questions get better answers',
-        'Avoid trick questions',
-      ],
-      reflection: 'Rewrite one of your assessment questions to be more specific and clear.',
-    },
-    {
-      id: 5,
-      title: 'Rubric Design Best Practices',
-      duration: '2 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Rubrics clarify expectations for students and teachers',
-            'Use 3-4 performance levels (e.g., Exceeds, Meets, Approaching, Below)',
-            'Describe what each level looks like',
-            'Focus on learning objectives, not effort or behavior',
-            'Use student-friendly language',
-            'Share rubrics before assessment',
-          ],
-          tools: [
-            'Rubric Components:',
-            '1. Criteria: What is being assessed',
-            '2. Performance Levels: Different levels of achievement',
-            '3. Descriptors: What each level looks like',
-            '',
-            'Example Criteria for Writing:',
-            '- Content and Ideas',
-            '- Organization',
-            '- Word Choice',
-            '- Conventions',
-            '',
-            'Performance Level Example:',
-            'Meets: "Writing includes clear main idea with supporting details. Organization is logical with transitions."',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Rubrics make expectations clear',
-        'Focus on learning, not behavior',
-        'Share rubrics in advance',
-      ],
-      reflection: 'Do you use rubrics? How could they improve your assessments?',
-    },
-    {
-      id: 6,
-      title: 'Formative Assessment Strategies',
-      duration: '2 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Implement quick, effective formative assessments',
-          examples: [
-            {
-              scenario: 'Quick Checks',
-              strategies: [
-                'Thumbs up/down/sideways',
-                'Traffic light cards (red/yellow/green)',
-                'One-minute papers',
-                'Think-pair-share',
-                'Whiteboard responses',
-              ],
-            },
-            {
-              scenario: 'Exit Tickets',
-              strategies: [
-                'What was the main idea?',
-                'What question do you still have?',
-                'Rate your understanding 1-5',
-                'One thing you learned, one thing you\'re confused about',
-              ],
-            },
-            {
-              scenario: 'Self-Assessment',
-              strategies: [
-                'Rate your confidence level',
-                'What did you do well?',
-                'What do you need to work on?',
-                'Set a goal for next time',
-              ],
-            },
-          ],
-          implementation: [
-            'Use formative assessment 3-5 times per lesson',
-            'Keep it quick (1-3 minutes)',
-            'Use the information immediately',
-            'Make it low-stakes',
-            'Vary your methods',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Frequency matters',
-        'Keep it quick and simple',
-        'Use results to adjust instruction',
-      ],
-      reflection: 'Which formative assessment strategy will you try this week?',
-    },
-    {
-      id: 7,
-      title: 'Summative Assessment Best Practices',
-      duration: '2 min',
-      content: {
-        type: 'text',
-        data: {
-          strategies: [
-            'Summative assessments should reflect cumulative learning',
-            'Use a variety of assessment types',
-            'Allow students to demonstrate learning in multiple ways',
-            'Provide clear instructions and expectations',
-            'Ensure assessments are fair and accessible',
-            'Give students opportunities to prepare',
-          ],
-          tools: [
-            'Assessment Variety:',
-            '- Written tests and quizzes',
-            '- Projects and presentations',
-            '- Portfolios',
-            '- Performance tasks',
-            '- Oral assessments',
-            '',
-            'Fairness Checklist:',
-            '✓ All students have access to necessary resources',
-            '✓ Instructions are clear and unambiguous',
-            '✓ Time limits are reasonable',
-            '✓ Accommodations are provided when needed',
-            '✓ Assessment measures learning, not test-taking skills',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Variety shows different strengths',
-        'Fairness is essential',
-        'Preparation opportunities matter',
-      ],
-      reflection: 'How do you ensure your summative assessments are fair?',
-    },
-    {
-      id: 8,
-      title: 'Providing Effective Feedback',
-      duration: '2 min',
-      content: {
-        type: 'example',
-        data: {
-          classroom: {
-            grade: 7,
-            subject: 'English Language Arts',
-            students: 28,
-            diversity: 'Mixed abilities, various writing levels',
-          },
-          challenge: 'Providing feedback that helps students improve without overwhelming them',
-          approach: 'Using specific, actionable feedback focused on learning objectives',
-        },
-      },
-      keyTakeaways: [
-        'Feedback should be specific and actionable',
-        'Focus on learning, not just grades',
-        'Timely feedback is more effective',
-      ],
-      reflection: 'What makes feedback effective in your experience?',
-    },
-    {
-      id: 9,
-      title: 'Common Mistakes to Avoid',
-      duration: '1 min',
-      content: {
-        type: 'interactive',
-        data: {
-          strategy: 'Learn from common assessment pitfalls',
-          steps: [
-            'Avoid assessing things you didn\'t teach',
-            'Don\'t use trick questions or ambiguous wording',
-            'Avoid over-testing or under-assessing',
-            'Don\'t rely solely on one assessment type',
-            'Avoid grading on effort or behavior instead of learning',
-            'Don\'t wait too long to provide feedback',
-            'Avoid assessments that only test memorization',
-          ],
-          resources: [
-            'Assessment design checklist',
-            'Question quality rubric',
-            'Feedback templates',
-            'Rubric examples',
-          ],
-        },
-      },
-      keyTakeaways: [
-        'Learn from mistakes',
-        'Keep assessments focused on learning',
-        'Balance is key',
-      ],
-      reflection: 'What assessment mistakes have you made? How will you avoid them in the future?',
-    },
-  ]
+  const c = item.aiGuidedTutorialContent!
+  const tutorialSteps = c.steps
+
 
   const currentStepData = tutorialSteps[currentStep]
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
@@ -434,14 +84,14 @@ const AssessmentTutorial = () => {
               <div>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="px-3 py-1 rounded-full bg-white/20 text-xs font-semibold uppercase tracking-wide">
-                    Best practices
+                    {c.heroSubtitle}
                   </span>
                   <span className="text-white/80">•</span>
-                  <span className="text-white/80 text-sm">15 min</span>
+                  <span className="text-white/80 text-sm">{c.headerDurationLabel ?? item.duration}</span>
                 </div>
-                <h1 className="text-3xl font-bold">Creating Effective Assessments</h1>
+                <h1 className="text-3xl font-bold">{item.title}</h1>
                 <p className="mt-2 text-blue-100">
-                  Master the art of designing assessments that accurately measure learning and drive student improvement
+                  {c.heroDescription}
                 </p>
               </div>
             </div>
@@ -531,29 +181,63 @@ const AssessmentTutorial = () => {
             {/* Content Based on Type */}
             {currentStepData.content.type === 'video' && (
               <div className="space-y-6">
-                <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <button
-                      onClick={() => setIsPlaying(!isPlaying)}
-                      className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-10 w-10" />
-                      ) : (
-                        <Play className="h-10 w-10 ml-1" />
-                      )}
-                    </button>
-                  </div>
-                  <div className="absolute bottom-4 left-4 right-4">
-                    <div className="h-1 bg-white/20 rounded-full overflow-hidden">
-                      <div className="h-full bg-white w-1/3 rounded-full" />
+                {(() => {
+                  const vd = currentStepData.content.data as {
+                    media?: LearningHubMediaVideo
+                  }
+                  const media = vd.media
+                  const ytEmbed =
+                    media?.provider === 'youtube' && media.url ? youtubeWatchUrlToEmbedUrl(media.url) : null
+                  if (ytEmbed) {
+                    return (
+                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black">
+                        <iframe
+                          className="absolute inset-0 h-full w-full"
+                          src={`${ytEmbed}?rel=0`}
+                          title={media?.title ?? currentStepData.title}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                        />
+                      </div>
+                    )
+                  }
+                  if (media?.provider === 'mp4' && media.url) {
+                    return (
+                      <video
+                        className="aspect-video w-full rounded-xl bg-black"
+                        controls={media.controls !== false}
+                        src={media.url}
+                        title={media.title}
+                      />
+                    )
+                  }
+                  return (
+                    <div className="relative aspect-video rounded-xl bg-gradient-to-br from-gray-900 to-gray-800 overflow-hidden">
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <button
+                          type="button"
+                          onClick={() => setIsPlaying(!isPlaying)}
+                          className="flex h-20 w-20 items-center justify-center rounded-full bg-white/20 backdrop-blur-sm text-white hover:bg-white/30 transition"
+                        >
+                          {isPlaying ? (
+                            <Pause className="h-10 w-10" />
+                          ) : (
+                            <Play className="h-10 w-10 ml-1" />
+                          )}
+                        </button>
+                      </div>
+                      <div className="absolute bottom-4 left-4 right-4">
+                        <div className="h-1 bg-white/20 rounded-full overflow-hidden">
+                          <div className="h-full bg-white w-1/3 rounded-full" />
+                        </div>
+                        <div className="flex items-center justify-between mt-2 text-white text-xs">
+                          <span>0:00</span>
+                          <span>{currentStepData.duration}</span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center justify-between mt-2 text-white text-xs">
-                      <span>0:00</span>
-                      <span>{currentStepData.duration}</span>
-                    </div>
-                  </div>
-                </div>
+                  )
+                })()}
 
                 {currentStepData.content.data.description && (
                   <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
@@ -578,41 +262,87 @@ const AssessmentTutorial = () => {
               </div>
             )}
 
-            {currentStepData.content.type === 'example' && (
-              <div className="space-y-6">
-                <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.grade}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.subject}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.students}</p>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
-                      <p className="text-sm font-semibold text-gray-900">{currentStepData.content.data.classroom.diversity}</p>
-                    </div>
-                  </div>
-                </div>
+            {currentStepData.content.type === 'example' && (() => {
+              const d = currentStepData.content.data as Record<string, unknown>
+              const classroom = d.classroom as
+                | { grade?: unknown; subject?: unknown; students?: unknown; diversity?: unknown }
+                | undefined
+              const exampleList = Array.isArray(d.examples) ? d.examples : null
 
-                <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
-                  <p className="text-gray-700">{currentStepData.content.data.challenge}</p>
-                </div>
+              return (
+                <div className="space-y-6">
+                  {classroom ? (
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Classroom Context</h3>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Grade</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.grade ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Subject</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.subject ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Students</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.students ?? '—')}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Diversity</p>
+                          <p className="text-sm font-semibold text-gray-900">{String(classroom.diversity ?? '—')}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
-                <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
-                  <p className="text-gray-700">{currentStepData.content.data.approach}</p>
+                  {exampleList && exampleList.length > 0 ? (
+                    <div className="space-y-4">
+                      {exampleList.map((ex: Record<string, unknown>, idx: number) => (
+                        <div key={idx} className="bg-white rounded-lg p-6 border border-blue-200 shadow-sm">
+                          {ex.scenario ? (
+                            <h4 className="text-base font-semibold text-gray-900 mb-3">{String(ex.scenario)}</h4>
+                          ) : null}
+                          <div className="space-y-2 text-sm text-gray-700">
+                            {ex.task ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Task: </span>
+                                {String(ex.task)}
+                              </p>
+                            ) : null}
+                            {ex.output ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Output: </span>
+                                {String(ex.output)}
+                              </p>
+                            ) : null}
+                            {ex.result ? (
+                              <p>
+                                <span className="font-semibold text-gray-900">Result: </span>
+                                {String(ex.result)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+
+                  {d.challenge ? (
+                    <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Challenge</h3>
+                      <p className="text-gray-700">{String(d.challenge)}</p>
+                    </div>
+                  ) : null}
+
+                  {d.approach ? (
+                    <div className="bg-green-50 rounded-xl p-6 border border-green-200">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">Approach</h3>
+                      <p className="text-gray-700">{String(d.approach)}</p>
+                    </div>
+                  ) : null}
                 </div>
-              </div>
-            )}
+              )
+            })()}
 
             {currentStepData.content.type === 'interactive' && (
               <div className="space-y-6">
@@ -823,7 +553,11 @@ const AssessmentTutorial = () => {
   )
 }
 
-export default AssessmentTutorial
+export default function AssessmentTutorial() {
+  const item = getSectionItemBySlug('ai-guided-tutorials-demonstrations', 'creating-effective-assessments')
+  if (!item?.aiGuidedTutorialContent) return null
+  return <AssessmentTutorialView item={item} />
+}
 
 
 
