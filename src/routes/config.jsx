@@ -2,7 +2,7 @@
 import { Navigate } from 'react-router-dom';
 
 // Local import
-import { RoleBasedRedirect } from './routeHelpers';
+import { RoleBasedRedirect, UnknownRouteRedirect } from './routeHelpers';
 import { Login } from '../panels/Authentication/Login';
 import { SignUp } from '../panels/Authentication/SignUp';
 import SignupEntry from '../pages/auth/SignupEntry';
@@ -113,7 +113,18 @@ export const commonRoutes = [
       </DashboardLayout>
     ),
   },
+  {
+    path: '*',
+    moduleName: 'Unknown Route Redirect',
+    element: <UnknownRouteRedirect />,
+  },
 ];
+
+const withDashboardLayout = (element) => (
+  <DashboardLayout>
+    {element}
+  </DashboardLayout>
+)
 
 export const teacherRoutes = [
   {
@@ -292,218 +303,122 @@ export const teacherRoutes = [
       {
         path: '/chatbots/general-teaching-assistant',
         moduleName: 'General Teaching Assistant',
-        element: (
-          <DashboardLayout>
-            <GeneralTeachingAssistantChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GeneralTeachingAssistantChat />),
       },
       {
         path: '/chatbots/gpt4-teaching-assistant',
         moduleName: 'GPT4 Teaching Assistant',
-        element: (
-          <DashboardLayout>
-            <GPT4TeachingAssistantChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GPT4TeachingAssistantChat />),
       },
       {
         path: '/chatbots/claude-education-pro',
         moduleName: 'Claude Education Pro',
-        element: (
-          <DashboardLayout>
-            <ClaudeEducationProChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<ClaudeEducationProChat />),
       },
       {
         path: '/chatbots/gemini-education-suite',
         moduleName: 'Gemini Education Suite',
-        element: (
-          <DashboardLayout>
-            <GeminiEducationSuiteChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GeminiEducationSuiteChat />),
       },
       {
         path: '/chatbots/coding-programming-tutor',
         moduleName: 'Coding Programming Tutor',
-        element: (
-          <DashboardLayout>
-            <CodingProgrammingTutor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<CodingProgrammingTutor />),
       },
       {
         path: '/chatbots/visual-arts-studio-assistant',
         moduleName: 'Visual Arts Studio Assistant',
-        element: (
-          <DashboardLayout>
-            <VisualArtsStudioAssistant />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<VisualArtsStudioAssistant />),
       },
       {
         path: '/chatbots/business-studies-mentor',
         moduleName: 'Business Studies Mentor',
-        element: (
-          <DashboardLayout>
-            <BusinessStudiesMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<BusinessStudiesMentor />),
       },
       {
         path: '/chatbots/career-readiness-coach',
         moduleName: 'Career Readiness Coach',
-        element: (
-          <DashboardLayout>
-            <CareerReadinessCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<CareerReadinessCoach />),
       },
       {
         path: '/chatbots/lab-safety-protocol-advisor',
         moduleName: 'Lab Safety Protocol Advisor',
-        element: (
-          <DashboardLayout>
-            <LabSafetyProtocolAdvisor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LabSafetyProtocolAdvisor />),
       },
       {
         path: '/chatbots/environmental-science-guide',
         moduleName: 'Environmental Science Guide',
-        element: (
-          <DashboardLayout>
-            <EnvironmentalScienceGuide />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<EnvironmentalScienceGuide />),
       },
       {
         path: '/chatbots/music-performance-coach',
         moduleName: 'Music Performance Coach',
-        element: (
-          <DashboardLayout>
-            <MusicPerformanceCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<MusicPerformanceCoach />),
       },
       {
         path: '/chatbots/drama-theater-director',
         moduleName: 'Drama Theater Director',
-        element: (
-          <DashboardLayout>
-            <DramaTheaterDirector />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<DramaTheaterDirector />),
       },
       {
         path: '/chatbots/digital-literacy-advisor',
         moduleName: 'Digital Literacy Advisor',
-        element: (
-          <DashboardLayout>
-            <DigitalLiteracyAdvisor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<DigitalLiteracyAdvisor />),
       },
       {
         path: '/chatbots/ai-machine-learning-educator',
         moduleName: 'AI Machine Learning Educator',
-        element: (
-          <DashboardLayout>
-            <AIMachineLearningEducator />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AIMachineLearningEducator />),
       },
       {
         path: '/chatbots/marketing-branding-strategist',
         moduleName: 'Marketing Branding Strategist',
-        element: (
-          <DashboardLayout>
-            <MarketingBrandingStrategist />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<MarketingBrandingStrategist />),
       },
       {
         path: '/chatbots/literacy-lab-coach',
         moduleName: 'Literacy Lab Coach',
-        element: (
-          <DashboardLayout>
-            <LiteracyLabCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LiteracyLabCoach />),
       },
       {
         path: '/chatbots/literature-analysis-expert',
         moduleName: 'Literature Analysis Expert',
-        element: (
-          <DashboardLayout>
-            <LiteratureAnalysisExpert />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LiteratureAnalysisExpert />),
       },
       {
         path: '/chatbots/grammar-writing-mentor',
         moduleName: 'Grammar Writing Mentor',
-        element: (
-          <DashboardLayout>
-            <GrammarWritingMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GrammarWritingMentor />),
       },
       {
         path: '/chatbots/advanced-knowledge-skills-coach',
         moduleName: 'Advanced Knowledge Skills Coach',
-        element: (
-          <DashboardLayout>
-            <AdvancedKnowledgeSkillsCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AdvancedKnowledgeSkillsCoach />),
       },
       {
         path: '/chatbots/unec-academic-development',
         moduleName: 'UNEC Academic Development',
-        element: (
-          <DashboardLayout>
-            <UNECAcademicDevelopment />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<UNECAcademicDevelopment />),
       },
       {
         path: '/chatbots/adaptive-math-strategist',
         moduleName: 'Adaptive Math Strategist',
-        element: (
-          <DashboardLayout>
-            <AdaptiveMathStrategist />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AdaptiveMathStrategist />),
       },
       {
         path: '/chatbots/algebra-geometry-tutor',
         moduleName: 'Algebra Geometry Tutor',
-        element: (
-          <DashboardLayout>
-            <AlgebraGeometryTutor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AlgebraGeometryTutor />),
       },
       {
         path: '/chatbots/stem-inquiry-mentor',
         moduleName: 'STEM Inquiry Mentor',
-        element: (
-          <DashboardLayout>
-            <STEMInquiryMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<STEMInquiryMentor />),
       },
       {
         path: '/chatbots/problem-solving-coach',
         moduleName: 'Problem Solving Coach',
-        element: (
-          <DashboardLayout>
-            <ProblemSolvingCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<ProblemSolvingCoach />),
       },
     ],
   },

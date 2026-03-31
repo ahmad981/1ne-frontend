@@ -113,7 +113,7 @@ const Profile = () => {
   const roleBadgeColor = userRole ? getRoleBadgeColor(userRole) : 'bg-gray-100 text-gray-700';
 
   // Active tab state
-  const [activeTab, setActiveTab] = useState('profile');
+  const [activeTab, setActiveTab] = useState('account');
 
   // Profile Form state
   const [formData, setFormData] = useState({
@@ -765,37 +765,38 @@ const Profile = () => {
         <div className="border-b border-gray-200">
           <nav className="flex -mb-px px-6">
             <button
-              onClick={() => setActiveTab('profile')}
+              onClick={() => setActiveTab('account')}
               className={`py-4 px-6 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'profile'
+                activeTab === 'account'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center gap-2">
                 <User className="w-4 h-4" />
-                Profile Information
+                Account & Security
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('password')}
+              onClick={() => setActiveTab('teaching-profile')}
               className={`py-4 px-6 font-medium text-sm border-b-2 transition-colors ${
-                activeTab === 'password'
+                activeTab === 'teaching-profile'
                   ? 'border-primary text-primary'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
               }`}
             >
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4" />
-                Change Password
+                <BookOpen className="w-4 h-4" />
+                Teaching Profile
               </div>
             </button>
           </nav>
         </div>
 
         <div className="p-6">
-          {/* Profile Information Tab */}
-          {activeTab === 'profile' && (
+          {/* Account & Security Tab */}
+          {activeTab === 'account' && (
+            <div className="space-y-6">
             <form onSubmit={handleSubmit} className="space-y-6">
               {/* Profile completeness (from Learning Hub home) */}
               {learningHubHome?.profile_completeness != null && (
@@ -950,188 +951,6 @@ const Profile = () => {
                 </div>
               </div>
 
-              {/* Teaching Context Section */}
-              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                <div className="flex items-center gap-2 mb-2">
-                  <BookOpen className="w-5 h-5 text-gray-700" />
-                  <h2 className="text-lg font-semibold text-gray-900">Teaching Context</h2>
-                </div>
-                <p className="text-sm text-gray-500 mb-4">
-                  Completing your teaching context improves your Learning Hub recommendations.
-                </p>
-                {contextError && (
-                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-                    {contextError}
-                  </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <SelectDropdown
-                      label="Country"
-                      name="country"
-                      value={contextForm.country}
-                      onChange={handleContextChange}
-                      options={countries || []}
-                      disabled={metadataLoading}
-                      error={!!contextFormErrors.country}
-                      errorMsg={contextFormErrors.country}
-                      required
-                      placeholder="Select country"
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="Region"
-                      name="region"
-                      value={contextForm.region}
-                      onChange={handleContextChange}
-                      options={regions || []}
-                      disabled={metadataLoading || regionsLoading || !contextForm.country}
-                      error={!!contextFormErrors.region}
-                      errorMsg={contextFormErrors.region}
-                      required
-                      placeholder={!contextForm.country ? 'Select country first' : 'Select region'}
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="School type"
-                      name="school_type"
-                      value={contextForm.school_type}
-                      onChange={handleContextChange}
-                      options={schoolTypes || []}
-                      disabled={metadataLoading}
-                      error={!!contextFormErrors.school_type}
-                      errorMsg={contextFormErrors.school_type}
-                      required
-                      placeholder="Select school type"
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="Grade band"
-                      name="grade_band"
-                      value={contextForm.grade_band}
-                      onChange={handleContextChange}
-                      options={gradeBands || []}
-                      disabled={metadataLoading}
-                      error={!!contextFormErrors.grade_band}
-                      errorMsg={contextFormErrors.grade_band}
-                      required
-                      placeholder="Select grade band"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <SelectDropdown
-                      label="Subjects"
-                      name="subjects"
-                      value={contextForm.subjects}
-                      onChange={handleContextChange}
-                      options={subjects || []}
-                      multiSelect
-                      disabled={metadataLoading}
-                      error={!!contextFormErrors.subjects}
-                      errorMsg={contextFormErrors.subjects}
-                      required
-                      placeholder="Select at least one subject"
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="Language preference"
-                      name="language_preference"
-                      value={contextForm.language_preference}
-                      onChange={handleContextChange}
-                      options={languages || []}
-                      disabled={metadataLoading}
-                      error={!!contextFormErrors.language_preference}
-                      errorMsg={contextFormErrors.language_preference}
-                      required
-                      placeholder="Select language"
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="Curriculum framework"
-                      name="curriculum_framework"
-                      value={contextForm.curriculum_framework}
-                      onChange={handleContextChange}
-                      options={curriculums || []}
-                      disabled={metadataLoading}
-                      placeholder="Select (optional)"
-                    />
-                  </div>
-                  <div>
-                    <SelectDropdown
-                      label="Years of experience"
-                      name="years_experience"
-                      value={contextForm.years_experience}
-                      onChange={handleContextChange}
-                      options={yearsExperience || []}
-                      disabled={metadataLoading}
-                      placeholder="Select (optional)"
-                    />
-                  </div>
-                  <div>
-                    <CustomInput
-                      label="School name"
-                      name="school_name"
-                      value={contextForm.school_name}
-                      onChange={(e) => handleContextChange({ target: { name: 'school_name', value: e.target.value } })}
-                      disabled={contextSaving}
-                      placeholder="Optional"
-                      icon={<BookOpen className="w-4 h-4" />}
-                    />
-                  </div>
-                  <div>
-                    <CustomInput
-                      label="City"
-                      name="city"
-                      value={contextForm.city}
-                      onChange={(e) => handleContextChange({ target: { name: 'city', value: e.target.value } })}
-                      disabled={contextSaving}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div>
-                    <CustomInput
-                      label="Postal code"
-                      name="postal_code"
-                      value={contextForm.postal_code}
-                      onChange={(e) => handleContextChange({ target: { name: 'postal_code', value: e.target.value } })}
-                      disabled={contextSaving}
-                      placeholder="Optional"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <CustomInput
-                      label="Professional goals"
-                      name="professional_goals"
-                      value={Array.isArray(contextForm.professional_goals) ? contextForm.professional_goals.join(', ') : ''}
-                      onChange={(e) => {
-                        const raw = e.target.value || '';
-                        const arr = raw.split(',').map((s) => s.trim()).filter(Boolean);
-                        handleContextChange({ target: { name: 'professional_goals', value: arr } });
-                      }}
-                      disabled={contextSaving}
-                      placeholder="Comma-separated (e.g. classroom management, differentiation)"
-                    />
-                  </div>
-                </div>
-                <div className="flex items-center justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
-                  <CustomButton
-                    type="button"
-                    onClick={handleSaveTeachingContext}
-                    disabled={contextSaving || metadataLoading || !hasContextChanges()}
-                  >
-                    {contextSaving ? 'Saving…' : 'Save teaching context'}
-                  </CustomButton>
-                </div>
-              </div>
-
-              {/* Professional Identity */}
-              <ProfileProfessionalIdentitySection />
-
               {/* Form Actions */}
               <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
                 <CustomButton
@@ -1177,24 +996,8 @@ const Profile = () => {
                 </CustomButton>
               </div>
             </form>
-          )}
-
-          {/* Change Password Tab */}
-          {activeTab === 'password' && (
-            <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-2xl">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <h3 className="text-sm font-semibold text-blue-900 mb-1">Password Requirements</h3>
-                  <ul className="text-xs text-blue-700 space-y-1">
-                    <li>• At least 10 characters long</li>
-                    <li>• Contains uppercase and lowercase letters</li>
-                    <li>• Contains at least one number</li>
-                    <li>• Contains at least one special character</li>
-                  </ul>
-                </div>
-              </div>
-
+            <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-2xl bg-gray-50 rounded-lg p-6 border border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Change Password</h2>
               <div className="space-y-6">
                 {/* Current Password */}
                 <CustomInput
@@ -1225,6 +1028,33 @@ const Profile = () => {
                   placeholder="Enter your new password"
                   icon={<Lock className="w-4 h-4" />}
                 />
+
+                {(passwordData.new_password || passwordData.confirm_password) && (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-gray-600" />
+                      <h3 className="text-sm font-semibold text-gray-900">Password Requirements</h3>
+                    </div>
+                    <ul className="mt-3 grid gap-1.5 text-sm text-gray-700 sm:grid-cols-2">
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-gray-500" />
+                        <span>At least 10 characters</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-gray-500" />
+                        <span>Uppercase and lowercase letters</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-gray-500" />
+                        <span>At least one number</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 rounded-full bg-gray-500" />
+                        <span>At least one special character</span>
+                      </li>
+                    </ul>
+                  </div>
+                )}
 
                 {/* Confirm Password */}
                 <CustomInput
@@ -1279,6 +1109,87 @@ const Profile = () => {
                 </CustomButton>
               </div>
             </form>
+            </div>
+          )}
+
+          {/* Teaching Profile Tab */}
+          {activeTab === 'teaching-profile' && (
+            <div className="space-y-6">
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-5 h-5 text-gray-700" />
+                  <h2 className="text-lg font-semibold text-gray-900">Teaching Context</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  Completing your teaching context improves your Learning Hub recommendations.
+                </p>
+                {contextError && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                    {contextError}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <SelectDropdown label="Country" name="country" value={contextForm.country} onChange={handleContextChange} options={countries || []} disabled={metadataLoading} error={!!contextFormErrors.country} errorMsg={contextFormErrors.country} required placeholder="Select country" />
+                  </div>
+                  <div>
+                    <SelectDropdown label="Region" name="region" value={contextForm.region} onChange={handleContextChange} options={regions || []} disabled={metadataLoading || regionsLoading || !contextForm.country} error={!!contextFormErrors.region} errorMsg={contextFormErrors.region} required placeholder={!contextForm.country ? 'Select country first' : 'Select region'} />
+                  </div>
+                  <div>
+                    <SelectDropdown label="School type" name="school_type" value={contextForm.school_type} onChange={handleContextChange} options={schoolTypes || []} disabled={metadataLoading} error={!!contextFormErrors.school_type} errorMsg={contextFormErrors.school_type} required placeholder="Select school type" />
+                  </div>
+                  <div>
+                    <SelectDropdown label="Grade band" name="grade_band" value={contextForm.grade_band} onChange={handleContextChange} options={gradeBands || []} disabled={metadataLoading} error={!!contextFormErrors.grade_band} errorMsg={contextFormErrors.grade_band} required placeholder="Select grade band" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <SelectDropdown label="Subjects" name="subjects" value={contextForm.subjects} onChange={handleContextChange} options={subjects || []} multiSelect disabled={metadataLoading} error={!!contextFormErrors.subjects} errorMsg={contextFormErrors.subjects} required placeholder="Select at least one subject" />
+                  </div>
+                  <div>
+                    <SelectDropdown label="Language preference" name="language_preference" value={contextForm.language_preference} onChange={handleContextChange} options={languages || []} disabled={metadataLoading} error={!!contextFormErrors.language_preference} errorMsg={contextFormErrors.language_preference} required placeholder="Select language" />
+                  </div>
+                  <div>
+                    <SelectDropdown label="Curriculum framework" name="curriculum_framework" value={contextForm.curriculum_framework} onChange={handleContextChange} options={curriculums || []} disabled={metadataLoading} placeholder="Select (optional)" />
+                  </div>
+                  <div>
+                    <SelectDropdown label="Years of experience" name="years_experience" value={contextForm.years_experience} onChange={handleContextChange} options={yearsExperience || []} disabled={metadataLoading} placeholder="Select (optional)" />
+                  </div>
+                  <div>
+                    <CustomInput label="School name" name="school_name" value={contextForm.school_name} onChange={(e) => handleContextChange({ target: { name: 'school_name', value: e.target.value } })} disabled={contextSaving} placeholder="Optional" icon={<BookOpen className="w-4 h-4" />} />
+                  </div>
+                  <div>
+                    <CustomInput label="City" name="city" value={contextForm.city} onChange={(e) => handleContextChange({ target: { name: 'city', value: e.target.value } })} disabled={contextSaving} placeholder="Optional" />
+                  </div>
+                  <div>
+                    <CustomInput label="Postal code" name="postal_code" value={contextForm.postal_code} onChange={(e) => handleContextChange({ target: { name: 'postal_code', value: e.target.value } })} disabled={contextSaving} placeholder="Optional" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <CustomInput
+                      label="Professional goals"
+                      name="professional_goals"
+                      value={Array.isArray(contextForm.professional_goals) ? contextForm.professional_goals.join(', ') : ''}
+                      onChange={(e) => {
+                        const raw = e.target.value || '';
+                        const arr = raw.split(',').map((s) => s.trim()).filter(Boolean);
+                        handleContextChange({ target: { name: 'professional_goals', value: arr } });
+                      }}
+                      disabled={contextSaving}
+                      placeholder="Comma-separated (e.g. classroom management, differentiation)"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
+                  <CustomButton
+                    type="button"
+                    onClick={handleSaveTeachingContext}
+                    disabled={contextSaving || metadataLoading || !hasContextChanges()}
+                  >
+                    {contextSaving ? 'Saving…' : 'Save teaching context'}
+                  </CustomButton>
+                </div>
+              </div>
+
+              <ProfileProfessionalIdentitySection />
+            </div>
           )}
         </div>
       </div>

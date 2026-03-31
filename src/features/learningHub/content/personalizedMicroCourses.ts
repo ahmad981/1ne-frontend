@@ -1140,5 +1140,225 @@ export const personalizedMicroCoursesData: PersonalizedMicroCourseSectionItem[] 
       themeId: 'pmc-indigo-digital',
     },
   },
+  {
+    "id": "pmc-6",
+    "slug": "student-motivation-strategies",
+    "title": "Student Motivation Strategies",
+    "subtitle": "Engagement & mindset",
+    "duration": "10 min",
+    "difficulty": "Intermediate",
+    "ctaLabel": "Start",
+    "sectionKey": "personalized-micro-courses",
+    "personalizedMicroCourseContent": {
+      "description": "Learn how to increase student motivation using practical classroom strategies, mindset shifts, and engagement techniques.",
+      "learningObjectives": [
+        "Understand key drivers of student motivation",
+        "Apply strategies to increase engagement",
+        "Use feedback and rewards effectively",
+        "Build intrinsic motivation in students"
+      ],
+      "lessons": [
+        {
+          "id": 1,
+          "title": "Understanding Student Motivation",
+          "duration": "2 min",
+          "contentBlocks": [
+            {
+              "type": "text",
+              "heading": "What Drives Motivation?",
+              "paragraphs": [
+                "Students are motivated by autonomy, mastery, and purpose.",
+                "Extrinsic rewards can help, but intrinsic motivation leads to deeper learning.",
+                "Understanding what drives your students is the first step to improving engagement."
+              ]
+            },
+            {
+              "type": "text",
+              "heading": "Types of Motivation",
+              "paragraphs": [
+                "Intrinsic motivation: Learning for interest or enjoyment",
+                "Extrinsic motivation: Learning for rewards or grades",
+                "Both types play a role in the classroom"
+              ]
+            },
+            {
+              "type": "interactive",
+              "title": "Reflection",
+              "prompt": "Think about one student who seems disengaged. What might be affecting their motivation?",
+              "tips": [
+                "Consider their interests",
+                "Think about difficulty level of tasks",
+                "Reflect on classroom environment",
+                "Look at feedback patterns"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Building Engagement in Lessons",
+          "duration": "3 min",
+          "contentBlocks": [
+            {
+              "type": "text",
+              "heading": "Active Engagement Strategies",
+              "paragraphs": [
+                "Use interactive activities instead of long lectures.",
+                "Incorporate discussions, group work, and hands-on tasks.",
+                "Make lessons relevant to real-world situations."
+              ]
+            },
+            {
+              "type": "text",
+              "heading": "Choice and Voice",
+              "paragraphs": [
+                "Giving students choices increases ownership.",
+                "Allow different ways to complete tasks.",
+                "Encourage student input in learning activities."
+              ]
+            },
+            {
+              "type": "interactive",
+              "title": "Lesson Redesign",
+              "prompt": "Pick one of your lessons and add one engagement strategy.",
+              "tips": [
+                "Add a discussion component",
+                "Include student choice",
+                "Make it more interactive",
+                "Connect to real-life context"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Using Feedback to Motivate",
+          "duration": "3 min",
+          "contentBlocks": [
+            {
+              "type": "text",
+              "heading": "Effective Feedback",
+              "paragraphs": [
+                "Feedback should be specific, timely, and actionable.",
+                "Focus on effort and improvement, not just results.",
+                "Avoid generic praise like 'good job'."
+              ]
+            },
+            {
+              "type": "text",
+              "heading": "Growth Mindset",
+              "paragraphs": [
+                "Encourage students to see mistakes as learning opportunities.",
+                "Use language that promotes growth and effort.",
+                "Help students track their own progress."
+              ]
+            },
+            {
+              "type": "interactive",
+              "title": "Rewrite Feedback",
+              "prompt": "Turn a generic comment into specific, motivating feedback.",
+              "tips": [
+                "Mention what was done well",
+                "Suggest improvement steps",
+                "Encourage effort",
+                "Be clear and constructive"
+              ]
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Creating a Motivating Environment",
+          "duration": "2 min",
+          "contentBlocks": [
+            {
+              "type": "text",
+              "heading": "Classroom Culture",
+              "paragraphs": [
+                "A positive environment increases motivation.",
+                "Students should feel safe to participate and make mistakes.",
+                "Respect and support are key."
+              ]
+            },
+            {
+              "type": "text",
+              "heading": "Practical Strategies",
+              "paragraphs": [
+                "Celebrate small wins",
+                "Set clear expectations",
+                "Build relationships with students",
+                "Encourage collaboration"
+              ]
+            },
+            {
+              "type": "interactive",
+              "title": "Action Plan",
+              "prompt": "What is one change you will make to improve classroom motivation?",
+              "tips": [
+                "Start small",
+                "Focus on one strategy",
+                "Observe results",
+                "Adjust as needed"
+              ]
+            }
+          ]
+        }
+      ],
+      "quizQuestions": [
+        {
+          "id": 1,
+          "question": "What is intrinsic motivation?",
+          "options": [
+            "Learning for rewards",
+            "Learning for enjoyment or interest",
+            "Learning for grades only",
+            "Learning because of pressure"
+          ],
+          "correctAnswer": 1,
+          "explanation": "Intrinsic motivation means learning because of internal interest or enjoyment."
+        },
+        {
+          "id": 2,
+          "question": "Which strategy increases student engagement?",
+          "options": [
+            "Long lectures only",
+            "No interaction",
+            "Active learning and discussions",
+            "Silent reading only"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Active learning strategies like discussions and group work increase engagement."
+        },
+        {
+          "id": 3,
+          "question": "What makes feedback effective?",
+          "options": [
+            "Generic praise",
+            "Delayed comments",
+            "Specific and actionable guidance",
+            "No feedback"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Effective feedback is specific, timely, and helps students improve."
+        },
+        {
+          "id": 4,
+          "question": "What is a key element of a motivating classroom?",
+          "options": [
+            "Strict silence",
+            "Fear of mistakes",
+            "Positive and supportive environment",
+            "No interaction"
+          ],
+          "correctAnswer": 2,
+          "explanation": "Students are more motivated in a supportive and positive environment."
+        }
+      ],
+      "quizSubtitle": "Test your understanding of student motivation strategies",
+      "passingScorePercent": 70,
+      "successMessage": "Great job! You understand how to improve student motivation.",
+      "themeId": "pmc-purple-engagement"
+    }
+  }
 ]
 

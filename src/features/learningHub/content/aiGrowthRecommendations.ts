@@ -4546,6 +4546,1008 @@ export const aiGrowthRecommendationsData: LearningHubSectionItem[] = [
         "pathOverviewImpactBadgeLow": "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold"
       }
     }
+  },
+  {
+    "id": "agr-5",
+    "slug": "collaborative-learning-strategies",
+    "title": "Collaborative learning strategies",
+    "shortDescription": "Strengthen peer learning, teamwork, and productive group work through structured collaboration.",
+    "duration": "4.5 hours",
+    "ctaLabel": "Start Path",
+    "sectionKey": "ai-growth-recommendations",
+    "aiGrowthRecommendationContent": {
+      "type": "path",
+      "themeId": "ai-growth-collaborative-learning",
+      "storageKey": "collaborative-learning-completed",
+      "estimatedTime": "4.5 hours",
+      "impactLevel": "High",
+      "heroSubtitle": "AI-Guided Learning Path",
+      "heroDescription": "Build classroom systems that turn group work into meaningful collaboration and deeper learning",
+      "aiGuidance": {
+        "recommendation": "Begin with Team Dynamics Fundamentals, then move into Structured Collaboration Models and Peer Feedback routines",
+        "reason": "Your current classroom flow appears teacher-directed. Adding structured collaboration can increase participation, accountability, and student-to-student explanation.",
+        "nextSteps": [
+          "Complete Team Dynamics Fundamentals",
+          "Assign clear roles in one group task this week",
+          "Introduce one peer-feedback protocol",
+          "Track how collaboration affects participation and understanding"
+        ],
+        "personalizedTip": "Your learners will likely benefit from visible group roles and simple discussion stems before moving into open-ended collaboration."
+      },
+      "skillImpacts": [
+        {
+          "skillId": "impact-collab-participation",
+          "before": 61,
+          "after": 89,
+          "improvement": 28,
+          "description": "Increase in student participation during collaborative tasks"
+        },
+        {
+          "skillId": "impact-collab-discussion",
+          "before": 56,
+          "after": 87,
+          "improvement": 31,
+          "description": "Improvement in discussion quality and peer-to-peer dialogue"
+        },
+        {
+          "skillId": "impact-collab-accountability",
+          "before": 59,
+          "after": 85,
+          "improvement": 26,
+          "description": "Stronger accountability in group work and shared responsibilities"
+        },
+        {
+          "skillId": "impact-collab-confidence",
+          "before": 63,
+          "after": 86,
+          "improvement": 23,
+          "description": "Growth in confidence when sharing ideas with peers"
+        },
+        {
+          "skillId": "impact-collab-problem-solving",
+          "before": 60,
+          "after": 88,
+          "improvement": 28,
+          "description": "Better collaborative problem-solving and collective reasoning"
+        }
+      ],
+      "pathLayout": "collaborative-learning",
+      "studentEngagementExtras": {
+        "achievements": [
+          {
+            "name": "Team Starter",
+            "description": "Complete your first module",
+            "rule": {
+              "type": "minCompleted",
+              "count": 1
+            }
+          },
+          {
+            "name": "Group Builder",
+            "description": "Complete Team Dynamics Fundamentals",
+            "rule": {
+              "type": "moduleCompleted",
+              "moduleId": "team-dynamics-fundamentals"
+            }
+          },
+          {
+            "name": "Discussion Designer",
+            "description": "Complete Structured Collaboration Models",
+            "rule": {
+              "type": "moduleCompleted",
+              "moduleId": "structured-collaboration-models"
+            }
+          },
+          {
+            "name": "Feedback Coach",
+            "description": "Complete Peer Feedback & Reflection",
+            "rule": {
+              "type": "moduleCompleted",
+              "moduleId": "peer-feedback-reflection"
+            }
+          },
+          {
+            "name": "Collaboration Champion",
+            "description": "Complete 5 modules",
+            "rule": {
+              "type": "minCompleted",
+              "count": 5
+            }
+          },
+          {
+            "name": "Pathway Complete",
+            "description": "Finish all modules",
+            "rule": {
+              "type": "allUnlockedCompleted"
+            }
+          }
+        ],
+        "bottomCta": {
+          "title": "Ready to Improve Group Learning?",
+          "subtitle": "Start your first module and build collaboration routines your students can use right away",
+          "primaryLabel": "Start Learning Path",
+          "secondaryLabel": "Explore More Paths"
+        }
+      },
+      "modules": [
+        {
+          "id": "team-dynamics-fundamentals",
+          "slug": "team-dynamics-fundamentals",
+          "title": "Team Dynamics Fundamentals",
+          "description": "Understand what makes student teams succeed and how to build a collaborative classroom culture.",
+          "duration": "50 min",
+          "level": "Beginner",
+          "impact": "High",
+          "skillIds": [
+            "collab-team-roles",
+            "collab-group-norms",
+            "collab-classroom-culture",
+            "collab-shared-responsibility"
+          ],
+          "learningOutcomes": [
+            "Understand the core principles of effective student collaboration",
+            "Create clear team roles and responsibilities",
+            "Build classroom norms that support collaboration",
+            "Reduce common group work issues before they start",
+            "Support balanced student participation"
+          ],
+          "assessment": {
+            "type": "Project-Based",
+            "description": "Design a collaborative task with group roles, norms, and accountability structures",
+            "points": 100
+          },
+          "realWorldApplication": "Introduce a structured group task in your next lesson using defined roles and norms.",
+          "content": [
+            {
+              "type": "video",
+              "title": "Introduction to Team Dynamics",
+              "duration": "12 min",
+              "points": 20,
+              "media": {
+                "type": "video",
+                "url": "https://www.youtube.com/watch?v=6fL09e8Tm9c",
+                "provider": "youtube",
+                "title": "Introduction to Team Dynamics",
+                "duration": "12 min",
+                "controls": true,
+                "metadata": {
+                  "placeholder": false
+                }
+              }
+            },
+            {
+              "type": "reading",
+              "title": "Why Group Work Fails Without Structure",
+              "points": 15
+            },
+            {
+              "type": "interactive",
+              "title": "Design Group Roles",
+              "points": 25
+            },
+            {
+              "type": "template",
+              "title": "Collaborative Task Planning Template",
+              "points": 15
+            },
+            {
+              "type": "project",
+              "title": "Build a Team-Based Activity",
+              "points": 25
+            }
+          ],
+          "detail": {
+            "moduleLabel": "Module 1 of 5",
+            "backPathSlug": "collaborative-learning-strategies",
+            "pageVisual": {
+              "sidebarStyle": "engagement",
+              "headerGradient": "from-emerald-600 via-green-600 to-lime-600",
+              "heroSubtitleClass": "text-emerald-100",
+              "heroShowEarnedPoints": true,
+              "heroShowImpactRow": true,
+              "heroShowBookmarkShare": true,
+              "tieredSidebarActive": "",
+              "tieredSidebarCompleted": "",
+              "tieredSidebarIdle": "",
+              "tieredSidebarCheckComplete": "text-green-600",
+              "sidebarProgressFill": "bg-emerald-600",
+              "engagementSidebarActive": "bg-emerald-50 border-2 border-emerald-300",
+              "engagementSidebarIdle": "border-2 border-transparent hover:bg-gray-50",
+              "engagementNumCompleted": "bg-green-100 text-green-600",
+              "engagementNumActive": "bg-emerald-100 text-emerald-600",
+              "engagementNumIdle": "bg-gray-100 text-gray-400",
+              "engagementTitleActive": "text-emerald-900",
+              "lessonTypeIconClass": "text-gray-600",
+              "pointsPill": "bg-gray-100 text-gray-800",
+              "videoOverlayGradient": "from-gray-900 to-gray-800",
+              "videoPlayUseTranslucent": true,
+              "videoPlayIconClass": "text-white",
+              "showLessonHeaderShare": false,
+              "keyPointsPanel": "bg-blue-50 rounded-xl p-6 border border-blue-200",
+              "keyPointsCheck": "text-blue-600",
+              "transcriptPanel": "bg-gray-50 rounded-xl p-6 border border-gray-200",
+              "readingArticleWrap": "",
+              "readingTakeawaysPanel": "bg-purple-50 rounded-xl p-6 border border-purple-200",
+              "readingTakeawaysIcon": "text-purple-600",
+              "interactiveStepsPanel": "bg-gradient-to-br from-emerald-50 to-lime-50 rounded-xl p-6 border border-emerald-200",
+              "interactiveStepNumber": "bg-emerald-600 text-white",
+              "templateSectionsCard": "bg-white rounded-lg p-6 border border-gray-200",
+              "templateSectionNumber": "bg-emerald-100 text-emerald-700",
+              "templateDownloadCard": "p-4 bg-emerald-50 border-2 border-emerald-200 rounded-lg hover:bg-emerald-100",
+              "templateDownloadIcon": "text-emerald-600",
+              "markCompleteButton": "bg-emerald-600 hover:bg-emerald-700",
+              "completionPanel": "border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50",
+              "completionIconBg": "bg-green-600",
+              "completionCta": "bg-green-600 hover:bg-green-700",
+              "completedLessonBadge": "bg-green-100 text-green-700",
+              "lessonNavigation": "footer-with-advance",
+              "footerCompleteButton": "bg-emerald-600 hover:bg-emerald-700",
+              "blockHeadingClass": "text-lg font-semibold text-gray-900 mb-3"
+            },
+            "lessons": [
+              {
+                "id": "team-dynamics-fundamentals-lesson-1",
+                "type": "video",
+                "title": "Introduction to Team Dynamics",
+                "duration": "12 min",
+                "points": 20,
+                "content": {
+                  "description": "Explore the foundations of effective student collaboration and group structure.",
+                  "keyPoints": [
+                    "Collaboration improves when roles are visible",
+                    "Norms should be taught, not assumed",
+                    "Group work requires accountability structures",
+                    "Balanced participation is a design choice",
+                    "Students need support for productive interaction"
+                  ],
+                  "transcript": "Effective collaboration begins with clear roles, clear expectations, and routines that help students contribute meaningfully to group tasks."
+                }
+              },
+              {
+                "id": "team-dynamics-fundamentals-lesson-2",
+                "type": "reading",
+                "title": "Why Group Work Fails Without Structure",
+                "points": 15,
+                "content": {
+                  "article": "# Team Dynamics Fundamentals\n\n## Overview\n\nStrong collaboration does not happen by chance. Students need roles, routines, and shared expectations.\n\n## Skills In Focus\n\n1. Team roles\n2. Group norms\n3. Shared responsibility\n4. Collaborative culture\n\n## Classroom Application\n\nUse these ideas to redesign one group task so every student contributes clearly and consistently.",
+                  "keyTakeaways": [
+                    "Unstructured group work often leads to unequal participation",
+                    "Visible expectations improve accountability",
+                    "Roles help students contribute with confidence",
+                    "Norms reduce conflict and confusion",
+                    "Teachers should coach collaboration actively"
+                  ]
+                }
+              },
+              {
+                "id": "team-dynamics-fundamentals-lesson-3",
+                "type": "interactive",
+                "title": "Design Group Roles",
+                "points": 25,
+                "content": {
+                  "description": "Create a collaboration structure with clear roles and shared responsibilities.",
+                  "steps": [
+                    "Choose the learning goal",
+                    "List the tasks students must complete together",
+                    "Assign 3-4 roles linked to the task",
+                    "Define what each role is responsible for",
+                    "Add one accountability check for each student"
+                  ]
+                }
+              },
+              {
+                "id": "team-dynamics-fundamentals-lesson-4",
+                "type": "template",
+                "title": "Collaborative Task Planning Template",
+                "points": 15,
+                "content": {
+                  "description": "Use this template to plan collaborative activities with role clarity and accountability.",
+                  "sections": [
+                    "Objectives",
+                    "Group Roles",
+                    "Task Sequence",
+                    "Participation Expectations",
+                    "Evidence of Learning",
+                    "Reflection Notes"
+                  ]
+                }
+              },
+              {
+                "id": "team-dynamics-fundamentals-lesson-5",
+                "type": "interactive",
+                "title": "Build a Team-Based Activity",
+                "points": 25,
+                "content": {
+                  "description": "Design a complete classroom task that requires purposeful collaboration.",
+                  "steps": [
+                    "Pick a topic students will work on together",
+                    "Decide how success will be measured",
+                    "Add defined student roles",
+                    "Create a collaboration checkpoint",
+                    "Plan a short debrief or reflection"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "structured-collaboration-models",
+          "slug": "structured-collaboration-models",
+          "title": "Structured Collaboration Models",
+          "description": "Learn classroom structures that make discussion, teamwork, and peer explanation more effective.",
+          "duration": "60 min",
+          "level": "Beginner",
+          "impact": "High",
+          "skillIds": [
+            "collab-discussion-structures",
+            "collab-peer-explanation",
+            "collab-routines",
+            "collab-task-design"
+          ],
+          "learningOutcomes": [
+            "Use simple collaboration structures effectively",
+            "Match a collaboration model to a learning goal",
+            "Support stronger peer explanation and discussion",
+            "Build routines for productive collaboration",
+            "Reduce off-task behavior during group work"
+          ],
+          "assessment": {
+            "type": "Portfolio",
+            "description": "Design a lesson using one structured collaboration model and explain why it fits the objective",
+            "points": 100
+          },
+          "realWorldApplication": "Use one structured discussion routine in your next lesson and observe student participation.",
+          "content": [
+            {
+              "type": "video",
+              "title": "Structured Collaboration in Action",
+              "duration": "15 min",
+              "points": 20,
+              "media": {
+                "type": "video",
+                "url": "https://www.youtube.com/watch?v=1kI8UsiQmG0",
+                "provider": "youtube",
+                "title": "Structured Collaboration in Action",
+                "duration": "15 min",
+                "controls": true,
+                "metadata": {
+                  "placeholder": false
+                }
+              }
+            },
+            {
+              "type": "reading",
+              "title": "Matching Routines to Learning Goals",
+              "points": 15
+            },
+            {
+              "type": "interactive",
+              "title": "Choose a Collaboration Model",
+              "points": 25
+            },
+            {
+              "type": "template",
+              "title": "Discussion Routine Planner",
+              "points": 20
+            },
+            {
+              "type": "project",
+              "title": "Plan a Collaborative Lesson Flow",
+              "points": 20
+            }
+          ],
+          "detail": {
+            "moduleLabel": "Module 2 of 5",
+            "backPathSlug": "collaborative-learning-strategies",
+            "pageVisual": {
+              "sidebarStyle": "engagement",
+              "headerGradient": "from-cyan-600 via-sky-600 to-blue-600",
+              "heroSubtitleClass": "text-cyan-100",
+              "heroShowEarnedPoints": true,
+              "heroShowImpactRow": true,
+              "heroShowBookmarkShare": true,
+              "tieredSidebarActive": "",
+              "tieredSidebarCompleted": "",
+              "tieredSidebarIdle": "",
+              "tieredSidebarCheckComplete": "text-green-600",
+              "sidebarProgressFill": "bg-cyan-600",
+              "engagementSidebarActive": "bg-cyan-50 border-2 border-cyan-300",
+              "engagementSidebarIdle": "border-2 border-transparent hover:bg-gray-50",
+              "engagementNumCompleted": "bg-green-100 text-green-600",
+              "engagementNumActive": "bg-cyan-100 text-cyan-600",
+              "engagementNumIdle": "bg-gray-100 text-gray-400",
+              "engagementTitleActive": "text-cyan-900",
+              "lessonTypeIconClass": "text-gray-600",
+              "pointsPill": "bg-gray-100 text-gray-800",
+              "videoOverlayGradient": "from-gray-900 to-gray-800",
+              "videoPlayUseTranslucent": true,
+              "videoPlayIconClass": "text-white",
+              "showLessonHeaderShare": false,
+              "keyPointsPanel": "bg-blue-50 rounded-xl p-6 border border-blue-200",
+              "keyPointsCheck": "text-blue-600",
+              "transcriptPanel": "bg-gray-50 rounded-xl p-6 border border-gray-200",
+              "readingArticleWrap": "",
+              "readingTakeawaysPanel": "bg-purple-50 rounded-xl p-6 border border-purple-200",
+              "readingTakeawaysIcon": "text-purple-600",
+              "interactiveStepsPanel": "bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl p-6 border border-cyan-200",
+              "interactiveStepNumber": "bg-cyan-600 text-white",
+              "templateSectionsCard": "bg-white rounded-lg p-6 border border-gray-200",
+              "templateSectionNumber": "bg-cyan-100 text-cyan-700",
+              "templateDownloadCard": "p-4 bg-cyan-50 border-2 border-cyan-200 rounded-lg hover:bg-cyan-100",
+              "templateDownloadIcon": "text-cyan-600",
+              "markCompleteButton": "bg-cyan-600 hover:bg-cyan-700",
+              "completionPanel": "border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50",
+              "completionIconBg": "bg-green-600",
+              "completionCta": "bg-green-600 hover:bg-green-700",
+              "completedLessonBadge": "bg-green-100 text-green-700",
+              "lessonNavigation": "footer-with-advance",
+              "footerCompleteButton": "bg-cyan-600 hover:bg-cyan-700",
+              "blockHeadingClass": "text-lg font-semibold text-gray-900 mb-3"
+            },
+            "lessons": [
+              {
+                "id": "structured-collaboration-models-lesson-1",
+                "type": "video",
+                "title": "Structured Collaboration in Action",
+                "duration": "15 min",
+                "points": 20,
+                "content": {
+                  "description": "See how collaboration structures guide participation, discussion, and accountability.",
+                  "keyPoints": [
+                    "Simple structures create safer discussion spaces",
+                    "Routines improve focus during group work",
+                    "Peer explanation deepens understanding",
+                    "Not every task needs the same collaboration model",
+                    "Structure increases engagement and clarity"
+                  ],
+                  "transcript": "Effective collaboration models help students know how to participate, when to speak, and how to build on each other's ideas."
+                }
+              },
+              {
+                "id": "structured-collaboration-models-lesson-2",
+                "type": "reading",
+                "title": "Matching Routines to Learning Goals",
+                "points": 15,
+                "content": {
+                  "article": "# Structured Collaboration Models\n\n## Overview\n\nDifferent tasks require different collaboration routines. Strong design improves both discussion and learning.\n\n## Skills In Focus\n\n1. Discussion structures\n2. Peer explanation\n3. Task design\n4. Participation routines\n\n## Classroom Application\n\nChoose a collaboration model that matches your objective and gives every student a way to contribute.",
+                  "keyTakeaways": [
+                    "Think-pair-share works well for idea generation",
+                    "Jigsaw supports shared responsibility across groups",
+                    "Discussion stems improve talk quality",
+                    "Timing and task clarity matter",
+                    "Teachers should model routines explicitly"
+                  ]
+                }
+              },
+              {
+                "id": "structured-collaboration-models-lesson-3",
+                "type": "interactive",
+                "title": "Choose a Collaboration Model",
+                "points": 25,
+                "content": {
+                  "description": "Match a classroom goal to the collaboration routine that best supports it.",
+                  "steps": [
+                    "Identify the lesson objective",
+                    "Decide whether students need discussion, synthesis, or explanation",
+                    "Select a routine such as think-pair-share, jigsaw, or carousel",
+                    "Plan timing and directions",
+                    "Add an accountability check at the end"
+                  ]
+                }
+              },
+              {
+                "id": "structured-collaboration-models-lesson-4",
+                "type": "template",
+                "title": "Discussion Routine Planner",
+                "points": 20,
+                "content": {
+                  "description": "Use this planning tool to build a discussion routine with purpose and structure.",
+                  "sections": [
+                    "Objectives",
+                    "Routine Selected",
+                    "Student Prompts",
+                    "Timing",
+                    "Accountability Check",
+                    "Reflection Notes"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "peer-feedback-reflection",
+          "slug": "peer-feedback-reflection",
+          "title": "Peer Feedback & Reflection",
+          "description": "Teach students how to give useful feedback, reflect on contributions, and improve work through peer support.",
+          "duration": "55 min",
+          "level": "Intermediate",
+          "impact": "High",
+          "skillIds": [
+            "collab-peer-feedback",
+            "collab-reflection",
+            "collab-revision",
+            "collab-metacognition"
+          ],
+          "learningOutcomes": [
+            "Teach students how to give specific peer feedback",
+            "Use reflection to improve collaboration",
+            "Support revision through peer-to-peer input",
+            "Build student ownership of group outcomes",
+            "Connect feedback with improvement"
+          ],
+          "assessment": {
+            "type": "Project-Based",
+            "description": "Design a peer feedback routine with sentence stems and a reflection component",
+            "points": 100
+          },
+          "realWorldApplication": "Add one peer feedback protocol to a classroom task this week and observe how students revise their work.",
+          "content": [
+            {
+              "type": "video",
+              "title": "Teaching Students to Give Better Feedback",
+              "duration": "13 min",
+              "points": 20,
+              "media": {
+                "type": "video",
+                "url": "https://www.youtube.com/watch?v=hqh1MRWZjms",
+                "provider": "youtube",
+                "title": "Teaching Students to Give Better Feedback",
+                "duration": "13 min",
+                "controls": true,
+                "metadata": {
+                  "placeholder": false
+                }
+              }
+            },
+            {
+              "type": "reading",
+              "title": "Why Reflection Improves Collaboration",
+              "points": 15
+            },
+            {
+              "type": "interactive",
+              "title": "Build Feedback Sentence Stems",
+              "points": 25
+            },
+            {
+              "type": "template",
+              "title": "Peer Feedback Form",
+              "points": 20
+            },
+            {
+              "type": "project",
+              "title": "Plan a Revision Routine",
+              "points": 20
+            }
+          ],
+          "detail": {
+            "moduleLabel": "Module 3 of 5",
+            "backPathSlug": "collaborative-learning-strategies",
+            "pageVisual": {
+              "sidebarStyle": "engagement",
+              "headerGradient": "from-violet-600 via-purple-600 to-fuchsia-600",
+              "heroSubtitleClass": "text-violet-100",
+              "heroShowEarnedPoints": true,
+              "heroShowImpactRow": true,
+              "heroShowBookmarkShare": false,
+              "tieredSidebarActive": "",
+              "tieredSidebarCompleted": "",
+              "tieredSidebarIdle": "",
+              "tieredSidebarCheckComplete": "text-green-600",
+              "sidebarProgressFill": "bg-violet-600",
+              "engagementSidebarActive": "bg-violet-50 border-2 border-violet-300",
+              "engagementSidebarIdle": "border-2 border-transparent hover:bg-gray-50",
+              "engagementNumCompleted": "bg-green-100 text-green-600",
+              "engagementNumActive": "bg-violet-100 text-violet-600",
+              "engagementNumIdle": "bg-gray-100 text-gray-400",
+              "engagementTitleActive": "text-violet-900",
+              "lessonTypeIconClass": "text-gray-600",
+              "pointsPill": "bg-gray-100 text-gray-800",
+              "videoOverlayGradient": "from-gray-900 to-gray-800",
+              "videoPlayUseTranslucent": true,
+              "videoPlayIconClass": "text-white",
+              "showLessonHeaderShare": false,
+              "keyPointsPanel": "bg-blue-50 rounded-xl p-6 border border-blue-200",
+              "keyPointsCheck": "text-blue-600",
+              "transcriptPanel": "bg-gray-50 rounded-xl p-6 border border-gray-200",
+              "readingArticleWrap": "",
+              "readingTakeawaysPanel": "bg-purple-50 rounded-xl p-6 border border-purple-200",
+              "readingTakeawaysIcon": "text-purple-600",
+              "interactiveStepsPanel": "bg-gradient-to-br from-violet-50 to-fuchsia-50 rounded-xl p-6 border border-violet-200",
+              "interactiveStepNumber": "bg-violet-600 text-white",
+              "templateSectionsCard": "bg-white rounded-lg p-6 border border-gray-200",
+              "templateSectionNumber": "bg-violet-100 text-violet-700",
+              "templateDownloadCard": "p-4 bg-violet-50 border-2 border-violet-200 rounded-lg hover:bg-violet-100",
+              "templateDownloadIcon": "text-violet-600",
+              "markCompleteButton": "bg-violet-600 hover:bg-violet-700",
+              "completionPanel": "border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50",
+              "completionIconBg": "bg-green-600",
+              "completionCta": "bg-green-600 hover:bg-green-700",
+              "completedLessonBadge": "bg-green-100 text-green-700",
+              "lessonNavigation": "footer-with-advance",
+              "footerCompleteButton": "bg-violet-600 hover:bg-violet-700",
+              "blockHeadingClass": "text-lg font-semibold text-gray-900 mb-3"
+            },
+            "lessons": [
+              {
+                "id": "peer-feedback-reflection-lesson-1",
+                "type": "video",
+                "title": "Teaching Students to Give Better Feedback",
+                "duration": "13 min",
+                "points": 20,
+                "content": {
+                  "description": "Learn how to make peer feedback specific, respectful, and useful for revision.",
+                  "keyPoints": [
+                    "Students need models for effective feedback",
+                    "Sentence stems improve feedback quality",
+                    "Reflection helps students notice their own contribution",
+                    "Peer review is stronger when linked to clear criteria",
+                    "Revision should follow feedback"
+                  ],
+                  "transcript": "Peer feedback works best when students know what quality looks like, how to name strengths, and how to suggest next steps clearly."
+                }
+              },
+              {
+                "id": "peer-feedback-reflection-lesson-2",
+                "type": "reading",
+                "title": "Why Reflection Improves Collaboration",
+                "points": 15,
+                "content": {
+                  "article": "# Peer Feedback & Reflection\n\n## Overview\n\nWhen students reflect on their work and their collaboration, they learn to improve both product and process.\n\n## Skills In Focus\n\n1. Feedback\n2. Reflection\n3. Revision\n4. Ownership\n\n## Classroom Application\n\nAdd a short reflection routine after one collaborative task so students think about how they contributed and what to improve next.",
+                  "keyTakeaways": [
+                    "Reflection supports self-awareness",
+                    "Feedback is more useful when criteria are visible",
+                    "Revision should be built into the task",
+                    "Students learn collaboration by examining it",
+                    "Peer input can improve both confidence and quality"
+                  ]
+                }
+              },
+              {
+                "id": "peer-feedback-reflection-lesson-3",
+                "type": "interactive",
+                "title": "Build Feedback Sentence Stems",
+                "points": 25,
+                "content": {
+                  "description": "Create sentence stems that guide respectful, useful peer feedback.",
+                  "steps": [
+                    "Choose the type of work students will review",
+                    "Identify 2-3 criteria students should focus on",
+                    "Write one sentence stem for strengths",
+                    "Write one sentence stem for revision suggestions",
+                    "Add one reflection question for the student receiving feedback"
+                  ]
+                }
+              },
+              {
+                "id": "peer-feedback-reflection-lesson-4",
+                "type": "template",
+                "title": "Peer Feedback Form",
+                "points": 20,
+                "content": {
+                  "description": "A ready-to-use form for peer review, revision, and self-reflection.",
+                  "sections": [
+                    "Objectives",
+                    "What Worked Well",
+                    "Suggestions for Improvement",
+                    "Revision Plan",
+                    "Self-Reflection Notes"
+                  ]
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "collaborative-problem-solving",
+          "slug": "collaborative-problem-solving",
+          "title": "Collaborative Problem Solving",
+          "description": "Design tasks where students solve meaningful problems together using reasoning, evidence, and shared decision-making.",
+          "duration": "55 min",
+          "level": "Intermediate",
+          "impact": "High",
+          "skillIds": [
+            "collab-problem-solving",
+            "collab-reasoning",
+            "collab-decision-making",
+            "collab-shared-inquiry"
+          ],
+          "learningOutcomes": [
+            "Design collaborative problem-solving tasks",
+            "Use prompts that encourage reasoning and evidence",
+            "Support group decision-making without domination",
+            "Encourage collective ownership of solutions",
+            "Improve student persistence through collaboration"
+          ],
+          "assessment": {
+            "type": "Project-Based",
+            "description": "Design a collaborative problem-solving task with checkpoints for reasoning and shared decisions",
+            "points": 100
+          },
+          "realWorldApplication": "Run one collaborative problem-solving challenge and observe how students explain and defend ideas together.",
+          "content": [
+            {
+              "type": "video",
+              "title": "Collaborative Problem Solving in the Classroom",
+              "duration": "14 min",
+              "points": 20,
+              "media": {
+                "type": "video",
+                "url": "https://www.youtube.com/watch?v=R2DU85qLfJQ",
+                "provider": "youtube",
+                "title": "Collaborative Problem Solving in the Classroom",
+                "duration": "14 min",
+                "controls": true,
+                "metadata": {
+                  "placeholder": false
+                }
+              }
+            },
+            {
+              "type": "reading",
+              "title": "Designing Problems Worth Solving Together",
+              "points": 15
+            },
+            {
+              "type": "interactive",
+              "title": "Create a Group Challenge",
+              "points": 25
+            },
+            {
+              "type": "template",
+              "title": "Collaborative Inquiry Planner",
+              "points": 20
+            },
+            {
+              "type": "project",
+              "title": "Design a Shared-Solution Task",
+              "points": 20
+            }
+          ],
+          "detail": {
+            "moduleLabel": "Module 4 of 5",
+            "backPathSlug": "collaborative-learning-strategies",
+            "pageVisual": {
+              "sidebarStyle": "engagement",
+              "headerGradient": "from-amber-600 via-orange-600 to-red-600",
+              "heroSubtitleClass": "text-amber-100",
+              "heroShowEarnedPoints": true,
+              "heroShowImpactRow": true,
+              "heroShowBookmarkShare": false,
+              "tieredSidebarActive": "",
+              "tieredSidebarCompleted": "",
+              "tieredSidebarIdle": "",
+              "tieredSidebarCheckComplete": "text-green-600",
+              "sidebarProgressFill": "bg-amber-600",
+              "engagementSidebarActive": "bg-amber-50 border-2 border-amber-300",
+              "engagementSidebarIdle": "border-2 border-transparent hover:bg-gray-50",
+              "engagementNumCompleted": "bg-green-100 text-green-600",
+              "engagementNumActive": "bg-amber-100 text-amber-600",
+              "engagementNumIdle": "bg-gray-100 text-gray-400",
+              "engagementTitleActive": "text-amber-900",
+              "lessonTypeIconClass": "text-gray-600",
+              "pointsPill": "bg-gray-100 text-gray-800",
+              "videoOverlayGradient": "from-gray-900 to-gray-800",
+              "videoPlayUseTranslucent": true,
+              "videoPlayIconClass": "text-white",
+              "showLessonHeaderShare": false,
+              "keyPointsPanel": "bg-blue-50 rounded-xl p-6 border border-blue-200",
+              "keyPointsCheck": "text-blue-600",
+              "transcriptPanel": "bg-gray-50 rounded-xl p-6 border border-gray-200",
+              "readingArticleWrap": "",
+              "readingTakeawaysPanel": "bg-purple-50 rounded-xl p-6 border border-purple-200",
+              "readingTakeawaysIcon": "text-purple-600",
+              "interactiveStepsPanel": "bg-gradient-to-br from-amber-50 to-orange-50 rounded-xl p-6 border border-amber-200",
+              "interactiveStepNumber": "bg-amber-600 text-white",
+              "templateSectionsCard": "bg-white rounded-lg p-6 border border-gray-200",
+              "templateSectionNumber": "bg-amber-100 text-amber-700",
+              "templateDownloadCard": "p-4 bg-amber-50 border-2 border-amber-200 rounded-lg hover:bg-amber-100",
+              "templateDownloadIcon": "text-amber-600",
+              "markCompleteButton": "bg-amber-600 hover:bg-amber-700",
+              "completionPanel": "border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50",
+              "completionIconBg": "bg-green-600",
+              "completionCta": "bg-green-600 hover:bg-green-700",
+              "completedLessonBadge": "bg-green-100 text-green-700",
+              "lessonNavigation": "footer-with-advance",
+              "footerCompleteButton": "bg-amber-600 hover:bg-amber-700",
+              "blockHeadingClass": "text-lg font-semibold text-gray-900 mb-3"
+            },
+            "lessons": [
+              {
+                "id": "collaborative-problem-solving-lesson-1",
+                "type": "video",
+                "title": "Collaborative Problem Solving in the Classroom",
+                "duration": "14 min",
+                "points": 20,
+                "content": {
+                  "description": "Learn how to design problem-solving tasks that require discussion, evidence, and shared reasoning.",
+                  "keyPoints": [
+                    "Good collaborative tasks require interdependence",
+                    "Students need prompts that invite reasoning",
+                    "Shared decision-making should be visible",
+                    "Problems should be complex enough for teamwork",
+                    "Reflection helps groups improve their process"
+                  ],
+                  "transcript": "Collaborative problem solving works when students must reason together, weigh evidence, and build shared solutions rather than divide the work superficially."
+                }
+              }
+            ]
+          }
+        },
+        {
+          "id": "inclusive-collaboration-practices",
+          "slug": "inclusive-collaboration-practices",
+          "title": "Inclusive Collaboration Practices",
+          "description": "Ensure all students can access, contribute to, and benefit from collaborative learning experiences.",
+          "duration": "50 min",
+          "level": "Advanced",
+          "impact": "Medium",
+          "skillIds": [
+            "collab-inclusion",
+            "collab-accessibility",
+            "collab-equity",
+            "collab-participation-support"
+          ],
+          "learningOutcomes": [
+            "Identify barriers that limit student participation in groups",
+            "Use supports that make collaboration more inclusive",
+            "Create equitable opportunities for contribution",
+            "Differentiate collaborative tasks for diverse learners",
+            "Build belonging and confidence in group settings"
+          ],
+          "assessment": {
+            "type": "Portfolio",
+            "description": "Redesign a collaborative task to improve access, participation, and equity",
+            "points": 100
+          },
+          "realWorldApplication": "Review one collaborative activity and add supports that increase access for all learners.",
+          "content": [
+            {
+              "type": "video",
+              "title": "Making Collaboration More Inclusive",
+              "duration": "11 min",
+              "points": 20,
+              "media": {
+                "type": "video",
+                "url": "https://www.youtube.com/watch?v=8R0pD3xM4m8",
+                "provider": "youtube",
+                "title": "Making Collaboration More Inclusive",
+                "duration": "11 min",
+                "controls": true,
+                "metadata": {
+                  "placeholder": false
+                }
+              }
+            },
+            {
+              "type": "reading",
+              "title": "Access, Equity, and Voice in Group Work",
+              "points": 15
+            },
+            {
+              "type": "interactive",
+              "title": "Audit a Collaborative Task for Inclusion",
+              "points": 25
+            },
+            {
+              "type": "template",
+              "title": "Inclusive Group Work Checklist",
+              "points": 20
+            },
+            {
+              "type": "project",
+              "title": "Redesign for Access",
+              "points": 20
+            }
+          ],
+          "detail": {
+            "moduleLabel": "Module 5 of 5",
+            "backPathSlug": "collaborative-learning-strategies",
+            "pageVisual": {
+              "sidebarStyle": "engagement",
+              "headerGradient": "from-rose-600 via-pink-600 to-fuchsia-600",
+              "heroSubtitleClass": "text-rose-100",
+              "heroShowEarnedPoints": true,
+              "heroShowImpactRow": true,
+              "heroShowBookmarkShare": false,
+              "tieredSidebarActive": "",
+              "tieredSidebarCompleted": "",
+              "tieredSidebarIdle": "",
+              "tieredSidebarCheckComplete": "text-green-600",
+              "sidebarProgressFill": "bg-rose-600",
+              "engagementSidebarActive": "bg-rose-50 border-2 border-rose-300",
+              "engagementSidebarIdle": "border-2 border-transparent hover:bg-gray-50",
+              "engagementNumCompleted": "bg-green-100 text-green-600",
+              "engagementNumActive": "bg-rose-100 text-rose-600",
+              "engagementNumIdle": "bg-gray-100 text-gray-400",
+              "engagementTitleActive": "text-rose-900",
+              "lessonTypeIconClass": "text-gray-600",
+              "pointsPill": "bg-gray-100 text-gray-800",
+              "videoOverlayGradient": "from-gray-900 to-gray-800",
+              "videoPlayUseTranslucent": true,
+              "videoPlayIconClass": "text-white",
+              "showLessonHeaderShare": false,
+              "keyPointsPanel": "bg-blue-50 rounded-xl p-6 border border-blue-200",
+              "keyPointsCheck": "text-blue-600",
+              "transcriptPanel": "bg-gray-50 rounded-xl p-6 border border-gray-200",
+              "readingArticleWrap": "",
+              "readingTakeawaysPanel": "bg-purple-50 rounded-xl p-6 border border-purple-200",
+              "readingTakeawaysIcon": "text-purple-600",
+              "interactiveStepsPanel": "bg-gradient-to-br from-rose-50 to-pink-50 rounded-xl p-6 border border-rose-200",
+              "interactiveStepNumber": "bg-rose-600 text-white",
+              "templateSectionsCard": "bg-white rounded-lg p-6 border border-gray-200",
+              "templateSectionNumber": "bg-rose-100 text-rose-700",
+              "templateDownloadCard": "p-4 bg-rose-50 border-2 border-rose-200 rounded-lg hover:bg-rose-100",
+              "templateDownloadIcon": "text-rose-600",
+              "markCompleteButton": "bg-rose-600 hover:bg-rose-700",
+              "completionPanel": "border-2 border-green-300 bg-gradient-to-br from-green-50 to-emerald-50",
+              "completionIconBg": "bg-green-600",
+              "completionCta": "bg-green-600 hover:bg-green-700",
+              "completedLessonBadge": "bg-green-100 text-green-700",
+              "lessonNavigation": "footer-with-advance",
+              "footerCompleteButton": "bg-rose-600 hover:bg-rose-700",
+              "blockHeadingClass": "text-lg font-semibold text-gray-900 mb-3"
+            },
+            "lessons": [
+              {
+                "id": "inclusive-collaboration-practices-lesson-1",
+                "type": "video",
+                "title": "Making Collaboration More Inclusive",
+                "duration": "11 min",
+                "points": 20,
+                "content": {
+                  "description": "Learn how to make collaborative learning more accessible and equitable for all students.",
+                  "keyPoints": [
+                    "Not all students access collaboration in the same way",
+                    "Sentence stems and visual supports improve access",
+                    "Equity requires intentional design",
+                    "Participation should not depend on confidence alone",
+                    "Inclusive collaboration builds belonging"
+                  ],
+                  "transcript": "Inclusive collaboration requires teachers to reduce participation barriers, support multiple ways of contributing, and make expectations visible to all learners."
+                }
+              }
+            ]
+          }
+        }
+      ],
+      "pathTheme": {
+        "headerGradient": "from-emerald-600 via-green-600 to-cyan-600",
+        "accentBorder": "border-emerald-200",
+        "accentBg": "from-emerald-50 to-cyan-50",
+        "accentText": "text-emerald-600",
+        "button": "bg-emerald-600 hover:bg-emerald-700",
+        "tipPanelBg": "from-blue-50 to-emerald-50",
+        "tipPanelBorder": "border-emerald-200",
+        "heroDescriptionClass": "text-emerald-100",
+        "sparklesIconBg": "bg-emerald-600",
+        "guidancePersonalizedBadge": "px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 text-xs font-semibold",
+        "guidanceTipBoxBorder": "border-emerald-200",
+        "nextStepIconClass": "text-emerald-600",
+        "skillImpactHeaderIcon": "text-green-600",
+        "skillImprovementClass": "text-green-600",
+        "skillBarAfter": "bg-gradient-to-r from-green-500 to-green-600",
+        "pathSidebarProgressBar": "bg-gradient-to-r from-emerald-500 to-cyan-500",
+        "pathSkillChip": "px-2 py-1 bg-emerald-50 text-emerald-800 rounded text-xs font-medium border border-emerald-100",
+        "moduleNumberBadge": "bg-emerald-100 text-emerald-700",
+        "moduleExpandedBorder": "border-emerald-300",
+        "moduleExpandedBg": "bg-emerald-50",
+        "moduleCollapsedHoverBorder": "hover:border-emerald-200",
+        "moduleExpandedInnerBorder": "border-t border-emerald-200",
+        "sectionHeadingIconClass": "text-emerald-600",
+        "moduleContentRowIconClass": "text-emerald-600",
+        "moduleContentPointsClass": "text-emerald-700",
+        "assessmentPanel": "bg-purple-50 rounded-lg p-4 border border-purple-200",
+        "assessmentIconClass": "text-purple-600",
+        "assessmentPointsClass": "text-purple-700",
+        "markCompleteOutlineButton": "border-2 border-green-600 text-green-600 hover:bg-green-50",
+        "pathOverviewImpactBadgeHigh": "px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-semibold",
+        "pathOverviewImpactBadgeMedium": "px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-semibold",
+        "pathOverviewImpactBadgeLow": "px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-semibold"
+      }
+    }
   }
   
 ] as LearningHubSectionItem[]

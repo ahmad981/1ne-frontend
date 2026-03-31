@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom'
-import { useDispatch, useSelector } from 'react-redux'
 import {
   Play,
   Award,
@@ -15,26 +14,45 @@ import {
 import { buildLearningHubSectionPath, learningHubData } from '../../features/learningHub'
 import { useLearningHubRouteScrollToTop } from '../../features/learningHub/useLearningHubScrollToTop'
 
+type LearningHubMode = 'personalized' | 'cold_start' | 'personalizing'
+
+type HubContinueItem = {
+  contentId?: string
+  contentType?: string
+  route?: string
+  title?: string
+  subtitle?: string
+  progressPercent?: number
+}
+
 const microCourses = learningHubData
   .filter((item) => item.section === 'personalized-micro-courses')
   .map((item) => ({
-  title: item.title,
-  duration: item.duration ?? '',
-  category: item.subtitle ?? '',
-  progress: item.slug === 'formative-assessment-strategies' ? 100 : item.slug === 'differentiation-made-simple' ? 45 : 0,
-  difficulty: item.difficulty ?? '',
-  slug: item.slug,
-}))
+    title: item.title,
+    duration: item.duration ?? '',
+    category: item.subtitle ?? '',
+    progress:
+      item.slug === 'formative-assessment-strategies'
+        ? 100
+        : item.slug === 'differentiation-made-simple'
+          ? 45
+          : 0,
+    difficulty: item.difficulty ?? '',
+    slug: item.slug,
+    route: buildLearningHubSectionPath('personalized-micro-courses', item.slug),
+    contentId: undefined as string | undefined,
+    contentType: 'micro_course' as const,
+  }))
 
 const tutorials = learningHubData
   .filter((item) => item.section === 'ai-guided-tutorials-demonstrations')
   .map((item) => ({
-  title: item.title,
-  type: item.subtitle ?? '',
-  duration: item.duration ?? '',
-  completed: false,
-  slug: item.slug,
-}))
+    title: item.title,
+    type: item.subtitle ?? '',
+    duration: item.duration ?? '',
+    completed: false,
+    slug: item.slug,
+  }))
 
 const researchInsights = learningHubData
   .filter((item) => item.section === 'research-insights-library')
@@ -82,70 +100,85 @@ const specialistTracks: SpecialistTrackCard[] = [
     })),
 ]
 
-// Safe fallback only: real backend data is preferred whenever available.
-const aiRecommendationsDummy = [
+const learningHubMode: LearningHubMode = 'personalized'
+const loading = false
+const filteredContinueItems: HubContinueItem[] = []
+const error = ''
+const effectiveTutorials = tutorials
+const certificates = [
   {
-    impact: 'High',
-    skill: 'Advanced differentiation strategies',
-    reason: 'You frequently create lessons for diverse learners. Deepen your toolkit with tiered instruction frameworks.',
-    estimatedTime: '2 hours',
+    name: 'Micro-Course: Formative Assessment',
+    date: '2024-01-15',
+    hours: 0.5,
+    badge: 'Assessment',
   },
   {
-    impact: 'Medium',
-    skill: 'AI-assisted assessment design',
-    reason: 'Your formative assessments could benefit from automated rubric generation and instant feedback loops.',
-    estimatedTime: '1.5 hours',
-  },
-  {
-    impact: 'High',
-    skill: 'Student engagement techniques',
-    reason: 'Based on your lesson patterns, explore gamification and inquiry-based learning hooks.',
-    estimatedTime: '3 hours',
+    name: 'Specialist Track: Literacy Expert',
+    date: '2024-02-20',
+    hours: 15,
+    badge: 'Literacy',
   },
 ]
+const progressStats = {
+  coursesCompleted: 12,
+  hoursLogged: 24.5,
+  certificatesEarned: 2,
+  currentStreak: 5,
+}
 
-const tutorialsDummy = [
-  {
-    type: 'Step-by-step walkthrough',
-    title: 'Mastering the lesson planner template',
-    duration: '12 min',
-    completed: false,
-    route: '/learning-hub/lesson-planner-tutorial',
-  },
-  {
-    type: 'Best practices',
-    title: 'Creating effective assessments',
-    duration: '15 min',
-    completed: false,
-    route: '/learning-hub/assessment-tutorial',
-  },
-  {
-    type: 'Case study',
-    title: 'Real classroom: Differentiation in action',
-    duration: '18 min',
-    completed: false,
-    route: '/learning-hub/differentiation-tutorial',
-  },
-]
+function persistHubRouteState(_target: string, _contentId?: string, _contentType?: string) {
+  // API/slice integration intentionally disabled: keep frontend in dummy/local-data mode for now.
+}
+
+function resolveHubCardRoute(course: {
+  slug?: string
+  route?: string
+  title?: string
+}): string {
+  if (course.route) return course.route
+  if (course.slug) return buildLearningHubSectionPath('personalized-micro-courses', course.slug)
+
+  const byTitle: Record<string, string> = {
+    'Quick wins: Classroom management essentials': buildLearningHubSectionPath(
+      'personalized-micro-courses',
+      'classroom-management-essentials'
+    ),
+    'Formative assessment strategies that work': buildLearningHubSectionPath(
+      'personalized-micro-courses',
+      'formative-assessment-strategies'
+    ),
+    'Differentiation made simple': buildLearningHubSectionPath(
+      'personalized-micro-courses',
+      'differentiation-made-simple'
+    ),
+    'Engaging reluctant learners': buildLearningHubSectionPath(
+      'personalized-micro-courses',
+      'engaging-reluctant-learners'
+    ),
+    'AI tools for lesson planning': buildLearningHubSectionPath(
+      'personalized-micro-courses',
+      'ai-tools-for-lesson-planning'
+    ),
+  }
+  return byTitle[course.title ?? ''] ?? '/learning-hub'
+}
 
 const ProfessionalLearningHub = () => {
   useLearningHubRouteScrollToTop()
   const navigate = useNavigate()
-  const handleCourseStart = (courseTitle: string) => {
-    const courseRoutes: Record<string, string> = {
-      'Quick wins: Classroom management essentials': buildLearningHubSectionPath('personalized-micro-courses', 'classroom-management-essentials'),
-      'Formative assessment strategies that work': buildLearningHubSectionPath('personalized-micro-courses', 'formative-assessment-strategies'),
-      'Differentiation made simple': buildLearningHubSectionPath('personalized-micro-courses', 'differentiation-made-simple'),
-      'Engaging reluctant learners': buildLearningHubSectionPath('personalized-micro-courses', 'engaging-reluctant-learners'),
-      'AI tools for lesson planning': buildLearningHubSectionPath('personalized-micro-courses', 'ai-tools-for-lesson-planning'),
-    }
+  const handleCourseStart = (course: {
+    slug?: string
+    route?: string
+    title?: string
+    contentId?: string
+    contentType?: string
+  }) => {
     const target = resolveHubCardRoute(course)
-    // Persist mapping so Continue / Start path still works if `location.state` is missing.
-    persistHubRouteState(target, contentId, contentType)
+    persistHubRouteState(target, course.contentId, course.contentType)
     navigate(target, {
       state: {
-        contentId,
-        contentType,
+        contentId: course.contentId,
+        contentType: course.contentType,
       },
     })
   }
