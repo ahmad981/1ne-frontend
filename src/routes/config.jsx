@@ -74,6 +74,7 @@ import Personalization from '../pages/features/Personalization';
 import Analytics from '../pages/features/Analytics';
 import Reporting from '../pages/features/Reporting';
 import Assessment from '../pages/features/Assessment';
+import LearningHubContentOperations from '../pages/admin/LearningHubContentOperations';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
 import Subscription from '../pages/Subscription';
@@ -676,6 +677,17 @@ export const superAdminRoutes = [
         <ComingSoon />
       </DashboardLayout>
     ),
+    child: [
+      {
+        path: '/administration/learning-hub-content',
+        moduleName: 'Learning Hub content',
+        element: (
+          <DashboardLayout>
+            <LearningHubContentOperations />
+          </DashboardLayout>
+        ),
+      },
+    ],
   },
 ];
 
@@ -686,6 +698,15 @@ export const orgAdminRoutes = [
     element: (
       <DashboardLayout>
         <ComingSoon />
+      </DashboardLayout>
+    ),
+  },
+  {
+    path: '/administration/learning-hub-content',
+    moduleName: 'Learning Hub content',
+    element: (
+      <DashboardLayout>
+        <LearningHubContentOperations />
       </DashboardLayout>
     ),
   },

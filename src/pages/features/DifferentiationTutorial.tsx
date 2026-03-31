@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { getSectionItemBySlug } from '../../features/learningHub'
 import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
-  Play,
-  Pause,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -25,12 +23,9 @@ import {
   BarChart3,
   Award,
   X,
-  PlayCircle,
   SkipForward,
   SkipBack,
   Volume2,
-  Maximize2,
-  Settings,
   AlertTriangle,
 } from 'lucide-react'
 import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
@@ -46,9 +41,10 @@ interface ClassroomExample {
 
 export function DifferentiationTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const location = useLocation()
+  const contentId =
+    (location.state as { contentId?: string } | null)?.contentId ||
+    'ui-tutorial-differentiation-in-action'
   const [showTranscript, setShowTranscript] = useState(false)
 
   const c = item.aiGuidedTutorialContent!
@@ -59,26 +55,31 @@ export function DifferentiationTutorialView({ item }: { item: LearningHubSection
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
 
   const handleNext = () => {
-    if (!completedSteps.includes(currentStep)) {
-      setCompletedSteps([...completedSteps, currentStep])
+    if (currentStep >= tutorialSteps.length - 1) {
+      void finishTutorial().then(() => navigate('/learning-hub'))
+      return
     }
-    if (currentStep < tutorialSteps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    }
+    goNext()
   }
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
+    goPrev()
   }
 
   const handleStepClick = (stepIndex: number) => {
-    setCurrentStep(stepIndex)
+    setStep(stepIndex)
+  }
+
+  if (!hydrated) {
+    return (
+      <div className="flex min-h-[240px] items-center justify-center rounded-2xl border border-gray-200 bg-white p-8 text-sm text-gray-600">
+        Restoring your tutorial progress…
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="tutorial" data-content-id={contentId || ''} data-content-type="ai_guided_tutorial">
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">
@@ -758,10 +759,9 @@ export function DifferentiationTutorialView({ item }: { item: LearningHubSection
 
               <button
                 onClick={handleNext}
-                disabled={currentStep === tutorialSteps.length - 1}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition"
               >
-                {currentStep === tutorialSteps.length - 1 ? 'Complete Tutorial' : 'Next Step'}
+                {currentStep === tutorialSteps.length - 1 ? 'Complete tutorial' : 'Next step'}
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>

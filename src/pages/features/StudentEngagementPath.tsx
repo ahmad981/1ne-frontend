@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   Target,
@@ -33,6 +34,8 @@ import {
   Settings,
   Filter,
 } from 'lucide-react'
+import axiosInstance from '../../redux/http'
+import { parseLearningPathFromRegistry } from '../../utils/learningHubGeneratedContent'
 
 interface LearningModule {
   id: string
@@ -81,11 +84,22 @@ interface AIGuidance {
 
 const StudentEngagementPath = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const [activeModule, setActiveModule] = useState<string | null>(null)
   const [completedModules, setCompletedModules] = useState<string[]>([])
   const [currentLevel, setCurrentLevel] = useState<'Beginner' | 'Intermediate' | 'Advanced'>('Beginner')
 
-  const learningModules: LearningModule[] = [
+  const persisted = (() => {
+    try {
+      const raw = sessionStorage.getItem(`learningHubRouteState:${location.pathname}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })()
+  const contentId = (location.state as any)?.contentId || persisted?.contentId || null
+
+  const staticLearningModules: LearningModule[] = [
     {
       id: 'gamification-basics',
       title: 'Gamification Fundamentals',
@@ -380,7 +394,7 @@ const StudentEngagementPath = () => {
     },
   ]
 
-  const skillImpacts: SkillImpact[] = [
+  const staticSkillImpacts: SkillImpact[] = [
     {
       skill: 'Student Participation',
       before: 65,
@@ -418,7 +432,7 @@ const StudentEngagementPath = () => {
     },
   ]
 
-  const aiGuidance: AIGuidance = {
+  const staticAiGuidance: AIGuidance = {
     recommendation: 'Focus on Gamification Fundamentals first, then move to Inquiry Hooks',
     reason: 'Based on your lesson patterns, you create structured lessons that would benefit from gamification elements. Once students are engaged, inquiry-based hooks will deepen their learning.',
     nextSteps: [
@@ -429,6 +443,51 @@ const StudentEngagementPath = () => {
     ],
     personalizedTip: 'Your students respond well to visual rewards. Consider starting with badge systems before introducing leaderboards.',
   }
+
+  const [learningModules, setLearningModules] = useState<LearningModule[]>(staticLearningModules)
+  const [skillImpacts, setSkillImpacts] = useState<SkillImpact[]>(staticSkillImpacts)
+  const [aiGuidance, setAiGuidance] = useState<AIGuidance>(staticAiGuidance)
+
+  useEffect(() => {
+    const shouldFetch = typeof contentId === 'string' && contentId.startsWith('factory-')
+    if (!shouldFetch) {
+      setLearningModules(staticLearningModules)
+      setSkillImpacts(staticSkillImpacts)
+      setAiGuidance(staticAiGuidance)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await axiosInstance.get(`/api/v1/content-registry/by-content-id/${encodeURIComponent(contentId)}`)
+        const parsed = parseLearningPathFromRegistry(res?.data)
+        if (cancelled) return
+        if (Array.isArray(parsed.learningModules) && parsed.learningModules.length > 0) {
+          setLearningModules(parsed.learningModules as LearningModule[])
+        } else {
+          setLearningModules(staticLearningModules)
+        }
+        if (Array.isArray(parsed.skillImpacts) && parsed.skillImpacts.length > 0) {
+          setSkillImpacts(parsed.skillImpacts as SkillImpact[])
+        } else {
+          setSkillImpacts(staticSkillImpacts)
+        }
+        if (parsed.aiGuidance && parsed.aiGuidance.recommendation) {
+          setAiGuidance(parsed.aiGuidance as AIGuidance)
+        } else {
+          setAiGuidance(staticAiGuidance)
+        }
+      } catch {
+        if (cancelled) return
+        setLearningModules(staticLearningModules)
+        setSkillImpacts(staticSkillImpacts)
+        setAiGuidance(staticAiGuidance)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [contentId])
 
   // Determine which modules are unlocked based on completion
   const getUnlockedModules = () => {
@@ -488,7 +547,7 @@ const StudentEngagementPath = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="growth_path" data-content-id={contentId || ''} data-content-type="learning_path">
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 via-orange-600 to-red-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">

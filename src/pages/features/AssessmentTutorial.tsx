@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { getSectionItemBySlug } from '../../features/learningHub'
 import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
-  Play,
-  Pause,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
@@ -24,7 +22,6 @@ import {
   BarChart3,
   Award,
   X,
-  PlayCircle,
   SkipForward,
   SkipBack,
   Volume2,
@@ -37,9 +34,7 @@ import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../fea
 
 export function AssessmentTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(false)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const location = useLocation()
   const [showTranscript, setShowTranscript] = useState(false)
 
   const c = item.aiGuidedTutorialContent!
@@ -50,18 +45,15 @@ export function AssessmentTutorialView({ item }: { item: LearningHubSectionItem 
   const progress = ((completedSteps.length + (currentStep > 0 ? 1 : 0)) / tutorialSteps.length) * 100
 
   const handleNext = () => {
-    if (!completedSteps.includes(currentStep)) {
-      setCompletedSteps([...completedSteps, currentStep])
+    if (currentStep >= tutorialSteps.length - 1) {
+      void finishTutorial().then(() => navigate('/learning-hub'))
+      return
     }
-    if (currentStep < tutorialSteps.length - 1) {
-      setCurrentStep(currentStep + 1)
-    }
+    goNext()
   }
 
   const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1)
-    }
+    goPrev()
   }
 
   const handleStepClick = (stepIndex: number) => {
@@ -539,10 +531,9 @@ export function AssessmentTutorialView({ item }: { item: LearningHubSectionItem 
 
               <button
                 onClick={handleNext}
-                disabled={currentStep === tutorialSteps.length - 1}
-                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white text-sm font-semibold rounded-full hover:bg-blue-700 transition"
               >
-                {currentStep === tutorialSteps.length - 1 ? 'Complete Tutorial' : 'Next Step'}
+                {currentStep === tutorialSteps.length - 1 ? 'Complete tutorial' : 'Next step'}
                 <ArrowRight className="w-4 h-4" />
               </button>
             </div>

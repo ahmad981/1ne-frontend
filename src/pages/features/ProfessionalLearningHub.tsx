@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   Play,
   Award,
@@ -9,6 +10,7 @@ import {
   GraduationCap,
   CheckCircle2,
   Zap,
+  Info,
 } from 'lucide-react'
 import { buildLearningHubSectionPath, learningHubData } from '../../features/learningHub'
 import { useLearningHubRouteScrollToTop } from '../../features/learningHub/useLearningHubScrollToTop'
@@ -80,27 +82,51 @@ const specialistTracks: SpecialistTrackCard[] = [
     })),
 ]
 
-const certificates = [
+// Safe fallback only: real backend data is preferred whenever available.
+const aiRecommendationsDummy = [
   {
-    name: 'Micro-Course: Formative Assessment',
-    date: '2024-01-15',
-    hours: 0.5,
-    badge: 'Assessment',
+    impact: 'High',
+    skill: 'Advanced differentiation strategies',
+    reason: 'You frequently create lessons for diverse learners. Deepen your toolkit with tiered instruction frameworks.',
+    estimatedTime: '2 hours',
   },
   {
-    name: 'Specialist Track: Literacy Expert',
-    date: '2024-02-20',
-    hours: 15,
-    badge: 'Literacy',
+    impact: 'Medium',
+    skill: 'AI-assisted assessment design',
+    reason: 'Your formative assessments could benefit from automated rubric generation and instant feedback loops.',
+    estimatedTime: '1.5 hours',
+  },
+  {
+    impact: 'High',
+    skill: 'Student engagement techniques',
+    reason: 'Based on your lesson patterns, explore gamification and inquiry-based learning hooks.',
+    estimatedTime: '3 hours',
   },
 ]
 
-const progressStats = {
-  coursesCompleted: 12,
-  hoursLogged: 24.5,
-  certificatesEarned: 2,
-  currentStreak: 5,
-}
+const tutorialsDummy = [
+  {
+    type: 'Step-by-step walkthrough',
+    title: 'Mastering the lesson planner template',
+    duration: '12 min',
+    completed: false,
+    route: '/learning-hub/lesson-planner-tutorial',
+  },
+  {
+    type: 'Best practices',
+    title: 'Creating effective assessments',
+    duration: '15 min',
+    completed: false,
+    route: '/learning-hub/assessment-tutorial',
+  },
+  {
+    type: 'Case study',
+    title: 'Real classroom: Differentiation in action',
+    duration: '18 min',
+    completed: false,
+    route: '/learning-hub/differentiation-tutorial',
+  },
+]
 
 const ProfessionalLearningHub = () => {
   useLearningHubRouteScrollToTop()
@@ -113,10 +139,15 @@ const ProfessionalLearningHub = () => {
       'Engaging reluctant learners': buildLearningHubSectionPath('personalized-micro-courses', 'engaging-reluctant-learners'),
       'AI tools for lesson planning': buildLearningHubSectionPath('personalized-micro-courses', 'ai-tools-for-lesson-planning'),
     }
-    const route = courseRoutes[courseTitle]
-    if (route) {
-      navigate(route)
-    }
+    const target = resolveHubCardRoute(course)
+    // Persist mapping so Continue / Start path still works if `location.state` is missing.
+    persistHubRouteState(target, contentId, contentType)
+    navigate(target, {
+      state: {
+        contentId,
+        contentType,
+      },
+    })
   }
 
   const handleTutorialWatch = (tutorialSlug: string) => {
@@ -138,6 +169,42 @@ const ProfessionalLearningHub = () => {
 
   return (
     <div className="space-y-10">
+      {learningHubMode !== 'personalized' && (
+        <section
+          className={`rounded-3xl border p-4 shadow-sm ${
+            learningHubMode === 'cold_start'
+              ? 'border-amber-200 bg-amber-50'
+              : 'border-blue-200 bg-blue-50'
+          }`}
+        >
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <Info className={`mt-0.5 h-5 w-5 ${learningHubMode === 'cold_start' ? 'text-amber-600' : 'text-blue-600'}`} />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">
+                  {learningHubMode === 'cold_start'
+                    ? 'Tell us a bit about your teaching to personalize your learning.'
+                    : 'We’re personalizing your Learning Hub based on your profile.'}
+                </p>
+                {learningHubMode === 'cold_start' && (
+                  <p className="mt-1 text-sm text-gray-600">
+                    Complete your teaching profile to unlock better recommendations.
+                  </p>
+                )}
+              </div>
+            </div>
+            {learningHubMode === 'cold_start' && (
+              <button
+                onClick={() => navigate('/profile')}
+                className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-amber-700 border border-amber-200 hover:bg-amber-100"
+              >
+                Complete profile
+              </button>
+            )}
+          </div>
+        </section>
+      )}
+
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-8 py-10 text-white shadow-xl">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl space-y-5">
@@ -161,22 +228,91 @@ const ProfessionalLearningHub = () => {
           <div className="grid w-full max-w-md gap-4 rounded-2xl bg-white/10 p-6 text-white backdrop-blur">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Your progress</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.coursesCompleted} courses</p>
-              <p className="text-xs text-white/70">{progressStats.hoursLogged} PD hours completed</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.coursesCompleted} courses</p>
+              <p className="text-xs text-white/70">{loading ? 'Loading...' : `${progressStats.hoursLogged} PD hours completed`}</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Certificates earned</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.certificatesEarned}</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.certificatesEarned}</p>
               <p className="text-xs text-white/70">Ready for appraisals & portfolios</p>
             </div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Learning streak</p>
-              <p className="mt-2 text-3xl font-semibold">{progressStats.currentStreak} days</p>
+              <p className="mt-2 text-3xl font-semibold">{loading ? '—' : progressStats.currentStreak} days</p>
               <p className="text-xs text-white/70">Keep the momentum going!</p>
             </div>
           </div>
         </div>
       </section>
+
+      {filteredContinueItems.length > 0 && (
+        <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+                <Zap className="h-5 w-5 text-amber-500" /> Continue Learning
+              </h2>
+              <p className="mt-1 text-sm text-gray-600">
+                Pick up where you left off.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            {filteredContinueItems.map((item: any) => (
+              <div
+                key={item.contentId}
+                className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      {item.category && (
+                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">
+                          {item.category}
+                        </p>
+                      )}
+                      {item.duration && <span className="text-xs text-gray-500">• {item.duration}</span>}
+                      {item.difficulty && <span className="text-xs text-gray-500">• {item.difficulty}</span>}
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold text-gray-900">{item.title}</h3>
+                    <div className="mt-3">
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                        <div
+                          className="h-full bg-amber-500 transition-all"
+                          style={{ width: `${item.progressPercent}%` }}
+                        />
+                      </div>
+                      <p className="mt-1 text-xs text-gray-500">{Math.round(item.progressPercent)}% complete</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!item.contentId || item.contentId.startsWith('learning-hub:')) {
+                        navigate('/learning-hub')
+                        return
+                      }
+                      const target = item.route || '/learning-hub'
+                      if (item.contentId) {
+                        persistHubRouteState(target, item.contentId, item.contentType || 'micro_course')
+                      }
+                      navigate(target, {
+                        state: {
+                          contentId: item.contentId,
+                          contentType: item.contentType || 'micro_course',
+                        },
+                      })
+                    }}
+                    className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
+                  >
+                    Continue
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
         <div className="space-y-6">
@@ -195,43 +331,60 @@ const ProfessionalLearningHub = () => {
               </button>
             </div>
 
+            {error && (
+              <p className="mt-2 text-sm text-amber-600">{error}</p>
+            )}
             <div className="mt-6 space-y-4">
-              {microCourses.map((course) => (
-                <div
-                  key={course.title}
-                  className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">{course.category}</p>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">{course.duration}</span>
-                        <span className="text-xs text-gray-500">•</span>
-                        <span className="text-xs text-gray-500">{course.difficulty}</span>
-                      </div>
-                      <h3 className="mt-2 text-sm font-semibold text-gray-900">{course.title}</h3>
-                      {course.progress > 0 && (
-                        <div className="mt-3">
-                          <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
-                            <div
-                              className="h-full bg-amber-500 transition-all"
-                              style={{ width: `${course.progress}%` }}
-                            />
-                          </div>
-                          <p className="mt-1 text-xs text-gray-500">{course.progress}% complete</p>
+              {loading && microCourses.length === 0 ? (
+                <p className="text-sm text-gray-500">Loading recommendations...</p>
+              ) : (
+                microCourses.map((course) => (
+                  <div
+                    key={course.contentId || course.title}
+                    data-section="micro-course"
+                    data-content-id={course.contentId || ''}
+                    data-content-type={course.contentType || ''}
+                    data-route={course.route || ''}
+                    data-title={course.title || ''}
+                    className="rounded-2xl border border-gray-100 bg-gray-50 p-4 transition hover:border-amber-200 hover:shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600">{course.category}</p>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">{course.duration}</span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs text-gray-500">{course.difficulty}</span>
                         </div>
-                      )}
+                        <h3 className="mt-2 text-sm font-semibold text-gray-900">{course.title}</h3>
+                        {course.progress > 0 && (
+                          <div className="mt-3">
+                            <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-200">
+                              <div
+                                className="h-full bg-amber-500 transition-all"
+                                style={{ width: `${course.progress}%` }}
+                              />
+                            </div>
+                            <p className="mt-1 text-xs text-gray-500">{course.progress}% complete</p>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        data-action="start-course"
+                        data-content-id={course.contentId || ''}
+                        data-content-type={course.contentType || ''}
+                        data-route={course.route || ''}
+                        data-title={course.title || ''}
+                        onClick={() => handleCourseStart(course)}
+                        className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
+                      >
+                        {course.progress === 0 ? 'Start' : course.progress === 100 ? 'Review' : 'Continue'}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleCourseStart(course.title)}
-                      className="rounded-full bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-600 hover:bg-amber-100 transition"
-                    >
-                      {course.progress === 0 ? 'Start' : course.progress === 100 ? 'Review' : 'Continue'}
-                    </button>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -248,7 +401,7 @@ const ProfessionalLearningHub = () => {
             </div>
 
             <div className="mt-6 space-y-4">
-              {tutorials.map((tutorial) => (
+              {effectiveTutorials.map((tutorial) => (
                 <div
                   key={tutorial.slug}
                   className="flex items-center justify-between rounded-2xl border border-gray-100 bg-gray-50 p-4"
@@ -342,7 +495,10 @@ const ProfessionalLearningHub = () => {
             </div>
 
             <div className="mt-4 space-y-3">
-              {certificates.map((cert) => (
+              {certificates.length === 0 && !loading ? (
+                <p className="text-xs text-gray-500">No certificates yet. Complete courses to earn them.</p>
+              ) : (
+              certificates.map((cert) => (
                 <div key={cert.name} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
                   <div className="flex items-center justify-between">
                     <div>
@@ -355,7 +511,8 @@ const ProfessionalLearningHub = () => {
                     <Award className="h-8 w-8 text-green-500" />
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
 
             <div className="mt-6 rounded-2xl bg-gray-50 p-4">

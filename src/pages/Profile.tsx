@@ -2,18 +2,44 @@ import { useState, useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useSnackbar } from '../hooks/useSnackbar';
-import { CustomInput, CustomButton, ProfilePictureUpload } from '../components/shared';
+import { CustomInput, CustomButton, ProfilePictureUpload, SelectDropdown } from '../components/shared';
 import { getProfileDetails, updateProfile, changePassword, updateUserEmail } from '../redux/features/auth/authSlice';
+import {
+  fetchProfileMetadata,
+  fetchRegions,
+  updateProfileContext,
+  clearProfileContextError,
+  clearProfileContextSuccess,
+} from '../redux/features/profileContext/profileContextSlice';
+import { fetchTeacherIdentity } from '../redux/features/teacherIdentity/teacherIdentitySlice';
+import { fetchLearningHubHome } from '../redux/features/learningHub/learningHubSlice';
+import ProfileProfessionalIdentitySection from './ProfileProfessionalIdentitySection';
 import { setAuthToken } from '../redux/http';
 import { validateEmail, validatePassword } from '../utils/utils';
 import { baseURL } from '../redux/constant';
-import { Lock, User, Mail, Phone, AtSign, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Lock, User, Mail, Phone, AtSign, AlertCircle, CheckCircle2, BookOpen } from 'lucide-react';
 
 const Profile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { toast } = useSnackbar();
   const { profileDetails, loading, error, updatePasswordLoading, user } = useSelector((state) => state.auth);
+  const learningHubHome = useSelector((state) => state.learningHub?.home);
+  const {
+    countries,
+    regions,
+    subjects,
+    curriculums,
+    gradeBands,
+    schoolTypes,
+    languages,
+    yearsExperience,
+    loading: metadataLoading,
+    regionsLoading,
+    saving: contextSaving,
+    error: contextError,
+    success: contextSuccess,
+  } = useSelector((state) => state.profileContext) ?? {};
   
   // Helper function to format role name professionally
   const formatRoleName = (role) => {
@@ -123,10 +149,45 @@ const Profile = () => {
   const [showEmailWarning, setShowEmailWarning] = useState(false);
   const [pendingEmailChange, setPendingEmailChange] = useState(false);
 
+  // Teaching context form state
+  const [contextForm, setContextForm] = useState({
+    country: '',
+    region: '',
+    school_type: '',
+    grade_band: '',
+    subjects: [],
+    language_preference: '',
+    school_name: '',
+    city: '',
+    postal_code: '',
+    curriculum_framework: '',
+    years_experience: '',
+    professional_goals: [],
+  });
+  const [initialContextForm, setInitialContextForm] = useState(null);
+  const [contextFormErrors, setContextFormErrors] = useState({});
+
   // Load profile data on mount
   useEffect(() => {
     dispatch(getProfileDetails());
   }, [dispatch]);
+
+  // Fetch profile metadata (dropdown options) on mount
+  useEffect(() => {
+    dispatch(fetchProfileMetadata());
+  }, [dispatch]);
+
+  // Fetch teacher identity data when on profile tab / on mount
+  useEffect(() => {
+    dispatch(fetchTeacherIdentity());
+  }, [dispatch]);
+
+  // Fetch Learning Hub home when Profile loads if not already in store (for profile completeness)
+  useEffect(() => {
+    if (!learningHubHome) {
+      dispatch(fetchLearningHubHome());
+    }
+  }, [dispatch, learningHubHome]);
 
   // Populate form when profileDetails loads
   useEffect(() => {
@@ -159,8 +220,91 @@ const Profile = () => {
       } else {
         setProfilePictureUrl(null);
       }
+
+      // Prefill teaching context from teacher_context
+      const tc = profileDetails.teacher_context;
+      if (tc) {
+        const ctxData = {
+          country: tc.country || '',
+          region: tc.region || '',
+          school_type: tc.school_type || '',
+          grade_band: tc.grade_band || '',
+          subjects: Array.isArray(tc.subjects) ? tc.subjects : [],
+          language_preference: tc.language_preference || '',
+          school_name: tc.school_name || '',
+          city: tc.city || '',
+          postal_code: tc.postal_code || '',
+          curriculum_framework: tc.curriculum_framework || '',
+          years_experience: tc.years_experience || '',
+          professional_goals: Array.isArray(tc.professional_goals) ? tc.professional_goals : [],
+        };
+        setContextForm(ctxData);
+        setInitialContextForm(ctxData);
+      } else {
+        const empty = {
+          country: '',
+          region: '',
+          school_type: '',
+          grade_band: '',
+          subjects: [],
+          language_preference: '',
+          school_name: '',
+          city: '',
+          postal_code: '',
+          curriculum_framework: '',
+          years_experience: '',
+          professional_goals: [],
+        };
+        setContextForm(empty);
+        setInitialContextForm(empty);
+      }
     }
   }, [profileDetails]);
+
+  // When country changes, fetch regions and reset region
+  useEffect(() => {
+    if (contextForm.country) {
+      dispatch(fetchRegions(contextForm.country));
+    } else {
+      setContextForm((prev) => ({ ...prev, region: '' }));
+    }
+  }, [contextForm.country, dispatch]);
+
+  // When regions load, clear region if it is not in the list for current country
+  useEffect(() => {
+    if (!contextForm.region || !Array.isArray(regions) || regions.length === 0) return;
+    const values = regions.map((r) => r.value || r);
+    if (!values.includes(contextForm.region)) {
+      setContextForm((prev) => ({ ...prev, region: '' }));
+    }
+  }, [regions]);
+
+  // Resolve dropdown value (option object -> value string)
+  const resolveValue = (v) => {
+    if (v == null || v === '') return '';
+    if (typeof v === 'object' && v !== null && 'value' in v) return v.value ?? '';
+    return String(v);
+  };
+
+  // Handle teaching context field change (single value or dropdown option object)
+  const handleContextChange = (e) => {
+    const { name, value } = e.target;
+    if (name === 'country') {
+      const countryVal = resolveValue(value);
+      setContextForm((prev) => ({ ...prev, country: countryVal, region: '' }));
+      dispatch(fetchRegions(countryVal));
+    } else if (name === 'subjects') {
+      const arr = Array.isArray(value) ? value.map((o) => (typeof o === 'string' ? o : o?.value)).filter(Boolean) : [];
+      setContextForm((prev) => ({ ...prev, subjects: arr }));
+    } else if (name === 'professional_goals') {
+      const arr = Array.isArray(value) ? value : [];
+      setContextForm((prev) => ({ ...prev, professional_goals: arr }));
+    } else {
+      setContextForm((prev) => ({ ...prev, [name]: resolveValue(value) ?? '' }));
+    }
+    setContextFormErrors((prev) => ({ ...prev, [name]: '' }));
+    dispatch(clearProfileContextError());
+  };
 
   // Handle input change
   const handleChange = (e) => {
@@ -273,6 +417,69 @@ const Profile = () => {
     const pictureChanged = profilePictureFile !== null || removeProfilePicture;
 
     return textFieldsChanged || pictureChanged;
+  };
+
+  // Validate teaching context (required fields for PATCH)
+  const validateContextForm = () => {
+    const errors = {};
+    if (!contextForm.country?.trim()) errors.country = 'Country is required';
+    if (!contextForm.region?.trim()) errors.region = 'Region is required';
+    if (!contextForm.school_type?.trim()) errors.school_type = 'School type is required';
+    if (!contextForm.grade_band?.trim()) errors.grade_band = 'Grade band is required';
+    if (!Array.isArray(contextForm.subjects) || contextForm.subjects.length === 0) {
+      errors.subjects = 'At least one subject is required';
+    }
+    if (!contextForm.language_preference?.trim()) errors.language_preference = 'Language preference is required';
+    setContextFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const hasContextChanges = () => {
+    if (!initialContextForm) return false;
+    const c = contextForm;
+    const i = initialContextForm;
+    return (
+      c.country !== i.country ||
+      c.region !== i.region ||
+      c.school_type !== i.school_type ||
+      c.grade_band !== i.grade_band ||
+      JSON.stringify([...(c.subjects || [])].sort()) !== JSON.stringify([...(i.subjects || [])].sort()) ||
+      c.language_preference !== i.language_preference ||
+      (c.school_name || '') !== (i.school_name || '') ||
+      (c.city || '') !== (i.city || '') ||
+      (c.postal_code || '') !== (i.postal_code || '') ||
+      (c.curriculum_framework || '') !== (i.curriculum_framework || '') ||
+      (c.years_experience || '') !== (i.years_experience || '') ||
+      JSON.stringify([...(c.professional_goals || [])].sort()) !== JSON.stringify([...(i.professional_goals || [])].sort())
+    );
+  };
+
+  const handleSaveTeachingContext = async () => {
+    if (!validateContextForm()) return;
+    const payload = {
+      teaching_context: {
+        country: contextForm.country.trim(),
+        region: contextForm.region.trim(),
+        school_type: contextForm.school_type.trim(),
+        grade_band: contextForm.grade_band.trim(),
+        subjects: contextForm.subjects || [],
+        language_preference: contextForm.language_preference.trim(),
+        ...(contextForm.school_name?.trim() && { school_name: contextForm.school_name.trim() }),
+        ...(contextForm.city?.trim() && { city: contextForm.city.trim() }),
+        ...(contextForm.postal_code?.trim() && { postal_code: contextForm.postal_code.trim() }),
+        ...(contextForm.curriculum_framework?.trim() && { curriculum_framework: contextForm.curriculum_framework.trim() }),
+        ...(contextForm.years_experience?.trim() && { years_experience: contextForm.years_experience.trim() }),
+        ...(Array.isArray(contextForm.professional_goals) && contextForm.professional_goals.length > 0 && { professional_goals: contextForm.professional_goals }),
+      },
+    };
+    const result = await dispatch(updateProfileContext(payload));
+    if (updateProfileContext.fulfilled.match(result)) {
+      dispatch(clearProfileContextSuccess());
+      dispatch(getProfileDetails());
+      dispatch(fetchLearningHubHome());
+      setInitialContextForm({ ...contextForm });
+      toast.success('Teaching context saved successfully.');
+    }
   };
 
   // Handle profile picture change
@@ -590,6 +797,24 @@ const Profile = () => {
           {/* Profile Information Tab */}
           {activeTab === 'profile' && (
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Profile completeness (from Learning Hub home) */}
+              {learningHubHome?.profile_completeness != null && (
+                <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700">
+                    Profile completeness: {Math.round((learningHubHome.profile_completeness?.score ?? 0) * 100)}%
+                  </p>
+                  {Array.isArray(learningHubHome.profile_completeness?.missing_fields) &&
+                    learningHubHome.profile_completeness.missing_fields.length > 0 && (
+                    <p className="text-xs text-gray-600 mt-1">
+                      Complete these to improve AI recommendations:{' '}
+                      {learningHubHome.profile_completeness.missing_fields
+                        .map((f) => f.replace(/_/g, ' '))
+                        .join(', ')}
+                    </p>
+                  )}
+                </div>
+              )}
+
               {/* Email Change Warning */}
               {showEmailWarning && (
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 flex items-start gap-3">
@@ -724,6 +949,188 @@ const Profile = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Teaching Context Section */}
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <div className="flex items-center gap-2 mb-2">
+                  <BookOpen className="w-5 h-5 text-gray-700" />
+                  <h2 className="text-lg font-semibold text-gray-900">Teaching Context</h2>
+                </div>
+                <p className="text-sm text-gray-500 mb-4">
+                  Completing your teaching context improves your Learning Hub recommendations.
+                </p>
+                {contextError && (
+                  <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+                    {contextError}
+                  </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <SelectDropdown
+                      label="Country"
+                      name="country"
+                      value={contextForm.country}
+                      onChange={handleContextChange}
+                      options={countries || []}
+                      disabled={metadataLoading}
+                      error={!!contextFormErrors.country}
+                      errorMsg={contextFormErrors.country}
+                      required
+                      placeholder="Select country"
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="Region"
+                      name="region"
+                      value={contextForm.region}
+                      onChange={handleContextChange}
+                      options={regions || []}
+                      disabled={metadataLoading || regionsLoading || !contextForm.country}
+                      error={!!contextFormErrors.region}
+                      errorMsg={contextFormErrors.region}
+                      required
+                      placeholder={!contextForm.country ? 'Select country first' : 'Select region'}
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="School type"
+                      name="school_type"
+                      value={contextForm.school_type}
+                      onChange={handleContextChange}
+                      options={schoolTypes || []}
+                      disabled={metadataLoading}
+                      error={!!contextFormErrors.school_type}
+                      errorMsg={contextFormErrors.school_type}
+                      required
+                      placeholder="Select school type"
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="Grade band"
+                      name="grade_band"
+                      value={contextForm.grade_band}
+                      onChange={handleContextChange}
+                      options={gradeBands || []}
+                      disabled={metadataLoading}
+                      error={!!contextFormErrors.grade_band}
+                      errorMsg={contextFormErrors.grade_band}
+                      required
+                      placeholder="Select grade band"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <SelectDropdown
+                      label="Subjects"
+                      name="subjects"
+                      value={contextForm.subjects}
+                      onChange={handleContextChange}
+                      options={subjects || []}
+                      multiSelect
+                      disabled={metadataLoading}
+                      error={!!contextFormErrors.subjects}
+                      errorMsg={contextFormErrors.subjects}
+                      required
+                      placeholder="Select at least one subject"
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="Language preference"
+                      name="language_preference"
+                      value={contextForm.language_preference}
+                      onChange={handleContextChange}
+                      options={languages || []}
+                      disabled={metadataLoading}
+                      error={!!contextFormErrors.language_preference}
+                      errorMsg={contextFormErrors.language_preference}
+                      required
+                      placeholder="Select language"
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="Curriculum framework"
+                      name="curriculum_framework"
+                      value={contextForm.curriculum_framework}
+                      onChange={handleContextChange}
+                      options={curriculums || []}
+                      disabled={metadataLoading}
+                      placeholder="Select (optional)"
+                    />
+                  </div>
+                  <div>
+                    <SelectDropdown
+                      label="Years of experience"
+                      name="years_experience"
+                      value={contextForm.years_experience}
+                      onChange={handleContextChange}
+                      options={yearsExperience || []}
+                      disabled={metadataLoading}
+                      placeholder="Select (optional)"
+                    />
+                  </div>
+                  <div>
+                    <CustomInput
+                      label="School name"
+                      name="school_name"
+                      value={contextForm.school_name}
+                      onChange={(e) => handleContextChange({ target: { name: 'school_name', value: e.target.value } })}
+                      disabled={contextSaving}
+                      placeholder="Optional"
+                      icon={<BookOpen className="w-4 h-4" />}
+                    />
+                  </div>
+                  <div>
+                    <CustomInput
+                      label="City"
+                      name="city"
+                      value={contextForm.city}
+                      onChange={(e) => handleContextChange({ target: { name: 'city', value: e.target.value } })}
+                      disabled={contextSaving}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div>
+                    <CustomInput
+                      label="Postal code"
+                      name="postal_code"
+                      value={contextForm.postal_code}
+                      onChange={(e) => handleContextChange({ target: { name: 'postal_code', value: e.target.value } })}
+                      disabled={contextSaving}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <CustomInput
+                      label="Professional goals"
+                      name="professional_goals"
+                      value={Array.isArray(contextForm.professional_goals) ? contextForm.professional_goals.join(', ') : ''}
+                      onChange={(e) => {
+                        const raw = e.target.value || '';
+                        const arr = raw.split(',').map((s) => s.trim()).filter(Boolean);
+                        handleContextChange({ target: { name: 'professional_goals', value: arr } });
+                      }}
+                      disabled={contextSaving}
+                      placeholder="Comma-separated (e.g. classroom management, differentiation)"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
+                  <CustomButton
+                    type="button"
+                    onClick={handleSaveTeachingContext}
+                    disabled={contextSaving || metadataLoading || !hasContextChanges()}
+                  >
+                    {contextSaving ? 'Saving…' : 'Save teaching context'}
+                  </CustomButton>
+                </div>
+              </div>
+
+              {/* Professional Identity */}
+              <ProfileProfessionalIdentitySection />
 
               {/* Form Actions */}
               <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
