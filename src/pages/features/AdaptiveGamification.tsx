@@ -329,7 +329,7 @@ Adaptive gamification uses student data to create personalized learning experien
               <Trophy className="h-16 w-16 text-green-600 mx-auto mb-4" />
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Module Complete!</h3>
               <button
-                onClick={() => navigate('learning-hub/student-engagement-path')}
+                onClick={() => navigate('/learning-hub/student-engagement-path')}
                 className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
               >
                 Continue to Next Module

@@ -820,7 +820,7 @@ const BloomsTaxonomyResearch = () => {
               Create a Lesson Plan
             </button>
             <button
-              onClick={() => navigate('learning-hub')}
+              onClick={() => navigate('/learning-hub')}
               className="rounded-full border-2 border-white px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition"
             >
               Explore More Research

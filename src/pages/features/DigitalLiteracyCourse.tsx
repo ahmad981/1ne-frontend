@@ -657,7 +657,7 @@ const DigitalLiteracyCourse = () => {
             </div>
           </div>
           <button
-            onClick={() => navigate('learning-hub')}
+            onClick={() => navigate('/learning-hub')}
             className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg transition"
           >
             <X className="w-5 h-5" />

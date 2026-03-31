@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
   GraduationCap,
@@ -556,14 +556,14 @@ const STEMMasteryCourse = () => {
                     <div className="max-h-96 overflow-y-auto">
                       {courseModules.map((module, idx) => {
                         const moduleRoutes: Record<string, string> = {
-                          'ngss-foundations': '//learning-hub/ngss-foundations',
-                          'engineering-design': '//learning-hub/engineering-design',
-                          'computational-thinking': '//learning-hub/computational-thinking',
-                          'lab-safety': '//learning-hub/lab-safety',
-                          'phenomena-driven': '//learning-hub/phenomena-driven',
-                          'data-literacy': '//learning-hub/data-literacy',
-                          'integration-strategies': '//learning-hub/stem-integration',
-                          'assessment-ngss': '//learning-hub/ngss-assessment',
+                          'ngss-foundations': '/learning-hub/ngss-foundations',
+                          'engineering-design': '/learning-hub/engineering-design',
+                          'computational-thinking': '/learning-hub/computational-thinking',
+                          'lab-safety': '/learning-hub/lab-safety',
+                          'phenomena-driven': '/learning-hub/phenomena-driven',
+                          'data-literacy': '/learning-hub/data-literacy',
+                          'integration-strategies': '/learning-hub/stem-integration',
+                          'assessment-ngss': '/learning-hub/ngss-assessment',
                         }
                         const route = moduleRoutes[module.id]
                         const isCompleted = completedModules.includes(module.id)
@@ -945,13 +945,13 @@ const STEMMasteryCourse = () => {
                                 }
                                 const route = moduleRoutes[module.id]
                                 return route ? (
-                                  <button
-                                    onClick={() => navigate(route)}
+                                  <Link
+                                    to={route}
                                     className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-2"
                                   >
                                     <Play className="h-4 w-4" />
                                     Preview Content
-                                  </button>
+                                  </Link>
                                 ) : null
                               })()}
                               <button className="px-4 py-2 rounded-lg border-2 border-green-600 text-green-600 text-sm font-semibold hover:bg-green-50 flex items-center gap-2">
@@ -961,40 +961,47 @@ const STEMMasteryCourse = () => {
                             </>
                           ) : (
                             <>
-                              <button
-                                onClick={() => {
-                                  const moduleRoutes: Record<string, string> = {
-                                    'ngss-foundations': 'learning-hub/ngss-foundations',
-                                    'engineering-design': 'learning-hub/engineering-design',
-                                    'computational-thinking': 'learning-hub/computational-thinking',
-                                    'lab-safety': 'learning-hub/lab-safety',
-                                    'phenomena-driven': 'learning-hub/phenomena-driven',
-                                    'data-literacy': 'learning-hub/data-literacy',
-                                    'integration-strategies': 'learning-hub/stem-integration',
-                                    'assessment-ngss': 'learning-hub/ngss-assessment',
-                                  }
-                                  
-                                  const route = moduleRoutes[module.id]
-                                  if (route) {
-                                    navigate(route)
-                                  } else {
-                                    setActiveModule(isActive ? null : module.id)
-                                  }
-                                }}
-                                className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-2"
-                              >
-                                {isActive ? (
-                                  <>
-                                    <Eye className="h-4 w-4" />
-                                    Hide Details
-                                  </>
-                                ) : (
-                                  <>
+                              {(() => {
+                                const moduleRoutes: Record<string, string> = {
+                                  'ngss-foundations': '/learning-hub/ngss-foundations',
+                                  'engineering-design': '/learning-hub/engineering-design',
+                                  'computational-thinking': '/learning-hub/computational-thinking',
+                                  'lab-safety': '/learning-hub/lab-safety',
+                                  'phenomena-driven': '/learning-hub/phenomena-driven',
+                                  'data-literacy': '/learning-hub/data-literacy',
+                                  'integration-strategies': '/learning-hub/stem-integration',
+                                  'assessment-ngss': '/learning-hub/ngss-assessment',
+                                }
+
+                                const route = moduleRoutes[module.id]
+
+                                return route ? (
+                                  <Link
+                                    to={route}
+                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-2"
+                                  >
                                     <Play className="h-4 w-4" />
                                     Start Module
-                                  </>
-                                )}
-                              </button>
+                                  </Link>
+                                ) : (
+                                  <button
+                                    onClick={() => setActiveModule(isActive ? null : module.id)}
+                                    className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 flex items-center gap-2"
+                                  >
+                                    {isActive ? (
+                                      <>
+                                        <Eye className="h-4 w-4" />
+                                        Hide Details
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Play className="h-4 w-4" />
+                                        Start Module
+                                      </>
+                                    )}
+                                  </button>
+                                )
+                              })()}
                               <button
                                 onClick={() => handleModuleComplete(module.id)}
                                 className="px-4 py-2 rounded-lg border-2 border-green-600 text-green-600 text-sm font-semibold hover:bg-green-50 flex items-center gap-2"

@@ -847,7 +847,7 @@ Authentic engineering challenges connect to real-world problems that students ca
               </p>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => navigate('learning-hub/stem-mastery')}
+                  onClick={() => navigate('/learning-hub/stem-mastery')}
                   className="rounded-full bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700"
                 >
                   Continue to Next Module
