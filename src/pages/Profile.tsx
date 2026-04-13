@@ -13,6 +13,17 @@ import {
 } from '../redux/features/profileContext/profileContextSlice';
 import { fetchTeacherIdentity } from '../redux/features/teacherIdentity/teacherIdentitySlice';
 import { fetchLearningHubHome } from '../redux/features/learningHub/learningHubSlice';
+import {
+  PERSONALIZATION_ENABLED,
+  fetchLearningHubSlate,
+  syncHubAfterMutation,
+  preflightProfileChange,
+  clearPreflightResult,
+  resetPersonalization,
+  clearHubSyncStatus,
+} from '../redux/features/personalization/personalizationSlice';
+import { PersonalizationImpactModal } from '../features/personalization/PersonalizationImpactModal';
+import type { PreflightResult } from '../features/personalization/PersonalizationImpactModal';
 import ProfileProfessionalIdentitySection from './ProfileProfessionalIdentitySection';
 import { setAuthToken } from '../redux/http';
 import { validateEmail, validatePassword } from '../utils/utils';
@@ -24,7 +35,13 @@ const Profile = () => {
   const navigate = useNavigate();
   const { toast } = useSnackbar();
   const { profileDetails, loading, error, updatePasswordLoading, user } = useSelector((state) => state.auth);
-  const learningHubHome = useSelector((state) => state.learningHub?.home);
+  const legacyLearningHubHome = useSelector((state) => state.learningHub?.home);
+  const hubProfileCompleteness = useSelector((state) => state.personalization?.hubProfileCompleteness);
+  const hubSyncStatus = useSelector((state) => state.personalization?.hubSyncStatus ?? 'idle');
+  const hubSyncError = useSelector((state) => state.personalization?.hubSyncError);
+  const learningHubHome = PERSONALIZATION_ENABLED
+    ? { profile_completeness: hubProfileCompleteness }
+    : legacyLearningHubHome;
   const {
     countries,
     regions,
@@ -149,6 +166,14 @@ const Profile = () => {
   const [showEmailWarning, setShowEmailWarning] = useState(false);
   const [pendingEmailChange, setPendingEmailChange] = useState(false);
 
+  // Personalization preflight modal state
+  const [preflightModal, setPreflightModal] = useState<{
+    open: boolean
+    preflight: PreflightResult | null
+    pendingPayload: object | null
+  }>({ open: false, preflight: null, pendingPayload: null });
+  const [contextSavingAfterPreflight, setContextSavingAfterPreflight] = useState(false);
+
   // Teaching context form state
   const [contextForm, setContextForm] = useState({
     country: '',
@@ -182,12 +207,14 @@ const Profile = () => {
     dispatch(fetchTeacherIdentity());
   }, [dispatch]);
 
-  // Fetch Learning Hub home when Profile loads if not already in store (for profile completeness)
+  // Load hub profile completeness: personalization path uses GET /learning-hub/home slate payload
   useEffect(() => {
-    if (!learningHubHome) {
+    if (PERSONALIZATION_ENABLED) {
+      dispatch(fetchLearningHubSlate());
+    } else if (!legacyLearningHubHome) {
       dispatch(fetchLearningHubHome());
     }
-  }, [dispatch, learningHubHome]);
+  }, [dispatch, legacyLearningHubHome]);
 
   // Populate form when profileDetails loads
   useEffect(() => {
@@ -454,32 +481,116 @@ const Profile = () => {
     );
   };
 
-  const handleSaveTeachingContext = async () => {
-    if (!validateContextForm()) return;
-    const payload = {
-      teaching_context: {
-        country: contextForm.country.trim(),
-        region: contextForm.region.trim(),
-        school_type: contextForm.school_type.trim(),
-        grade_band: contextForm.grade_band.trim(),
-        subjects: contextForm.subjects || [],
-        language_preference: contextForm.language_preference.trim(),
-        ...(contextForm.school_name?.trim() && { school_name: contextForm.school_name.trim() }),
-        ...(contextForm.city?.trim() && { city: contextForm.city.trim() }),
-        ...(contextForm.postal_code?.trim() && { postal_code: contextForm.postal_code.trim() }),
-        ...(contextForm.curriculum_framework?.trim() && { curriculum_framework: contextForm.curriculum_framework.trim() }),
-        ...(contextForm.years_experience?.trim() && { years_experience: contextForm.years_experience.trim() }),
-        ...(Array.isArray(contextForm.professional_goals) && contextForm.professional_goals.length > 0 && { professional_goals: contextForm.professional_goals }),
-      },
-    };
+  /** Build the teaching_context payload from current form state. */
+  const buildTeachingContextPayload = () => ({
+    teaching_context: {
+      country: contextForm.country.trim(),
+      region: contextForm.region.trim(),
+      school_type: contextForm.school_type.trim(),
+      grade_band: contextForm.grade_band.trim(),
+      subjects: contextForm.subjects || [],
+      language_preference: contextForm.language_preference.trim(),
+      ...(contextForm.school_name?.trim() && { school_name: contextForm.school_name.trim() }),
+      ...(contextForm.city?.trim() && { city: contextForm.city.trim() }),
+      ...(contextForm.postal_code?.trim() && { postal_code: contextForm.postal_code.trim() }),
+      ...(contextForm.curriculum_framework?.trim() && { curriculum_framework: contextForm.curriculum_framework.trim() }),
+      ...(contextForm.years_experience?.trim() && { years_experience: contextForm.years_experience.trim() }),
+      ...(Array.isArray(contextForm.professional_goals) && contextForm.professional_goals.length > 0 && { professional_goals: contextForm.professional_goals }),
+    },
+  });
+
+  /** Perform the actual PATCH after confirmation (or after preflight shows noop/minor). */
+  const executeTeachingContextSave = async (payload: object, severity?: string) => {
     const result = await dispatch(updateProfileContext(payload));
     if (updateProfileContext.fulfilled.match(result)) {
       dispatch(clearProfileContextSuccess());
+      dispatch(clearHubSyncStatus());
       dispatch(getProfileDetails());
-      dispatch(fetchLearningHubHome());
+      const sync = result.payload?.personalization_sync;
+      if (PERSONALIZATION_ENABLED) {
+        if (sync && sync.status === 'queued') {
+          toast.success('Profile saved.');
+          if (severity === 'major_reset' || sync.severity === 'major_reset') {
+            toast.info('Rebuilding your personalized recommendations…');
+            await dispatch(resetPersonalization());
+          } else {
+            toast.info('Updating recommendations…');
+          }
+          await dispatch(syncHubAfterMutation(sync));
+          toast.success('Recommendations updated.');
+        } else {
+          // Non-queued path: always re-fetch slate to pick up fresh content/banner
+          if (severity === 'major_reset') {
+            await dispatch(resetPersonalization());
+          }
+          await dispatch(fetchLearningHubSlate());
+          toast.success('Teaching context saved successfully.');
+        }
+      } else {
+        dispatch(fetchLearningHubHome());
+        toast.success('Teaching context saved successfully.');
+      }
       setInitialContextForm({ ...contextForm });
-      toast.success('Teaching context saved successfully.');
     }
+  };
+
+  const handleSaveTeachingContext = async () => {
+    if (!validateContextForm()) return;
+    const payload = buildTeachingContextPayload();
+
+    if (!PERSONALIZATION_ENABLED) {
+      // Legacy path: save directly, no preflight
+      await executeTeachingContextSave(payload);
+      return;
+    }
+
+    // Preflight: evaluate impact before saving
+    const preflightAction = await dispatch(
+      preflightProfileChange(payload.teaching_context)
+    );
+
+    if (!preflightProfileChange.fulfilled.match(preflightAction)) {
+      // Preflight failed — fall back to direct save with a warning toast
+      toast.info('Impact check unavailable — saving directly.');
+      await executeTeachingContextSave(payload);
+      return;
+    }
+
+    const preflight = preflightAction.payload as PreflightResult;
+
+    if (preflight.severity === 'major_reset') {
+      // Show blocking confirmation modal
+      setPreflightModal({ open: true, preflight, pendingPayload: payload });
+      return;
+    }
+
+    if (preflight.severity === 'minor_recompute' && preflight.changed_fields.length > 0) {
+      // Non-blocking info toast, then save
+      toast.info('Profile saved. Your recommendations will update in the background.');
+    }
+
+    await executeTeachingContextSave(payload, preflight.severity);
+    dispatch(clearPreflightResult());
+  };
+
+  /** Called when user confirms in the MAJOR_RESET modal. */
+  const handlePreflightConfirm = async () => {
+    if (!preflightModal.pendingPayload) return;
+    setContextSavingAfterPreflight(true);
+    setPreflightModal((prev) => ({ ...prev, open: false }));
+    try {
+      await executeTeachingContextSave(preflightModal.pendingPayload, 'major_reset');
+    } finally {
+      setContextSavingAfterPreflight(false);
+      dispatch(clearPreflightResult());
+      setPreflightModal({ open: false, preflight: null, pendingPayload: null });
+    }
+  };
+
+  /** Called when user cancels in the modal. */
+  const handlePreflightCancel = () => {
+    dispatch(clearPreflightResult());
+    setPreflightModal({ open: false, preflight: null, pendingPayload: null });
   };
 
   // Handle profile picture change
@@ -743,6 +854,16 @@ const Profile = () => {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
+      {/* Personalization impact modal (MAJOR_RESET confirmation) */}
+      {preflightModal.open && preflightModal.preflight && (
+        <PersonalizationImpactModal
+          preflight={preflightModal.preflight}
+          onConfirm={handlePreflightConfirm}
+          onCancel={handlePreflightCancel}
+          isSaving={contextSavingAfterPreflight}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
@@ -759,6 +880,24 @@ const Profile = () => {
           </div>
         </div>
       </div>
+
+      {PERSONALIZATION_ENABLED && hubSyncStatus === 'updating' && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900">
+          Updating recommendations for your Professional Learning Hub…
+        </div>
+      )}
+      {PERSONALIZATION_ENABLED && hubSyncStatus === 'failed' && hubSyncError && (
+        <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-900 flex flex-wrap items-center justify-between gap-2">
+          <span>{hubSyncError}</span>
+          <button
+            type="button"
+            onClick={() => dispatch(fetchLearningHubSlate())}
+            className="text-sm font-medium text-amber-900 underline"
+          >
+            Refresh hub data
+          </button>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
@@ -952,7 +1091,7 @@ const Profile = () => {
               </div>
 
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
                 <CustomButton
                   type="button"
                   onClick={() => {
@@ -981,7 +1120,7 @@ const Profile = () => {
                   }}
                   disabled={!hasChanges() || isSubmitting || loading}
                   variant="outlined"
-                  className="!border-gray-300 !text-gray-700 hover:!bg-gray-50"
+                  className="!h-10 !min-w-[120px] !rounded-lg !border-gray-300 !text-gray-700 hover:!bg-gray-50"
                 >
                   Cancel
                 </CustomButton>
@@ -990,13 +1129,13 @@ const Profile = () => {
                   type="submit"
                   disabled={!hasChanges() || isSubmitting || loading}
                   loading={isSubmitting}
-                  className="!bg-primary !text-white hover:!bg-primary-dark min-w-[140px]"
+                  className="!h-10 !min-w-[140px] !rounded-lg !bg-primary !text-white hover:!bg-primary-dark"
                 >
                   {isSubmitting ? 'Updating...' : 'Update Profile'}
                 </CustomButton>
               </div>
             </form>
-            <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-2xl bg-gray-50 rounded-lg p-6 border border-gray-200">
+            <form onSubmit={handlePasswordSubmit} className="space-y-6 w-full bg-gray-50 rounded-lg p-6 border border-gray-200 mt-2">
               <h2 className="text-lg font-semibold text-gray-900">Change Password</h2>
               <div className="space-y-6">
                 {/* Current Password */}
@@ -1073,7 +1212,7 @@ const Profile = () => {
               </div>
 
               {/* Form Actions */}
-              <div className="flex items-center justify-end gap-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-end gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
                 <CustomButton
                   type="button"
                   onClick={() => {
@@ -1090,7 +1229,7 @@ const Profile = () => {
                     updatePasswordLoading
                   }
                   variant="outlined"
-                  className="!border-gray-300 !text-gray-700 hover:!bg-gray-50"
+                  className="!h-10 !min-w-[120px] !rounded-lg !border-gray-300 !text-gray-700 hover:!bg-gray-50"
                 >
                   Clear
                 </CustomButton>
@@ -1103,7 +1242,7 @@ const Profile = () => {
                     updatePasswordLoading
                   }
                   loading={isChangingPassword || updatePasswordLoading}
-                  className="!bg-primary !text-white hover:!bg-primary-dark min-w-[160px]"
+                  className="!h-10 !min-w-[140px] !rounded-lg !bg-primary !text-white hover:!bg-primary-dark"
                 >
                   {isChangingPassword || updatePasswordLoading ? 'Changing...' : 'Change Password'}
                 </CustomButton>
@@ -1177,18 +1316,21 @@ const Profile = () => {
                     />
                   </div>
                 </div>
-                <div className="flex items-center justify-end gap-4 mt-6 pt-4 border-t border-gray-200">
+                <div className="flex items-center justify-end gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 mt-6">
                   <CustomButton
                     type="button"
                     onClick={handleSaveTeachingContext}
                     disabled={contextSaving || metadataLoading || !hasContextChanges()}
+                    className="!h-10 !min-w-[170px] !rounded-lg !bg-primary !text-white hover:!bg-primary-dark"
                   >
                     {contextSaving ? 'Saving…' : 'Save teaching context'}
                   </CustomButton>
                 </div>
               </div>
 
-              <ProfileProfessionalIdentitySection />
+              <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                <ProfileProfessionalIdentitySection />
+              </div>
             </div>
           )}
         </div>

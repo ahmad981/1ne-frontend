@@ -43,8 +43,25 @@ export class ErrorBoundary extends Component<Props, State> {
       error: null,
       errorInfo: null,
     })
-    // Reload the page to ensure clean state
-    window.location.href = '/login'
+    // Reload current page to recover without forcing logout/navigation.
+    window.location.reload()
+  }
+
+  isAuthenticatedUser = (): boolean => {
+    try {
+      const persisted = localStorage.getItem('persist:root')
+      if (!persisted) return false
+      const root = JSON.parse(persisted)
+      if (!root?.auth) return false
+      const auth = JSON.parse(root.auth)
+      return Boolean(auth?.isAuthenticated && auth?.user?.token)
+    } catch {
+      return false
+    }
+  }
+
+  handleGoToHome = () => {
+    window.location.href = '/dashboard'
   }
 
   render() {
@@ -89,12 +106,27 @@ export class ErrorBoundary extends Component<Props, State> {
                 )}
               </div>
             )}
-            <button
-              onClick={this.handleReset}
-              className="w-full btn-primary"
-            >
-              Go to Login
-            </button>
+            <div className="flex gap-3">
+              <button onClick={this.handleReset} className="flex-1 btn-primary">
+                Refresh page
+              </button>
+              {!this.isAuthenticatedUser() && (
+                <button
+                  onClick={() => { window.location.href = '/login' }}
+                  className="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Go to Login
+                </button>
+              )}
+              {this.isAuthenticatedUser() && (
+                <button
+                  onClick={this.handleGoToHome}
+                  className="flex-1 rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  Go to Dashboard
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )

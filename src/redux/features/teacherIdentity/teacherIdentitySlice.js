@@ -4,8 +4,31 @@
  */
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axiosInstance from '../../http';
+import { PERSONALIZATION_ENABLED, syncHubAfterMutation } from '../personalization/personalizationSlice';
 
 const BASE = '/api/v1/teacher-identity';
+
+function dispatchHubSyncAfterIdentity(dispatch, getState, payload) {
+  if (!PERSONALIZATION_ENABLED) return;
+  const sync = payload?.personalization_sync;
+  if (sync && sync.status === 'queued') {
+    dispatch(syncHubAfterMutation(sync));
+  }
+}
+
+function dispatchHubSyncAfterIdentityDelete(dispatch, getState) {
+  if (!PERSONALIZATION_ENABLED) return;
+  const s = getState().personalization || {};
+  dispatch(
+    syncHubAfterMutation({
+      status: 'queued',
+      operation: 'recompute',
+      personalization_version: s.personalizationVersion ?? 0,
+      last_recomputed_at: s.slateLastRecomputedAt ?? null,
+      correlation_id: 'teacher-identity-delete',
+    })
+  );
+}
 
 const handleApiError = (error) => {
   const detail = error?.response?.data?.detail;
@@ -46,9 +69,10 @@ export const fetchTeacherIdentity = createAsyncThunk(
 // ---------- Experience ----------
 export const createExperience = createAsyncThunk(
   'teacherIdentity/createExperience',
-  async (payload, { rejectWithValue }) => {
+  async (payload, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.post(`${BASE}/experience`, payload);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -58,9 +82,10 @@ export const createExperience = createAsyncThunk(
 
 export const updateExperience = createAsyncThunk(
   'teacherIdentity/updateExperience',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data }, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.put(`${BASE}/experience/${id}`, data);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -70,9 +95,10 @@ export const updateExperience = createAsyncThunk(
 
 export const deleteExperience = createAsyncThunk(
   'teacherIdentity/deleteExperience',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, getState, rejectWithValue }) => {
     try {
       await axiosInstance.delete(`${BASE}/experience/${id}`);
+      dispatchHubSyncAfterIdentityDelete(dispatch, getState);
       return id;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -83,9 +109,10 @@ export const deleteExperience = createAsyncThunk(
 // ---------- Education ----------
 export const createEducation = createAsyncThunk(
   'teacherIdentity/createEducation',
-  async (payload, { rejectWithValue }) => {
+  async (payload, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.post(`${BASE}/education`, payload);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -95,9 +122,10 @@ export const createEducation = createAsyncThunk(
 
 export const updateEducation = createAsyncThunk(
   'teacherIdentity/updateEducation',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data }, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.put(`${BASE}/education/${id}`, data);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -107,9 +135,10 @@ export const updateEducation = createAsyncThunk(
 
 export const deleteEducation = createAsyncThunk(
   'teacherIdentity/deleteEducation',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, getState, rejectWithValue }) => {
     try {
       await axiosInstance.delete(`${BASE}/education/${id}`);
+      dispatchHubSyncAfterIdentityDelete(dispatch, getState);
       return id;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -120,9 +149,10 @@ export const deleteEducation = createAsyncThunk(
 // ---------- Certifications ----------
 export const createCertification = createAsyncThunk(
   'teacherIdentity/createCertification',
-  async (payload, { rejectWithValue }) => {
+  async (payload, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.post(`${BASE}/certifications`, payload);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -132,9 +162,10 @@ export const createCertification = createAsyncThunk(
 
 export const updateCertification = createAsyncThunk(
   'teacherIdentity/updateCertification',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data }, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.put(`${BASE}/certifications/${id}`, data);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -144,9 +175,10 @@ export const updateCertification = createAsyncThunk(
 
 export const deleteCertification = createAsyncThunk(
   'teacherIdentity/deleteCertification',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, getState, rejectWithValue }) => {
     try {
       await axiosInstance.delete(`${BASE}/certifications/${id}`);
+      dispatchHubSyncAfterIdentityDelete(dispatch, getState);
       return id;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -157,9 +189,10 @@ export const deleteCertification = createAsyncThunk(
 // ---------- Achievements ----------
 export const createAchievement = createAsyncThunk(
   'teacherIdentity/createAchievement',
-  async (payload, { rejectWithValue }) => {
+  async (payload, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.post(`${BASE}/achievements`, payload);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -169,9 +202,10 @@ export const createAchievement = createAsyncThunk(
 
 export const updateAchievement = createAsyncThunk(
   'teacherIdentity/updateAchievement',
-  async ({ id, data }, { rejectWithValue }) => {
+  async ({ id, data }, { dispatch, getState, rejectWithValue }) => {
     try {
       const res = await axiosInstance.put(`${BASE}/achievements/${id}`, data);
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -181,9 +215,10 @@ export const updateAchievement = createAsyncThunk(
 
 export const deleteAchievement = createAsyncThunk(
   'teacherIdentity/deleteAchievement',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, getState, rejectWithValue }) => {
     try {
       await axiosInstance.delete(`${BASE}/achievements/${id}`);
+      dispatchHubSyncAfterIdentityDelete(dispatch, getState);
       return id;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -194,7 +229,7 @@ export const deleteAchievement = createAsyncThunk(
 // ---------- Career documents ----------
 export const uploadCareerDocument = createAsyncThunk(
   'teacherIdentity/uploadCareerDocument',
-  async ({ file, document_type, title }, { rejectWithValue }) => {
+  async ({ file, document_type, title }, { dispatch, getState, rejectWithValue }) => {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -203,6 +238,7 @@ export const uploadCareerDocument = createAsyncThunk(
       const res = await axiosInstance.post(`${BASE}/documents/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
+      dispatchHubSyncAfterIdentity(dispatch, getState, res.data);
       return res.data;
     } catch (error) {
       return rejectWithValue(handleApiError(error));
@@ -212,9 +248,10 @@ export const uploadCareerDocument = createAsyncThunk(
 
 export const deleteCareerDocument = createAsyncThunk(
   'teacherIdentity/deleteCareerDocument',
-  async (id, { rejectWithValue }) => {
+  async (id, { dispatch, getState, rejectWithValue }) => {
     try {
       await axiosInstance.delete(`${BASE}/documents/${id}`);
+      dispatchHubSyncAfterIdentityDelete(dispatch, getState);
       return id;
     } catch (error) {
       return rejectWithValue(handleApiError(error));

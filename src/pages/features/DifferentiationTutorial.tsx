@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { getSectionItemBySlug } from '../../features/learningHub'
 import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
@@ -27,8 +27,12 @@ import {
   SkipBack,
   Volume2,
   AlertTriangle,
+  Pause,
+  Maximize2,
+  Settings,
 } from 'lucide-react'
 import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
+import { useTutorialProgress } from '../../hooks/useTutorialProgress'
 
 interface ClassroomExample {
   scenario: string
@@ -43,9 +47,26 @@ export function DifferentiationTutorialView({ item }: { item: LearningHubSection
   const navigate = useNavigate()
   const location = useLocation()
   const contentId =
-    (location.state as { contentId?: string } | null)?.contentId ||
+    (location.state as { content_id?: string; contentId?: string } | null)?.content_id ||
+    (location.state as { content_id?: string; contentId?: string } | null)?.contentId ||
+    item.slug ||
     'ui-tutorial-differentiation-in-action'
   const [showTranscript, setShowTranscript] = useState(false)
+  const [isPlaying, setIsPlaying] = useState(false)
+
+  const {
+    currentStep,
+    completedSteps,
+    hydrated,
+    setStep,
+    goNext,
+    goPrev,
+    finishTutorial,
+  } = useTutorialProgress({
+    contentId,
+    contentType: 'ai_guided_tutorial',
+    totalSteps: item.aiGuidedTutorialContent?.steps?.length ?? 1,
+  })
 
   const c = item.aiGuidedTutorialContent!
   const tutorialSteps = c.steps

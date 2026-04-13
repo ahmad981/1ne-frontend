@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { getSectionItemBySlug } from '../../features/learningHub'
 import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
@@ -29,14 +29,33 @@ import {
   Settings,
   Sparkles,
   Layers,
+  Pause,
 } from 'lucide-react'
 import { youtubeWatchUrlToEmbedUrl, type LearningHubMediaVideo } from '../../features/learningHub/contentModel'
+import { useTutorialProgress } from '../../hooks/useTutorialProgress'
 
 export function LessonPlannerTutorialView({ item }: { item: LearningHubSectionItem }) {
   const navigate = useNavigate()
-  const [currentStep, setCurrentStep] = useState(0)
+  const location = useLocation()
+  const contentId =
+    (location.state as { content_id?: string; contentId?: string } | null)?.content_id ||
+    (location.state as { content_id?: string; contentId?: string } | null)?.contentId ||
+    item.slug ||
+    'ui-tutorial-mastering-lesson-planner-template'
   const [isPlaying, setIsPlaying] = useState(false)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
+  const {
+    currentStep,
+    completedSteps,
+    hydrated,
+    setStep,
+    goNext,
+    goPrev,
+    finishTutorial,
+  } = useTutorialProgress({
+    contentId,
+    contentType: 'ai_guided_tutorial',
+    totalSteps: item.aiGuidedTutorialContent?.steps?.length ?? 1,
+  })
 
   const c = item.aiGuidedTutorialContent!
   const tutorialSteps = c.steps

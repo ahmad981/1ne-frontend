@@ -68,6 +68,7 @@ import AIGrowthRecommendationPage from '../pages/features/learningHubSections/AI
 import AIGuidedTutorialPage from '../pages/features/learningHubSections/AIGuidedTutorialPage';
 import ResearchInsightPage from '../pages/features/learningHubSections/ResearchInsightPage';
 import SpecialistDeepDiveTrackPage from '../pages/features/learningHubSections/SpecialistDeepDiveTrackPage';
+import LearningHubSectionViewAllPage from '../pages/features/learningHubSections/LearningHubSectionViewAllPage';
 import LearningHubLegacyRedirect from '../pages/features/LearningHubLegacyRedirect';
 import History from '../pages/features/History';
 import Personalization from '../pages/features/Personalization';
@@ -502,6 +503,15 @@ export const teacherRoutes = [
         element: (
           <DashboardLayout>
             <SpecialistDeepDiveTrackPage />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/learning-hub/sections/:section',
+        moduleName: 'Learning Hub Section View All',
+        element: (
+          <DashboardLayout>
+            <LearningHubSectionViewAllPage />
           </DashboardLayout>
         ),
       },

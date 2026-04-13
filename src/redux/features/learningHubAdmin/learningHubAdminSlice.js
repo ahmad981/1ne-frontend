@@ -183,6 +183,23 @@ export const deleteContentJob = createAsyncThunk(
   }
 );
 
+/**
+ * Fetch per-user job stats + profile completeness for admin inspection.
+ * Calls GET /api/v1/content-factory/jobs/by-user/{userId}
+ */
+export const fetchUserJobStats = createAsyncThunk(
+  'learningHubAdmin/fetchUserJobStats',
+  async (userId, { rejectWithValue }) => {
+    try {
+      const res = await axiosInstance.get(`/api/v1/content-factory/jobs/by-user/${userId}`);
+      return res.data;
+    } catch (error) {
+      console.error('[learningHubAdmin] fetchUserJobStats', error);
+      return rejectWithValue(handleApiError(error));
+    }
+  }
+);
+
 export const fetchRegistryItems = createAsyncThunk(
   'learningHubAdmin/fetchRegistryItems',
   async (filters = {}, { rejectWithValue }) => {
@@ -235,6 +252,10 @@ const initialState = {
   },
   actionLoading: false,
   actionError: null,
+  // Per-user job stats (admin inspection)
+  userJobStats: null,
+  userJobStatsLoading: false,
+  userJobStatsError: null,
 };
 
 const learningHubAdminSlice = createSlice({
@@ -422,6 +443,19 @@ const learningHubAdminSlice = createSlice({
       .addCase(stopGapGenerationWorker.rejected, (state, action) => {
         state.actionLoading = false;
         state.actionError = action.payload;
+      })
+      .addCase(fetchUserJobStats.pending, (state) => {
+        state.userJobStatsLoading = true;
+        state.userJobStatsError = null;
+      })
+      .addCase(fetchUserJobStats.fulfilled, (state, action) => {
+        state.userJobStatsLoading = false;
+        state.userJobStats = action.payload;
+      })
+      .addCase(fetchUserJobStats.rejected, (state, action) => {
+        state.userJobStatsLoading = false;
+        state.userJobStatsError = action.payload;
+        state.userJobStats = null;
       })
       .addCase(logoutUser, () => initialState);
   },

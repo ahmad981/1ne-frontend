@@ -14,6 +14,7 @@ import profileContextReducer from './features/profileContext/profileContextSlice
 import teacherIdentityReducer from './features/teacherIdentity/teacherIdentitySlice';
 import learningProgressReducer from './features/learningProgress/learningProgressSlice';
 import learningHubAdminReducer from './features/learningHubAdmin/learningHubAdminSlice';
+import personalizationReducer from './features/personalization/personalizationSlice';
 
 // Define the persist configuration
 const persistConfig = {
@@ -34,6 +35,7 @@ const rootReducer = combineReducers({
   teacherIdentity: teacherIdentityReducer,
   learningProgress: learningProgressReducer,
   learningHubAdmin: learningHubAdminReducer,
+  personalization: personalizationReducer,
 });
 
 // Create a persisted reducer

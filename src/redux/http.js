@@ -198,7 +198,7 @@ axiosInstance.interceptors.response.use(
     if (error.code === 'ERR_NETWORK' || error.message?.includes('Network Error')) {
       const networkError = new Error(
         `Network error: Unable to connect to server at ${baseURL}. ` +
-        `Please verify:\n1. Backend is running on port 8000\n2. CORS is properly configured\n3. No firewall blocking the connection`
+        `Please verify:\n1. Backend is running and reachable\n2. CORS is properly configured\n3. No firewall blocking the connection`
       );
       networkError.name = 'NetworkError';
       console.error('[Axios] 🌐 Network error:', networkError.message);
