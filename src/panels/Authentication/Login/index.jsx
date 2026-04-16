@@ -40,18 +40,6 @@ export const Login = () => {
   const [loading, setLoading] = useState(false);
   const [loginError, setLoginError] = useState('');
 
-  // Show loading state while Redux is rehydrating
-  if (!isRehydrated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   // CRITICAL: If user is already authenticated, redirect immediately
   // This prevents login page from showing after successful login
   useEffect(() => {
@@ -89,6 +77,19 @@ export const Login = () => {
       }
     };
   }, [dispatch, loginChallenge]);
+
+  // Show loading state while Redux is rehydrating.
+  // Keep this after hook declarations to preserve hook call order across renders.
+  if (!isRehydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-primary-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;

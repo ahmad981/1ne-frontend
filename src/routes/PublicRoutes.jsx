@@ -34,7 +34,9 @@ const PublicRoutes = () => {
   }
 
   if (token) {
-    return <Navigate to={firstPath} replace />;
+    // Avoid redirect loops when role resolution falls back to /login
+    const destination = firstPath && firstPath !== '/login' ? firstPath : '/dashboard';
+    return <Navigate to={destination} replace />;
   }
   
   return <Outlet />;

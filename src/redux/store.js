@@ -1,7 +1,6 @@
 // Library imports
 import { combineReducers, configureStore } from '@reduxjs/toolkit';
 import { persistReducer, persistStore } from 'redux-persist';
-import storage from 'redux-persist/lib/storage';
 
 // Local imports
 import authSlice from './features/auth/authSlice';
@@ -9,6 +8,25 @@ import signupSlice from './features/auth/signupSlice';
 import membershipSlice from './features/membership/membershipSlice';
 import snackbarReducer from './features/snackbarSlice/snackbarSlice';
 import templatesReducer from './features/templates/templatesSlice';
+
+const storage =
+  typeof window !== 'undefined'
+    ? {
+        getItem: (key) => Promise.resolve(window.localStorage.getItem(key)),
+        setItem: (key, value) => {
+          window.localStorage.setItem(key, value);
+          return Promise.resolve(value);
+        },
+        removeItem: (key) => {
+          window.localStorage.removeItem(key);
+          return Promise.resolve();
+        },
+      }
+    : {
+        getItem: () => Promise.resolve(null),
+        setItem: (_key, value) => Promise.resolve(value),
+        removeItem: () => Promise.resolve(),
+      };
 
 // Define the persist configuration
 const persistConfig = {

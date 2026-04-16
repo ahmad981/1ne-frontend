@@ -11,6 +11,8 @@ import {
   Zap,
   CheckCircle2,
 } from 'lucide-react'
+import { ApiError } from '../../api/client'
+import { generatePixGenImage } from '../../api/pixgen'
 
 const stylePresets = ['Watercolour storybook', 'Photo-real science lab', 'Flat infographic', 'Pixel art mini-game']
 const aspectRatios = ['1:1 Square', '3:2 Landscape', '9:16 Vertical', '2:3 Portrait']
@@ -124,6 +126,9 @@ const preFilledPrompts = [
   },
 ]
 
+const BATCH_SIZE = 4
+const BATCH_CONCURRENCY = 2
+
 const PixGen = () => {
   const [selectedStyle, setSelectedStyle] = useState(stylePresets[0])
   const [selectedRatio, setSelectedRatio] = useState(aspectRatios[1])
@@ -133,6 +138,35 @@ const PixGen = () => {
   const [batchImages, setBatchImages] = useState<string[]>([])
   const [selectedPrompt, setSelectedPrompt] = useState<typeof preFilledPrompts[0] | null>(null)
   const [imageError, setImageError] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const getFriendlyErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof ApiError) {
+      if (error.status === 401) {
+        return 'Your session expired. Please log in again and retry.'
+      }
+      if (error.status === 422) {
+        return 'Please check your prompt and selected options, then try again.'
+      }
+      if (error.status >= 500) {
+        return 'Image service is currently unavailable. Please try again in a moment.'
+      }
+      return error.message || fallback
+    }
+
+    if (error instanceof Error) {
+      const message = error.message.toLowerCase()
+      if (message.includes('timeout')) {
+        return 'Generation is taking too long. Please retry with a shorter prompt or single image.'
+      }
+      if (message.includes('network') || message.includes('failed to fetch') || message.includes('connect')) {
+        return 'Network issue detected. Please check your connection and backend server.'
+      }
+      return error.message || fallback
+    }
+
+    return fallback
+  }
 
   const handleUsePrompt = (promptData: typeof preFilledPrompts[0]) => {
     setPrompt(promptData.prompt)
@@ -141,41 +175,102 @@ const PixGen = () => {
     setSelectedPrompt(promptData)
     setPreviewImage(promptData.image)
     setImageError(false)
+    setErrorMessage(null)
   }
 
-  const handleGenerateBatch = () => {
+  const resolvePrompt = () => {
+    const typedPrompt = prompt.trim()
+    if (typedPrompt) return typedPrompt
+    return selectedPrompt?.prompt ?? ''
+  }
+
+  const handleGenerateBatch = async () => {
     if (!prompt.trim() && !selectedPrompt) return
 
     setIsGenerating(true)
     setBatchImages([])
     setImageError(false)
+    setErrorMessage(null)
 
-    // Simulate batch generation with multiple images
-    setTimeout(() => {
-      const currentPrompt = selectedPrompt || preFilledPrompts[0]
-      const generatedImages = [
-        currentPrompt.image,
-        'https://images.unsplash.com/photo-1503676260728-1c00da94a42b?w=800&h=600&fit=crop',
-        'https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=800&h=600&fit=crop',
-        'https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&h=600&fit=crop',
-      ]
+    try {
+      const payload = {
+        prompt: resolvePrompt(),
+        stylePreset: selectedStyle,
+        aspectRatio: selectedRatio,
+      }
+
+      const runNext = async () => generatePixGenImage(payload)
+      const tasks = Array.from({ length: BATCH_SIZE }, () => runNext)
+      const settled: PromiseSettledResult<Awaited<ReturnType<typeof generatePixGenImage>>>[] = []
+
+      // Run batch with controlled concurrency to reduce provider overload/timeouts.
+      for (let i = 0; i < tasks.length; i += BATCH_CONCURRENCY) {
+        const chunk = tasks.slice(i, i + BATCH_CONCURRENCY).map((fn) => fn())
+        const chunkResults = await Promise.allSettled(chunk)
+        settled.push(...chunkResults)
+      }
+
+      const generatedImages = settled
+        .filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof generatePixGenImage>>> => result.status === 'fulfilled')
+        .map((result) => result.value.imageUrl)
+        .filter((url): url is string => !!url)
+
+      const failedCount = settled.filter((result) => result.status === 'rejected').length
+
       setBatchImages(generatedImages)
-      setPreviewImage(generatedImages[0])
+      setPreviewImage(generatedImages[0] ?? null)
+      if (!generatedImages.length) {
+        setErrorMessage('Batch completed but no image previews were returned.')
+      } else if (failedCount > 0) {
+        setErrorMessage(`${failedCount} image(s) failed to generate. Showing successful results.`)
+      }
+    } catch (error) {
+      setErrorMessage(getFriendlyErrorMessage(error, 'Batch generation failed.'))
+    } finally {
       setIsGenerating(false)
-    }, 2000)
+    }
   }
 
-  const handleGenerateSingle = () => {
+  const handleGenerateSingle = async () => {
     if (!prompt.trim() && !selectedPrompt) return
 
     setIsGenerating(true)
     setImageError(false)
-    const currentPrompt = selectedPrompt || preFilledPrompts[0]
-    
-    setTimeout(() => {
-      setPreviewImage(currentPrompt.image)
+    setErrorMessage(null)
+
+    try {
+      const response = await generatePixGenImage({
+        prompt: resolvePrompt(),
+        stylePreset: selectedStyle,
+        aspectRatio: selectedRatio,
+      })
+
+      if (response.imageUrl) {
+        setPreviewImage(response.imageUrl)
+      } else {
+        setPreviewImage(null)
+        setErrorMessage('Generation completed but no image URL was returned.')
+      }
+    } catch (error) {
+      setErrorMessage(getFriendlyErrorMessage(error, 'Image generation failed.'))
+      setPreviewImage(null)
+    } finally {
       setIsGenerating(false)
-    }, 1500)
+    }
+  }
+
+  const handleDownloadPreview = () => {
+    if (!previewImage) return
+    try {
+      const link = document.createElement('a')
+      link.href = previewImage
+      link.download = 'pixgen-image.png'
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch {
+      setErrorMessage('Unable to download image. Please try again.')
+    }
   }
 
   return (
@@ -385,6 +480,9 @@ const PixGen = () => {
         <aside className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
           <div className="space-y-2">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Live preview</h3>
+            {errorMessage && (
+              <p className="text-xs rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-red-700">{errorMessage}</p>
+            )}
             <div className="aspect-[4/3] w-full overflow-hidden rounded-2xl bg-gray-100 relative">
               {isGenerating ? (
                 <div className="flex h-full items-center justify-center">
@@ -407,7 +505,10 @@ const PixGen = () => {
                         <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{selectedStyle}</p>
                         <p className="text-xs text-white/70">{selectedRatio}</p>
                       </div>
-                      <button className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-violet-600 hover:bg-violet-50">
+                      <button
+                        onClick={handleDownloadPreview}
+                        className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-violet-600 hover:bg-violet-50"
+                      >
                         Download PNG
                       </button>
                     </div>
