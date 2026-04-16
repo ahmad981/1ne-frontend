@@ -19,6 +19,10 @@ export interface TemplateResponse {
   popularity?: number | null
   tags?: string[]
   inputSchema?: Record<string, unknown> | null
+  outputSchema?: Record<string, unknown> | null
+  promptDefinition?: Record<string, unknown> | null
+  exemplarInput?: Record<string, unknown> | null
+  exemplarOutput?: Record<string, unknown> | null
   canonicalOutcome: string | null
   standards: TemplateStandardRef[]
   is_hot?: boolean
