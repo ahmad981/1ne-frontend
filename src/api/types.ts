@@ -157,9 +157,12 @@ export interface StreamSectionEndEvent {
 
 export interface StreamDoneEvent {
   type: 'done'
-  execution_id: string
+  execution_id?: string | null
   template_slug: string
   output_data?: Record<string, unknown>
+  /** When true, content was filled from template exemplar because the LLM failed */
+  provider_failed?: boolean
+  failure_message?: string
 }
 
 export interface StreamErrorEvent {

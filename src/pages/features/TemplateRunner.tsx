@@ -40,7 +40,20 @@ const TemplateRunner = () => {
   const [showOutput, setShowOutput] = useState(false)
   const [exemplarNotice, setExemplarNotice] = useState<string | null>(null)
   
-  const { content: streamedContent, formattedContent, sections, sectionsSchema, isStreaming, completedSectionKeys, error: streamError, executionId, startStream, stopStream, reset: resetStream } = useTemplateStream()
+  const {
+    content: streamedContent,
+    formattedContent,
+    sections,
+    sectionsSchema,
+    isStreaming,
+    completedSectionKeys,
+    error: streamError,
+    executionId,
+    providerFailedNotice,
+    startStream,
+    stopStream,
+    reset: resetStream,
+  } = useTemplateStream()
 
   // Initialize Turndown service for HTML to Markdown conversion (future-proof)
   const turndownServiceRef = useRef<TurndownService | null>(null)
@@ -262,10 +275,16 @@ const TemplateRunner = () => {
 
   // When section-based stream completes, set parsedOutput from sections (for copy/export)
   useEffect(() => {
-    if (!isStreaming && executionId && sections.length > 0) {
+    if (!isStreaming && sections.length > 0 && (executionId || providerFailedNotice)) {
       setParsedOutput(Object.fromEntries(sections.map((s) => [s.key, s.content])))
     }
-  }, [isStreaming, executionId, sections])
+  }, [isStreaming, executionId, sections, providerFailedNotice])
+
+  useEffect(() => {
+    if (providerFailedNotice) {
+      setSubmitError(null)
+    }
+  }, [providerFailedNotice])
 
   // Parse final content when streaming completes (legacy blob or fallback)
   useEffect(() => {
@@ -534,8 +553,11 @@ const TemplateRunner = () => {
       payload.bloom_level = String(payload.bloom_level).toLowerCase()
     }
 
-    // Start streaming
-    startStream(slug, payload)
+    // Start streaming (pass exemplar for provider-failure fallback)
+    startStream(slug, payload, {
+      exemplarOutput: template?.exemplarOutput ?? undefined,
+      outputSchema: template?.outputSchema ?? undefined,
+    })
   }
 
   const handleRegenerate = () => {
@@ -606,7 +628,10 @@ const TemplateRunner = () => {
     resetStream()
     setParsedOutput(null)
     setShowOutput(true)
-    startStream(slug, payload)
+    startStream(slug, payload, {
+      exemplarOutput: template?.exemplarOutput ?? undefined,
+      outputSchema: template?.outputSchema ?? undefined,
+    })
   }
 
   // Convert parsed output to markdown format that matches the display exactly
@@ -1681,6 +1706,11 @@ const TemplateRunner = () => {
         {/* Output Display - Chat-like Message */}
         {(parsedOutput || isStreaming || sections.length > 0 || showOutput) && (
           <div id="ai-output" className="mt-8">
+            {providerFailedNotice && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-950">{providerFailedNotice}</p>
+              </div>
+            )}
             {/* AI Message Header */}
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">AI Response:</h2>
