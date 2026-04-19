@@ -1,0 +1,276 @@
+import type { Dispatch, SetStateAction } from 'react'
+import { newDemoId } from '../demo/newDemoId'
+import {
+  demoAssignments,
+  demoExams,
+  demoQuizzes,
+  demoWorksheets,
+  type DemoAssignment,
+  type DemoExam,
+  type DemoQuiz,
+  type DemoWorksheet,
+  TEACHER_TOOLS_SEED_ASSIGNMENT_IDS,
+  TEACHER_TOOLS_SEED_EXAM_IDS,
+  TEACHER_TOOLS_SEED_QUIZ_IDS,
+  TEACHER_TOOLS_SEED_WORKSHEET_IDS,
+} from '../demo/teacherToolsDemoData'
+
+/** Latency tuned so lists and writes feel like network calls (replace with real fetch later). */
+export const TEACHER_TOOLS_LIST_DELAY_MS = 320
+export const TEACHER_TOOLS_WRITE_DELAY_MS = 480
+
+export async function withLatency<T>(ms: number, fn: () => T): Promise<T> {
+  await new Promise((r) => setTimeout(r, ms))
+  return fn()
+}
+
+export interface TeacherToolsSessionExtras {
+  extraQuizzes: DemoQuiz[]
+  extraAssignments: DemoAssignment[]
+  extraWorksheets: DemoWorksheet[]
+  extraExams: DemoExam[]
+}
+
+export type MutationResult<T extends Record<string, unknown> = Record<string, never>> =
+  | ({ ok: true } & T)
+  | { ok: false; error: 'READ_ONLY' | 'NOT_FOUND' | string }
+
+export interface TeacherToolsMockApi {
+  listQuizzes: () => Promise<DemoQuiz[]>
+  getQuiz: (id: string) => Promise<DemoQuiz | undefined>
+  createQuiz: (q: DemoQuiz) => Promise<void>
+  updateQuiz: (id: string, patch: Partial<DemoQuiz>) => Promise<MutationResult>
+  deleteQuiz: (id: string) => Promise<MutationResult>
+  duplicateQuiz: (id: string) => Promise<MutationResult<{ id: string }>>
+
+  listAssignments: () => Promise<DemoAssignment[]>
+  getAssignment: (id: string) => Promise<DemoAssignment | undefined>
+  createAssignment: (a: DemoAssignment) => Promise<void>
+  updateAssignment: (id: string, patch: Partial<DemoAssignment>) => Promise<MutationResult>
+  deleteAssignment: (id: string) => Promise<MutationResult>
+  duplicateAssignment: (id: string) => Promise<MutationResult<{ id: string }>>
+
+  listWorksheets: () => Promise<DemoWorksheet[]>
+  getWorksheet: (id: string) => Promise<DemoWorksheet | undefined>
+  createWorksheet: (w: DemoWorksheet) => Promise<void>
+  updateWorksheet: (id: string, patch: Partial<DemoWorksheet>) => Promise<MutationResult>
+  deleteWorksheet: (id: string) => Promise<MutationResult>
+  duplicateWorksheet: (id: string) => Promise<MutationResult<{ id: string }>>
+
+  listExams: () => Promise<DemoExam[]>
+  getExam: (id: string) => Promise<DemoExam | undefined>
+  createExam: (e: DemoExam) => Promise<void>
+  updateExam: (id: string, patch: Partial<DemoExam>) => Promise<MutationResult>
+  deleteExam: (id: string) => Promise<MutationResult>
+  duplicateExam: (id: string) => Promise<MutationResult<{ id: string }>>
+}
+
+export function createTeacherToolsMockApi(opts: {
+  getExtras: () => TeacherToolsSessionExtras
+  setExtras: Dispatch<SetStateAction<TeacherToolsSessionExtras>>
+}): TeacherToolsMockApi {
+  const { getExtras, setExtras } = opts
+
+  return {
+    listQuizzes: () =>
+      withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...demoQuizzes, ...getExtras().extraQuizzes]),
+
+    getQuiz: (id) =>
+      withLatency(200, () => {
+        const merged = [...demoQuizzes, ...getExtras().extraQuizzes]
+        return merged.find((q) => q.id === id)
+      }),
+
+    createQuiz: async (q) => {
+      await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
+      setExtras((e) => ({ ...e, extraQuizzes: [...e.extraQuizzes, q] }))
+    },
+
+    updateQuiz: async (id, patch) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraQuizzes.some((q) => q.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({
+          ...e,
+          extraQuizzes: e.extraQuizzes.map((q) => (q.id === id ? { ...q, ...patch } : q)),
+        }))
+        return { ok: true as const }
+      })
+    },
+
+    deleteQuiz: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        const had = getExtras().extraQuizzes.some((q) => q.id === id)
+        if (!had) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({ ...e, extraQuizzes: e.extraQuizzes.filter((q) => q.id !== id) }))
+        return { ok: true as const }
+      })
+    },
+
+    duplicateQuiz: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        const merged = [...demoQuizzes, ...getExtras().extraQuizzes]
+        const found = merged.find((q) => q.id === id)
+        if (!found) return { ok: false as const, error: 'NOT_FOUND' }
+        const copy: DemoQuiz = {
+          ...found,
+          id: newDemoId('quiz'),
+          title: `${found.title} (copy)`,
+          status: found.status === 'archived' ? 'draft' : found.status,
+        }
+        setExtras((e) => ({ ...e, extraQuizzes: [...e.extraQuizzes, copy] }))
+        return { ok: true as const, id: copy.id }
+      })
+    },
+
+    listAssignments: () =>
+      withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...demoAssignments, ...getExtras().extraAssignments]),
+
+    getAssignment: (id) =>
+      withLatency(200, () => {
+        const merged = [...demoAssignments, ...getExtras().extraAssignments]
+        return merged.find((a) => a.id === id)
+      }),
+
+    createAssignment: async (a) => {
+      await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
+      setExtras((e) => ({ ...e, extraAssignments: [...e.extraAssignments, a] }))
+    },
+
+    updateAssignment: async (id, patch) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraAssignments.some((a) => a.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({
+          ...e,
+          extraAssignments: e.extraAssignments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+        }))
+        return { ok: true as const }
+      })
+    },
+
+    deleteAssignment: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraAssignments.some((a) => a.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({ ...e, extraAssignments: e.extraAssignments.filter((a) => a.id !== id) }))
+        return { ok: true as const }
+      })
+    },
+
+    duplicateAssignment: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        const merged = [...demoAssignments, ...getExtras().extraAssignments]
+        const found = merged.find((a) => a.id === id)
+        if (!found) return { ok: false as const, error: 'NOT_FOUND' }
+        const copy: DemoAssignment = {
+          ...found,
+          id: newDemoId('asg'),
+          title: `${found.title} (copy)`,
+        }
+        setExtras((e) => ({ ...e, extraAssignments: [...e.extraAssignments, copy] }))
+        return { ok: true as const, id: copy.id }
+      })
+    },
+
+    listWorksheets: () =>
+      withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...demoWorksheets, ...getExtras().extraWorksheets]),
+
+    getWorksheet: (id) =>
+      withLatency(200, () => {
+        const merged = [...demoWorksheets, ...getExtras().extraWorksheets]
+        return merged.find((w) => w.id === id)
+      }),
+
+    createWorksheet: async (w) => {
+      await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
+      setExtras((e) => ({ ...e, extraWorksheets: [...e.extraWorksheets, w] }))
+    },
+
+    updateWorksheet: async (id, patch) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraWorksheets.some((w) => w.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({
+          ...e,
+          extraWorksheets: e.extraWorksheets.map((w) => (w.id === id ? { ...w, ...patch } : w)),
+        }))
+        return { ok: true as const }
+      })
+    },
+
+    deleteWorksheet: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraWorksheets.some((w) => w.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({ ...e, extraWorksheets: e.extraWorksheets.filter((w) => w.id !== id) }))
+        return { ok: true as const }
+      })
+    },
+
+    duplicateWorksheet: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        const merged = [...demoWorksheets, ...getExtras().extraWorksheets]
+        const found = merged.find((w) => w.id === id)
+        if (!found) return { ok: false as const, error: 'NOT_FOUND' }
+        const copy: DemoWorksheet = {
+          ...found,
+          id: newDemoId('ws'),
+          title: `${found.title} (copy)`,
+        }
+        setExtras((e) => ({ ...e, extraWorksheets: [...e.extraWorksheets, copy] }))
+        return { ok: true as const, id: copy.id }
+      })
+    },
+
+    listExams: () => withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...demoExams, ...getExtras().extraExams]),
+
+    getExam: (id) =>
+      withLatency(200, () => {
+        const merged = [...demoExams, ...getExtras().extraExams]
+        return merged.find((x) => x.id === id)
+      }),
+
+    createExam: async (exam) => {
+      await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
+      setExtras((e) => ({ ...e, extraExams: [...e.extraExams, exam] }))
+    },
+
+    updateExam: async (id, patch) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraExams.some((x) => x.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({
+          ...e,
+          extraExams: e.extraExams.map((x) => (x.id === id ? { ...x, ...patch } : x)),
+        }))
+        return { ok: true as const }
+      })
+    },
+
+    deleteExam: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (!getExtras().extraExams.some((x) => x.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        setExtras((e) => ({ ...e, extraExams: e.extraExams.filter((x) => x.id !== id) }))
+        return { ok: true as const }
+      })
+    },
+
+    duplicateExam: async (id) => {
+      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+        const merged = [...demoExams, ...getExtras().extraExams]
+        const found = merged.find((x) => x.id === id)
+        if (!found) return { ok: false as const, error: 'NOT_FOUND' }
+        const copy: DemoExam = {
+          ...found,
+          id: newDemoId('exam'),
+          title: `${found.title} (copy)`,
+        }
+        setExtras((e) => ({ ...e, extraExams: [...e.extraExams, copy] }))
+        return { ok: true as const, id: copy.id }
+      })
+    },
+  }
+}

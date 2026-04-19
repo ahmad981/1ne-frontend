@@ -24,6 +24,7 @@ const useClickOutside = (ref: React.RefObject<HTMLElement>, handler: (event: Mou
   }, [ref, handler]);
 };
 import { sideMenuRoutes } from '../routes/sideMenuConfig'
+import { TeacherToolsDemoProvider } from '../pages/features/teacher-tools/TeacherToolsDemoProvider'
 import WorkspaceSwitcher from './workspace/WorkspaceSwitcher'
 import ActiveWorkspaceIndicator from './workspace/ActiveWorkspaceIndicator'
 import {
@@ -1033,7 +1034,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <main className="pt-20 lg:pt-24 px-6 lg:px-8">{children}</main>
+        <main className="pt-20 lg:pt-24 px-6 lg:px-8">
+          {location.pathname.startsWith('/teacher-tools') ? (
+            <TeacherToolsDemoProvider>{children}</TeacherToolsDemoProvider>
+          ) : (
+            children
+          )}
+        </main>
       </div>
 
       {/* Mobile overlay */}
