@@ -22,15 +22,14 @@ import {
   ShieldCheck,
   Eye,
 } from 'lucide-react'
+import { ApiError } from '../../api/client'
+import { generateYouTubeQuiz, YouTubeQuizSection } from '../../api/youtubeQuiz'
+import { useSnackbar } from '../../hooks/useSnackbar'
 
 interface QuizPreview {
   title: string
   summary: string
-  sections: Array<{
-    heading: string
-    details: string
-    questions: string[]
-  }>
+  sections: YouTubeQuizSection[]
 }
 
 const questionStyles = ['Multiple choice', 'Higher-order thinking', 'Quick check', 'Discussion prompt']
@@ -183,6 +182,7 @@ const workflowSteps = [
 ]
 
 const YouTubeQuizGenerator = () => {
+  const { toast } = useSnackbar()
   const [videoUrl, setVideoUrl] = useState('')
   const [gradeBand, setGradeBand] = useState('Grades 6-8')
   const [subjectArea, setSubjectArea] = useState('Science & STEM')
@@ -193,7 +193,35 @@ const YouTubeQuizGenerator = () => {
   const [isGenerating, setIsGenerating] = useState(false)
   const [quizPreview, setQuizPreview] = useState<QuizPreview | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
+  const [urlError, setUrlError] = useState<string | null>(null)
+  const [apiError, setApiError] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  const getVideoUrlValidationError = (url: string): string | null => {
+    const trimmed = url.trim()
+    if (!trimmed) return 'Please paste a valid YouTube watch/share/shorts URL.'
+    try {
+      const parsed = new URL(trimmed)
+      const host = parsed.hostname.toLowerCase()
+      const path = parsed.pathname
+      const isYouTubeHost =
+        host === 'youtube.com' ||
+        host === 'www.youtube.com' ||
+        host === 'm.youtube.com' ||
+        host === 'youtu.be' ||
+        host === 'www.youtu.be'
+      if (!isYouTubeHost) return 'Please paste a valid YouTube watch/share/shorts URL.'
+      if (host.includes('youtu.be')) return path.length > 1 ? null : 'Please paste a valid YouTube watch/share/shorts URL.'
+      const isWatch = path === '/watch' && parsed.searchParams.get('v')
+      const isShorts = /^\/shorts\/[^/]+/.test(path)
+      const isEmbed = /^\/embed\/[^/]+/.test(path)
+      return isWatch || isShorts || isEmbed ? null : 'Please paste a valid YouTube watch/share/shorts URL.'
+    } catch {
+      return 'Please paste a valid YouTube watch/share/shorts URL.'
+    }
+  }
+
+  const isVideoUrlValid = getVideoUrlValidationError(videoUrl) === null
 
   const handleToggleStyle = (style: string) => {
     setSelectedStyles((prev) =>
@@ -214,7 +242,12 @@ const YouTubeQuizGenerator = () => {
   }
 
   const handleGenerateQuiz = () => {
-    if (!videoUrl.trim()) return
+    const validationError = getVideoUrlValidationError(videoUrl)
+    if (validationError) {
+      setUrlError(validationError)
+      toast.error(validationError)
+      return
+    }
     handleGenerateQuizWithData()
   }
 
@@ -227,80 +260,62 @@ const YouTubeQuizGenerator = () => {
     })
   }
 
-  const handleGenerateQuizWithData = (videoData?: typeof referenceVideos[0]) => {
+  const handleGenerateQuizWithData = async (videoData?: typeof referenceVideos[0]) => {
     setIsGenerating(true)
     setQuizPreview(null)
+    setApiError(null)
+    setUrlError(null)
 
-    setTimeout(() => {
-      const currentGrade = videoData?.gradeBand || gradeBand
-      const currentSubject = videoData?.subjectArea || subjectArea
-      const currentFocus = videoData?.learningFocus || learningFocus
-
-      // Build questions based on subject and focus
-      const keyIdeaQuestion = 
-        currentSubject === 'Science & STEM' 
-          ? 'What scientific principle is demonstrated in the video?'
-          : currentSubject === 'Mathematics'
-          ? 'What mathematical concept is being explained?'
-          : 'What is the main topic discussed in this video?'
-      
-      const applicationQuestion = 
-        currentFocus === 'Lab skills & procedures'
-          ? 'How would you apply these procedures in a real laboratory setting?'
-          : 'Give an example from your own experience that relates to this concept.'
-      
-      const discussionQuestion = 
-        currentSubject === 'Social Sciences'
-          ? 'How does this historical event connect to current events?'
-          : 'What questions do you still have after watching this video?'
-
-      const sections = [
-        {
-          heading: 'Key idea check',
-          details: 'Ensure students captured the core message of the video within the first minutes.',
-          questions: [
-            'According to the speaker, what is the primary challenge being addressed?',
-            'Which example best illustrates the concept introduced at timestamp 02:15?',
-            keyIdeaQuestion,
-          ],
-        },
-        {
-          heading: 'Application & transfer',
-          details: 'Move students from recall to applying concepts in authentic classroom contexts.',
-          questions: [
-            'How could this strategy be used in our current unit project?',
-            'Design a quick scenario that mirrors the challenge presented in the video.',
-            applicationQuestion,
-          ],
-        },
-        {
-          heading: 'Discussion launcher',
-          details: 'Prompt collaboration or Socratic dialogue to deepen understanding.',
-          questions: [
-            'Which claim from the video interested you the most and why?',
-            "What evidence would you add to strengthen the presenter's argument?",
-            discussionQuestion,
-          ],
-        },
-      ]
+    try {
+      const response = await generateYouTubeQuiz({
+        video_url: videoData?.url || videoUrl,
+        grade_band: videoData?.gradeBand || gradeBand,
+        subject_lens: videoData?.subjectArea || subjectArea,
+        learning_focus: videoData?.learningFocus || learningFocus,
+        quiz_language: language,
+        question_styles: selectedStyles,
+        question_count: questionCount,
+      })
 
       const generatedQuiz: QuizPreview = {
-        title: videoData?.title || 'Preview quiz plan',
-        summary: `Here is a ${questionCount}-question quiz tailored for ${currentGrade.toLowerCase()} learners studying ${currentSubject.toLowerCase()}.`,
-        sections,
+        title: response.title,
+        summary: response.summary,
+        sections: response.sections,
       }
-      
+
       setQuizPreview(generatedQuiz)
       setHasGenerated(true)
-      setIsGenerating(false)
-      
+
       // Navigate to results page after generation
       setTimeout(() => {
         navigate('/youtube-quiz/results', {
           state: { quizData: generatedQuiz },
         })
       }, 500)
-    }, 1200)
+    } catch (error) {
+      console.error('Failed to generate YouTube quiz:', error)
+      setHasGenerated(false)
+      let message = 'Quiz generation failed. Please try again.'
+      if (error instanceof ApiError) {
+        if (error.status === 400) {
+          message = 'Invalid request. Please check the YouTube link and form inputs.'
+        } else if (error.status === 502) {
+          message = 'Quiz generation failed on the server. Please retry in a moment.'
+        } else if (typeof error.message === 'string' && error.message.trim()) {
+          message = error.message
+        }
+      } else if (error instanceof Error && error.message) {
+        if (error.message.includes('timeout') || error.message.includes('Network error')) {
+          message = 'Cannot reach backend right now. Please check server connection and try again.'
+        } else {
+          message = error.message
+        }
+      }
+      setApiError(message)
+      toast.error(message)
+    } finally {
+      setIsGenerating(false)
+    }
   }
 
   const progressHighlights = useMemo(
@@ -388,7 +403,7 @@ const YouTubeQuizGenerator = () => {
                 </button>
                 <button
                   onClick={handleGenerateQuiz}
-                  disabled={isGenerating || !videoUrl}
+                  disabled={isGenerating || !videoUrl.trim() || !isVideoUrlValid}
                   className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300"
                 >
                   <Play className={`h-4 w-4 ${isGenerating ? 'animate-pulse' : ''}`} />
@@ -404,17 +419,27 @@ const YouTubeQuizGenerator = () => {
                   <input
                     value={videoUrl}
                     onChange={(event) => {
-                      setVideoUrl(event.target.value)
+                      const nextUrl = event.target.value
+                      setVideoUrl(nextUrl)
+                      setUrlError(nextUrl.trim() ? getVideoUrlValidationError(nextUrl) : null)
+                      setApiError(null)
                       setHasGenerated(false)
                       setQuizPreview(null)
                     }}
                     placeholder="https://www.youtube.com/watch?v=..."
-                    className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-700 focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-100"
+                    className={`w-full rounded-xl bg-white px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 ${
+                      urlError
+                        ? 'border border-red-300 focus:border-red-400 focus:ring-red-100'
+                        : 'border border-gray-200 focus:border-red-300 focus:ring-red-100'
+                    }`}
                   />
                   <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-3 text-xs text-red-500">
                     <Video className="h-4 w-4" /> Transcript & keywords extracted automatically
                   </div>
                 </div>
+                {(urlError || apiError) && (
+                  <p className="mt-2 text-xs text-red-600">{urlError || apiError}</p>
+                )}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
