@@ -10,6 +10,12 @@ export interface StreamSectionSchema {
   type: string
 }
 
+export interface TemplateStreamOptions {
+  /** Used when the stream cannot start or returns an error: show exemplar output */
+  exemplarOutput?: Record<string, unknown> | null
+  outputSchema?: Record<string, unknown> | null
+}
+
 interface UseTemplateStreamReturn {
   content: string
   formattedContent: string
@@ -19,9 +25,24 @@ interface UseTemplateStreamReturn {
   completedSectionKeys: string[]
   error: string | null
   executionId: string | null
-  startStream: (slug: string, data: Record<string, any>) => void
+  /** Set when the LLM failed and exemplar output was shown (server or client fallback) */
+  providerFailedNotice: string | null
+  startStream: (slug: string, data: Record<string, any>, options?: TemplateStreamOptions) => void
   stopStream: () => void
   reset: () => void
+}
+
+function exemplarValueToPlainText(value: unknown): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    const allStrings = value.every((x) => typeof x === 'string')
+    if (allStrings) return (value as string[]).map((s) => `- ${s}`).join('\n')
+    return value.map((item) => (typeof item === 'string' ? `- ${item}` : `- ${JSON.stringify(item)}`)).join('\n\n')
+  }
+  if (typeof value === 'object') return JSON.stringify(value, null, 2)
+  return String(value)
 }
 
 /**
@@ -1372,10 +1393,12 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
   const [isStreaming, setIsStreaming] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [executionId, setExecutionId] = useState<string | null>(null)
+  const [providerFailedNotice, setProviderFailedNotice] = useState<string | null>(null)
   const authToken = useSelector((state: any) => state?.auth?.user?.token ?? null)
 
   const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
+  const streamOptionsRef = useRef<TemplateStreamOptions | null>(null)
   const formattedContentRef = useRef<string>('')
   const accumulatedContentRef = useRef<string>('')
   const inputDataRef = useRef<Record<string, any>>({})
@@ -1420,12 +1443,69 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
     sectionMapRef.current = {}
     setError(null)
     setExecutionId(null)
+    setProviderFailedNotice(null)
   }, [stopStream])
 
-  const startStream = useCallback((slug: string, data: Record<string, any>) => {
+  const applyExemplarFallback = useCallback((failureMessage: string): boolean => {
+    const opts = streamOptionsRef.current
+    const ex = opts?.exemplarOutput
+    if (!ex || typeof ex !== 'object' || Object.keys(ex).length === 0) {
+      setError(failureMessage)
+      setIsStreaming(false)
+      return false
+    }
+    const properties = ((opts?.outputSchema as { properties?: Record<string, { title?: string }> })?.properties ||
+      {}) as Record<string, { title?: string }>
+    const keys = Object.keys(ex)
+    const schema: StreamSectionSchema[] = keys.map((key) => ({
+      key,
+      label:
+        properties[key]?.title ||
+        key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      type: 'markdown',
+    }))
+    sectionsSchemaRef.current = schema
+    flushSync(() => setSectionsSchema(schema))
+    const nextSections: StreamedSection[] = keys.map((key) => ({
+      key,
+      label:
+        properties[key]?.title ||
+        key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+      content: exemplarValueToPlainText((ex as Record<string, unknown>)[key]),
+      type: 'markdown',
+    }))
+    sectionsRef.current = nextSections
+    sectionMapRef.current = {}
+    keys.forEach((k, i) => {
+      sectionMapRef.current[k] = i
+    })
+    completedSectionKeysRef.current = new Set(keys)
+    flushSync(() => {
+      setSections(nextSections)
+      setCompletedSectionKeys([...keys])
+    })
+    const fullText = nextSections
+      .map((s) => (s.label ? `## ${s.label}\n\n${s.content || ''}` : s.content || ''))
+      .join('\n\n')
+    formattedContentRef.current = fullText
+    flushSync(() => {
+      setFormattedContent(fullText)
+      setContent(fullText)
+    })
+    setError(null)
+    setProviderFailedNotice(
+      failureMessage.trim() ||
+        'The AI provider could not complete this request. Below is the exemplar output from this template.',
+    )
+    setIsStreaming(false)
+    return true
+  }, [])
+
+  const startStream = useCallback((slug: string, data: Record<string, any>, options?: TemplateStreamOptions) => {
     // Store input data for standards extraction BEFORE reset
     inputDataRef.current = data
-    
+    streamOptionsRef.current = options ?? null
+
     // Reset state
     reset()
     setIsStreaming(true)
@@ -1471,11 +1551,17 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
             } catch {
               errorMessage = errorText || errorMessage
             }
+            if (applyExemplarFallback(`Provider error: ${errorMessage}`)) {
+              return
+            }
             throw new Error(errorMessage)
           })
         }
 
         if (!response.body) {
+          if (applyExemplarFallback('No response body received from the AI provider.')) {
+            return
+          }
           throw new Error('No response body received')
         }
 
@@ -1604,9 +1690,25 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
                       break
 
                     case 'done': {
+                      const doneEv = event as {
+                        execution_id?: string | null
+                        output_data?: Record<string, unknown>
+                        provider_failed?: boolean
+                        failure_message?: string
+                      }
+                      if (doneEv.provider_failed) {
+                        setProviderFailedNotice(
+                          typeof doneEv.failure_message === 'string' && doneEv.failure_message.trim()
+                            ? doneEv.failure_message
+                            : 'The AI provider could not complete this request. Below is the exemplar output from this template.',
+                        )
+                        setError(null)
+                      } else {
+                        setProviderFailedNotice(null)
+                      }
                       sectionsRef.current.forEach((sec) => completedSectionKeysRef.current.add(sec.key))
                       flushSync(() => setCompletedSectionKeys(Array.from(completedSectionKeysRef.current)))
-                      const outputData = event.output_data
+                      const outputData = doneEv.output_data ?? event.output_data
                       if (outputData && typeof outputData === 'object' && sectionsRef.current.length > 0) {
                         const next = sectionsRef.current.map((sec) => {
                           const val = outputData[sec.key]
@@ -1630,12 +1732,17 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
                         setContent(cleaned)
                       }
                       setIsStreaming(false)
-                      if (event.execution_id) setExecutionId(event.execution_id)
+                      if (doneEv.execution_id) setExecutionId(doneEv.execution_id)
                       break
                     }
 
                     case 'error':
                       console.error('Stream error event:', event)
+                      if (
+                        applyExemplarFallback(event.message || 'Stream error occurred')
+                      ) {
+                        break
+                      }
                       setError(event.message || 'Stream error occurred')
                       setIsStreaming(false)
                       break
@@ -1669,8 +1776,10 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
               setIsStreaming(false)
               return
             }
-            setError(err.message || 'Error reading stream')
-            setIsStreaming(false)
+            if (!applyExemplarFallback(err.message || 'Error reading stream')) {
+              setError(err.message || 'Error reading stream')
+              setIsStreaming(false)
+            }
           })
         }
 
@@ -1684,10 +1793,12 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
           setIsStreaming(false)
           return
         }
-        setError(err.message || 'Failed to start stream')
-        setIsStreaming(false)
+        if (!applyExemplarFallback(err.message || 'Failed to start stream')) {
+          setError(err.message || 'Failed to start stream')
+          setIsStreaming(false)
+        }
       })
-  }, [reset, authToken])
+  }, [reset, authToken, applyExemplarFallback])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -1705,6 +1816,7 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
     completedSectionKeys,
     error,
     executionId,
+    providerFailedNotice,
     startStream,
     stopStream,
     reset,

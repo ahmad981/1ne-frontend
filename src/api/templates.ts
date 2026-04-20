@@ -122,6 +122,10 @@ export const fetchTemplateDetail = (slug: string, signal?: AbortSignal) => {
     method: 'GET',
     signal,
   }).then((detail) => {
+    const promptDefinition = detail.latest_version?.prompt_definition || null
+    const exemplarInput = promptDefinition?.exemplar_input || null
+    const exemplarOutput = promptDefinition?.exemplar_output || null
+
     // Transform backend TemplateDetail to frontend TemplateResponse
     return {
       id: String(detail.id),
@@ -135,6 +139,10 @@ export const fetchTemplateDetail = (slug: string, signal?: AbortSignal) => {
       bloom: null,
       kind: null,
       inputSchema: detail.latest_version?.input_schema || null,
+      outputSchema: detail.latest_version?.output_schema || null,
+      promptDefinition: promptDefinition,
+      exemplarInput,
+      exemplarOutput,
       canonicalOutcome: null,
       standards: [],
     } as TemplateResponse

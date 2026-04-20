@@ -38,11 +38,26 @@ const TemplateRunner = () => {
   const [copied, setCopied] = useState(false)
   const [showPromptEditor, setShowPromptEditor] = useState(true)
   const [showOutput, setShowOutput] = useState(false)
+  const [exemplarNotice, setExemplarNotice] = useState<string | null>(null)
   
-  const { content: streamedContent, formattedContent, sections, sectionsSchema, isStreaming, completedSectionKeys, error: streamError, executionId, startStream, stopStream, reset: resetStream } = useTemplateStream()
+  const {
+    content: streamedContent,
+    formattedContent,
+    sections,
+    sectionsSchema,
+    isStreaming,
+    completedSectionKeys,
+    error: streamError,
+    executionId,
+    providerFailedNotice,
+    startStream,
+    stopStream,
+    reset: resetStream,
+  } = useTemplateStream()
 
   // Initialize Turndown service for HTML to Markdown conversion (future-proof)
   const turndownServiceRef = useRef<TurndownService | null>(null)
+  const exemplarNoticeTimeoutRef = useRef<number | null>(null)
   
   useEffect(() => {
     // Initialize turndown service with optimal settings for markdown output
@@ -93,6 +108,14 @@ const TemplateRunner = () => {
   }, [])
 
   useEffect(() => {
+    return () => {
+      if (exemplarNoticeTimeoutRef.current) {
+        window.clearTimeout(exemplarNoticeTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (!slug) {
       setError('Template not found.')
       setLoading(false)
@@ -109,6 +132,7 @@ const TemplateRunner = () => {
         setParsedOutput(null)
         resetStream()
         setShowOutput(false)
+        setExemplarNotice(null)
       })
       .catch((err) => {
         if (controller.signal.aborted) return
@@ -251,10 +275,16 @@ const TemplateRunner = () => {
 
   // When section-based stream completes, set parsedOutput from sections (for copy/export)
   useEffect(() => {
-    if (!isStreaming && executionId && sections.length > 0) {
+    if (!isStreaming && sections.length > 0 && (executionId || providerFailedNotice)) {
       setParsedOutput(Object.fromEntries(sections.map((s) => [s.key, s.content])))
     }
-  }, [isStreaming, executionId, sections])
+  }, [isStreaming, executionId, sections, providerFailedNotice])
+
+  useEffect(() => {
+    if (providerFailedNotice) {
+      setSubmitError(null)
+    }
+  }, [providerFailedNotice])
 
   // Parse final content when streaming completes (legacy blob or fallback)
   useEffect(() => {
@@ -358,9 +388,95 @@ const TemplateRunner = () => {
     }
   }, [showOutput])
 
+  const exemplarValueToDisplayText = (value: unknown): string => {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'string') return value
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+
+    if (Array.isArray(value)) {
+      const allStrings = value.every((x) => typeof x === 'string')
+      if (allStrings) {
+        return (value as string[]).map((s) => `- ${s}`).join('\n')
+      }
+      return value
+        .map((item) => {
+          if (typeof item === 'string') return `- ${item}`
+          if (item && typeof item === 'object') {
+            const obj = item as Record<string, unknown>
+            const name = typeof obj.name === 'string' ? obj.name : ''
+            const url = typeof obj.url === 'string' ? obj.url : ''
+            const description = typeof obj.description === 'string' ? obj.description : ''
+            if (name || url || description) {
+              const lines = [`- **${name || 'Item'}**`]
+              if (url) lines.push(`  - URL: ${url}`)
+              if (description) lines.push(`  - ${description}`)
+              return lines.join('\n')
+            }
+          }
+          return `- ${JSON.stringify(item)}`
+        })
+        .join('\n\n')
+    }
+
+    if (typeof value === 'object') {
+      return JSON.stringify(value, null, 2)
+    }
+
+    return String(value)
+  }
+
+  const buildExemplarParsedOutput = (exemplarOutput: Record<string, unknown>): Record<string, string> => {
+    const converted: Record<string, string> = {}
+    Object.entries(exemplarOutput).forEach(([key, value]) => {
+      converted[key] = exemplarValueToDisplayText(value)
+    })
+    return converted
+  }
+
+  const handleShowExemplar = () => {
+    if (!template?.exemplarInput || !template?.exemplarOutput) return
+
+    resetStream()
+    setSubmitError(null)
+
+    const nextValues: Record<string, string> = {}
+    schemaFields.forEach((field) => {
+      const raw = (template.exemplarInput as Record<string, unknown>)[field.name]
+      if (raw === null || raw === undefined) {
+        nextValues[field.name] = ''
+      } else if (typeof raw === 'string') {
+        nextValues[field.name] = raw
+      } else if (typeof raw === 'number' || typeof raw === 'boolean') {
+        nextValues[field.name] = String(raw)
+      } else if (Array.isArray(raw)) {
+        nextValues[field.name] = raw.map((x) => String(x)).join('\n')
+      } else {
+        nextValues[field.name] = JSON.stringify(raw)
+      }
+    })
+    setFormValues(nextValues)
+
+    setParsedOutput(buildExemplarParsedOutput(template.exemplarOutput as Record<string, unknown>))
+    setShowOutput(true)
+
+    if (exemplarNoticeTimeoutRef.current) {
+      window.clearTimeout(exemplarNoticeTimeoutRef.current)
+    }
+    setExemplarNotice('Exemplar is ready!')
+    exemplarNoticeTimeoutRef.current = window.setTimeout(() => setExemplarNotice(null), 3000)
+
+    setTimeout(() => {
+      const outputElement = document.getElementById('ai-output')
+      if (outputElement) {
+        outputElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }
+    }, 120)
+  }
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
     setSubmitError(null)
+    setExemplarNotice(null)
     if (!template || !slug) return
 
     // Prevent duplicate API calls if already streaming
@@ -437,12 +553,16 @@ const TemplateRunner = () => {
       payload.bloom_level = String(payload.bloom_level).toLowerCase()
     }
 
-    // Start streaming
-    startStream(slug, payload)
+    // Start streaming (pass exemplar for provider-failure fallback)
+    startStream(slug, payload, {
+      exemplarOutput: template?.exemplarOutput ?? undefined,
+      outputSchema: template?.outputSchema ?? undefined,
+    })
   }
 
   const handleRegenerate = () => {
     if (!template || !slug) return
+    setExemplarNotice(null)
     
     // Prevent duplicate API calls if already streaming
     if (isStreaming) {
@@ -508,7 +628,10 @@ const TemplateRunner = () => {
     resetStream()
     setParsedOutput(null)
     setShowOutput(true)
-    startStream(slug, payload)
+    startStream(slug, payload, {
+      exemplarOutput: template?.exemplarOutput ?? undefined,
+      outputSchema: template?.outputSchema ?? undefined,
+    })
   }
 
   // Convert parsed output to markdown format that matches the display exactly
@@ -1514,6 +1637,26 @@ const TemplateRunner = () => {
             {showPromptEditor && (
               <div className="mt-4 border border-gray-200 rounded-lg p-6 bg-white">
                 <form onSubmit={handleSubmit} className="space-y-6">
+                  {template?.exemplarInput && template?.exemplarOutput && (
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleShowExemplar}
+                        disabled={isStreaming}
+                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Show exemplar
+                      </button>
+                    </div>
+                  )}
+
+                  {exemplarNotice && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50 p-3">
+                      <p className="text-sm text-indigo-900">{exemplarNotice}</p>
+                    </div>
+                  )}
+
                   {schemaFields.map((field) => (
                     <div key={field.name} className="space-y-2">
                       <label htmlFor={field.name} className="block text-sm font-medium text-gray-900">
@@ -1563,6 +1706,11 @@ const TemplateRunner = () => {
         {/* Output Display - Chat-like Message */}
         {(parsedOutput || isStreaming || sections.length > 0 || showOutput) && (
           <div id="ai-output" className="mt-8">
+            {providerFailedNotice && (
+              <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">
+                <p className="text-sm font-medium text-amber-950">{providerFailedNotice}</p>
+              </div>
+            )}
             {/* AI Message Header */}
             <div className="mb-4">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">AI Response:</h2>
