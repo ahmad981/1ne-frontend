@@ -1,7 +1,10 @@
 import { TemplateListParams } from './types'
-import { API_URL } from '../config/api'
+import { API_URL, API_BASE_URL as CONFIG_API_BASE_URL } from '../config/api'
 
 // Use centralized API configuration
+// CONFIG_API_BASE_URL is the base URL without /api (e.g., http://127.0.0.1:8000)
+// API_URL is CONFIG_API_BASE_URL + /api (e.g., http://127.0.0.1:8000/api)
+// For building API URLs, we use API_URL which already includes /api
 const API_BASE_URL = API_URL.replace(/\/$/, '')
 
 export class ApiError extends Error {
@@ -138,7 +141,7 @@ async function tryRefreshToken(): Promise<boolean> {
 }
 
 // Helper to get auth token from Redux store (same way as Redux axios does)
-const getAuthToken = (): string | null => {
+export const getAuthToken = (): string | null => {
   // First try: Get from Redux store directly (most reliable, same as http.js)
   if (storeRef) {
     try {
@@ -265,6 +268,24 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     }
 
     if (!response.ok) {
+      // Handle 404 Not Found - endpoint doesn't exist
+      if (response.status === 404) {
+        const errorDetail = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
+          ? String((payload as Record<string, unknown>).detail)
+          : 'Not Found'
+        
+        console.error('[apiRequest] ❌ 404 Not Found - Endpoint does not exist')
+        console.error('[apiRequest] URL:', url)
+        console.error('[apiRequest] Response:', payload)
+        
+        // Provide helpful error message
+        const helpfulMessage = errorDetail === 'Not Found' 
+          ? `Endpoint not found: ${url}\n\nThis usually means:\n1. Backend hasn't restarted with new routes\n2. Route is not registered\n3. Check backend logs for errors\n\nIf testing locally, ensure backend is running on ${CONFIG_API_BASE_URL}`
+          : errorDetail
+        
+        throw new ApiError(response.status, helpfulMessage, payload)
+      }
+      
       // Handle 401 Unauthorized - token may be expired
       if (response.status === 401) {
         console.error('[apiRequest] ❌ 401 Unauthorized - Authentication failed')
@@ -360,7 +381,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     // Handle network errors
     if (error instanceof TypeError) {
       if (error.message.includes('fetch') || error.message.includes('Failed to fetch')) {
-        throw new Error(`Network error: Unable to reach server at ${url}. Please check if the backend is running on port 8000.`)
+        throw new Error(`Network error: Unable to reach server at ${url}. Please check if the backend is running and accessible.`)
       }
       if (error.message.includes('network') || error.message.includes('connection')) {
         throw new Error(`Connection error: Cannot connect to server. Please verify the backend is running and accessible.`)

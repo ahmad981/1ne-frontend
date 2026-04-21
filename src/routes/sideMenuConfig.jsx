@@ -18,11 +18,15 @@ import {
   Users,
   Lightbulb,
   Crown,
+  Upload,
+  FolderOpen,
+  ClipboardList,
 } from 'lucide-react';
 
 const teacherMenu = [
   { path: '/dashboard', text: 'Dashboard', icon: LayoutDashboard },
   { path: '/templates', text: 'Templates Library', icon: FileText },
+  { path: '/worksheets/generate', text: 'Worksheet Generator', icon: ClipboardList, moduleName: 'Worksheet Generator' },
   { path: '/chatbots', text: 'Specialized Chatbots', icon: MessageSquare },
   { path: '/youtube-quiz', text: 'YouTube Quiz Generator', icon: Youtube },
   { path: '/pixgen', text: 'PixGen (AI Media Studio)', icon: Image },
@@ -33,8 +37,9 @@ const teacherMenu = [
     text: 'Administration',
     icon: Shield,
     child: [
-      { path: '/administration/reporting', text: 'Reporting', icon: BarChart3 },
-      { path: '/administration/assessment', text: 'Assessment', icon: ClipboardCheck },
+      { path: '/administration/reporting', text: 'Reporting', moduleName: 'Reporting', icon: BarChart3, childIcon: BarChart3 },
+      { path: '/administration/assessment', text: 'Assessment', moduleName: 'Assessment', icon: ClipboardCheck, childIcon: ClipboardCheck },
+      { path: '/admin/content-packs', text: 'Content Management', moduleName: 'Content Management', icon: BookOpen, childIcon: BookOpen },
     ],
   },
   { path: '/history', text: 'History', icon: History },
@@ -46,17 +51,48 @@ const teacherMenu = [
 ];
 
 const superAdminMenu = [
-  { path: '/administration', text: 'Administration', icon: Shield },
+  {
+    path: '/administration',
+    text: 'Administration',
+    icon: Shield,
+    child: [
+      { path: '/admin/content-packs', text: 'Content Management', moduleName: 'Content Management', icon: BookOpen, childIcon: BookOpen },
+    ],
+  },
   { path: '/profile', text: 'Profile', icon: User },
   { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
 const orgAdminMenu = [
   { path: '/organization', text: 'Organization', icon: Building2 },
+  {
+    path: '/admin/content-packs',
+    text: 'Content Management',
+    icon: BookOpen,
+    child: [
+      { path: '/admin/content-packs', text: 'Content Packs', moduleName: 'Content Packs', icon: FolderOpen, childIcon: FolderOpen },
+      { path: '/admin/documents', text: 'Documents', moduleName: 'Documents', icon: FileText, childIcon: FileText },
+      { path: '/admin/documents/upload', text: 'Upload Document', moduleName: 'Upload Document', icon: Upload, childIcon: Upload },
+    ],
+  },
+  { path: '/profile', text: 'Profile', icon: User },
+  { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
 const schoolAdminMenu = [
   { path: '/school', text: 'School', icon: School },
+  {
+    path: '/admin/content-packs',
+    text: 'Content Management',
+    icon: BookOpen,
+    child: [
+      { path: '/admin/content-packs', text: 'Content Packs', moduleName: 'Content Packs', icon: FolderOpen, childIcon: FolderOpen },
+      { path: '/admin/documents', text: 'Documents', moduleName: 'Documents', icon: FileText, childIcon: FileText },
+      { path: '/admin/documents/upload', text: 'Upload Document', moduleName: 'Upload Document', icon: Upload, childIcon: Upload },
+    ],
+  },
+  { path: '/profile', text: 'Profile', icon: User },
+  { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
 const studentMenu = [
