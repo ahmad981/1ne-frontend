@@ -2,7 +2,7 @@
 import { Navigate } from 'react-router-dom';
 
 // Local import
-import { RoleBasedRedirect } from './routeHelpers';
+import { RoleBasedRedirect, UnknownRouteRedirect } from './routeHelpers';
 import { Login } from '../panels/Authentication/Login';
 import { SignUp } from '../panels/Authentication/SignUp';
 import SignupEntry from '../pages/auth/SignupEntry';
@@ -63,59 +63,19 @@ import YouTubeQuizGenerator from '../pages/features/YouTubeQuizGenerator';
 import QuizResults from '../pages/features/QuizResults';
 import PixGen from '../pages/features/PixGen';
 import ProfessionalLearningHub from '../pages/features/ProfessionalLearningHub';
-import ClassroomManagementCourse from '../pages/features/ClassroomManagementCourse';
-import AssessmentStrategiesCourse from '../pages/features/AssessmentStrategiesCourse';
-import DifferentiationCourse from '../pages/features/DifferentiationCourse';
-import StudentEngagementCourse from '../pages/features/StudentEngagementCourse';
-import DigitalLiteracyCourse from '../pages/features/DigitalLiteracyCourse';
-import DifferentiationTutorial from '../pages/features/DifferentiationTutorial';
-import LessonPlannerTutorial from '../pages/features/LessonPlannerTutorial';
-import AssessmentTutorial from '../pages/features/AssessmentTutorial';
-import BloomsTaxonomyResearch from '../pages/features/BloomsTaxonomyResearch';
-import EvidenceBasedTeachingResearch from '../pages/features/EvidenceBasedTeachingResearch';
-import AssessmentResearch from '../pages/features/AssessmentResearch';
-import SELBehaviorResearch from '../pages/features/SELBehaviorResearch';
-import GrowthMindsetResearch from '../pages/features/GrowthMindsetResearch';
-import CognitiveLoadTheoryResearch from '../pages/features/CognitiveLoadTheoryResearch';
-import MetacognitionResearch from '../pages/features/MetacognitionResearch';
-import ScaffoldingResearch from '../pages/features/ScaffoldingResearch';
-import StudentEngagementPath from '../pages/features/StudentEngagementPath';
-import AdvancedDifferentiationPath from '../pages/features/AdvancedDifferentiationPath';
-import AIAssistedAssessmentPath from '../pages/features/AIAssistedAssessmentPath';
-import AIAssessmentIntroModule from '../pages/features/AIAssessmentIntroModule';
-import AutomatedRubricsModule from '../pages/features/AutomatedRubricsModule';
-import InstantFeedbackModule from '../pages/features/InstantFeedbackModule';
-import FormativeAutomationModule from '../pages/features/FormativeAutomationModule';
-import SummativeAIDesignModule from '../pages/features/SummativeAIDesignModule';
-import TieredInstructionModule from '../pages/features/TieredInstructionModule';
-import ContentDifferentiationModule from '../pages/features/ContentDifferentiationModule';
-import ProcessDifferentiationModule from '../pages/features/ProcessDifferentiationModule';
-import ProductDifferentiationModule from '../pages/features/ProductDifferentiationModule';
-import AssessmentDifferentiationModule from '../pages/features/AssessmentDifferentiationModule';
-import AdvancedGroupingModule from '../pages/features/AdvancedGroupingModule';
-import STEMMasteryCourse from '../pages/features/STEMMasteryCourse';
-import LiteracyExpertCourse from '../pages/features/LiteracyExpertCourse';
-import NGSSFoundationsModule from '../pages/features/NGSSFoundationsModule';
-import EngineeringDesignModule from '../pages/features/EngineeringDesignModule';
-import ComputationalThinkingModule from '../pages/features/ComputationalThinkingModule';
-import LabSafetyModule from '../pages/features/LabSafetyModule';
-import PhenomenaDrivenModule from '../pages/features/PhenomenaDrivenModule';
-import DataLiteracyModule from '../pages/features/DataLiteracyModule';
-import STEMIntegrationModule from '../pages/features/STEMIntegrationModule';
-import NGSSAssessmentModule from '../pages/features/NGSSAssessmentModule';
-import GamificationFundamentals from '../pages/features/GamificationFundamentals';
-import PointsBadgesLeaderboards from '../pages/features/PointsBadgesLeaderboards';
-import InquiryLearningHooks from '../pages/features/InquiryLearningHooks';
-import QuestBasedLearning from '../pages/features/QuestBasedLearning';
-import CollaborativeGameMechanics from '../pages/features/CollaborativeGameMechanics';
-import AdaptiveGamification from '../pages/features/AdaptiveGamification';
-import GamifiedAssessment from '../pages/features/GamifiedAssessment';
-import AdvancedInquiryFrameworks from '../pages/features/AdvancedInquiryFrameworks';
+import PersonalizedMicroCoursePage from '../pages/features/learningHubSections/PersonalizedMicroCoursePage';
+import AIGrowthRecommendationPage from '../pages/features/learningHubSections/AIGrowthRecommendationPage';
+import AIGuidedTutorialPage from '../pages/features/learningHubSections/AIGuidedTutorialPage';
+import ResearchInsightPage from '../pages/features/learningHubSections/ResearchInsightPage';
+import SpecialistDeepDiveTrackPage from '../pages/features/learningHubSections/SpecialistDeepDiveTrackPage';
+import LearningHubSectionViewAllPage from '../pages/features/learningHubSections/LearningHubSectionViewAllPage';
+import LearningHubLegacyRedirect from '../pages/features/LearningHubLegacyRedirect';
 import History from '../pages/features/History';
 import Personalization from '../pages/features/Personalization';
 import Analytics from '../pages/features/Analytics';
 import Reporting from '../pages/features/Reporting';
 import Assessment from '../pages/features/Assessment';
+import LearningHubContentOperations from '../pages/admin/LearningHubContentOperations';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
 import Subscription from '../pages/Subscription';
@@ -186,7 +146,18 @@ export const commonRoutes = [
       </DashboardLayout>
     ),
   },
+  {
+    path: '*',
+    moduleName: 'Unknown Route Redirect',
+    element: <UnknownRouteRedirect />,
+  },
 ];
+
+const withDashboardLayout = (element) => (
+  <DashboardLayout>
+    {element}
+  </DashboardLayout>
+)
 
 export const teacherRoutes = [
   {
@@ -619,218 +590,122 @@ export const teacherRoutes = [
       {
         path: '/chatbots/general-teaching-assistant',
         moduleName: 'General Teaching Assistant',
-        element: (
-          <DashboardLayout>
-            <GeneralTeachingAssistantChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GeneralTeachingAssistantChat />),
       },
       {
         path: '/chatbots/gpt4-teaching-assistant',
         moduleName: 'GPT4 Teaching Assistant',
-        element: (
-          <DashboardLayout>
-            <GPT4TeachingAssistantChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GPT4TeachingAssistantChat />),
       },
       {
         path: '/chatbots/claude-education-pro',
         moduleName: 'Claude Education Pro',
-        element: (
-          <DashboardLayout>
-            <ClaudeEducationProChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<ClaudeEducationProChat />),
       },
       {
         path: '/chatbots/gemini-education-suite',
         moduleName: 'Gemini Education Suite',
-        element: (
-          <DashboardLayout>
-            <GeminiEducationSuiteChat />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GeminiEducationSuiteChat />),
       },
       {
         path: '/chatbots/coding-programming-tutor',
         moduleName: 'Coding Programming Tutor',
-        element: (
-          <DashboardLayout>
-            <CodingProgrammingTutor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<CodingProgrammingTutor />),
       },
       {
         path: '/chatbots/visual-arts-studio-assistant',
         moduleName: 'Visual Arts Studio Assistant',
-        element: (
-          <DashboardLayout>
-            <VisualArtsStudioAssistant />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<VisualArtsStudioAssistant />),
       },
       {
         path: '/chatbots/business-studies-mentor',
         moduleName: 'Business Studies Mentor',
-        element: (
-          <DashboardLayout>
-            <BusinessStudiesMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<BusinessStudiesMentor />),
       },
       {
         path: '/chatbots/career-readiness-coach',
         moduleName: 'Career Readiness Coach',
-        element: (
-          <DashboardLayout>
-            <CareerReadinessCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<CareerReadinessCoach />),
       },
       {
         path: '/chatbots/lab-safety-protocol-advisor',
         moduleName: 'Lab Safety Protocol Advisor',
-        element: (
-          <DashboardLayout>
-            <LabSafetyProtocolAdvisor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LabSafetyProtocolAdvisor />),
       },
       {
         path: '/chatbots/environmental-science-guide',
         moduleName: 'Environmental Science Guide',
-        element: (
-          <DashboardLayout>
-            <EnvironmentalScienceGuide />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<EnvironmentalScienceGuide />),
       },
       {
         path: '/chatbots/music-performance-coach',
         moduleName: 'Music Performance Coach',
-        element: (
-          <DashboardLayout>
-            <MusicPerformanceCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<MusicPerformanceCoach />),
       },
       {
         path: '/chatbots/drama-theater-director',
         moduleName: 'Drama Theater Director',
-        element: (
-          <DashboardLayout>
-            <DramaTheaterDirector />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<DramaTheaterDirector />),
       },
       {
         path: '/chatbots/digital-literacy-advisor',
         moduleName: 'Digital Literacy Advisor',
-        element: (
-          <DashboardLayout>
-            <DigitalLiteracyAdvisor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<DigitalLiteracyAdvisor />),
       },
       {
         path: '/chatbots/ai-machine-learning-educator',
         moduleName: 'AI Machine Learning Educator',
-        element: (
-          <DashboardLayout>
-            <AIMachineLearningEducator />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AIMachineLearningEducator />),
       },
       {
         path: '/chatbots/marketing-branding-strategist',
         moduleName: 'Marketing Branding Strategist',
-        element: (
-          <DashboardLayout>
-            <MarketingBrandingStrategist />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<MarketingBrandingStrategist />),
       },
       {
         path: '/chatbots/literacy-lab-coach',
         moduleName: 'Literacy Lab Coach',
-        element: (
-          <DashboardLayout>
-            <LiteracyLabCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LiteracyLabCoach />),
       },
       {
         path: '/chatbots/literature-analysis-expert',
         moduleName: 'Literature Analysis Expert',
-        element: (
-          <DashboardLayout>
-            <LiteratureAnalysisExpert />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<LiteratureAnalysisExpert />),
       },
       {
         path: '/chatbots/grammar-writing-mentor',
         moduleName: 'Grammar Writing Mentor',
-        element: (
-          <DashboardLayout>
-            <GrammarWritingMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<GrammarWritingMentor />),
       },
       {
         path: '/chatbots/advanced-knowledge-skills-coach',
         moduleName: 'Advanced Knowledge Skills Coach',
-        element: (
-          <DashboardLayout>
-            <AdvancedKnowledgeSkillsCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AdvancedKnowledgeSkillsCoach />),
       },
       {
         path: '/chatbots/unec-academic-development',
         moduleName: 'UNEC Academic Development',
-        element: (
-          <DashboardLayout>
-            <UNECAcademicDevelopment />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<UNECAcademicDevelopment />),
       },
       {
         path: '/chatbots/adaptive-math-strategist',
         moduleName: 'Adaptive Math Strategist',
-        element: (
-          <DashboardLayout>
-            <AdaptiveMathStrategist />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AdaptiveMathStrategist />),
       },
       {
         path: '/chatbots/algebra-geometry-tutor',
         moduleName: 'Algebra Geometry Tutor',
-        element: (
-          <DashboardLayout>
-            <AlgebraGeometryTutor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<AlgebraGeometryTutor />),
       },
       {
         path: '/chatbots/stem-inquiry-mentor',
         moduleName: 'STEM Inquiry Mentor',
-        element: (
-          <DashboardLayout>
-            <STEMInquiryMentor />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<STEMInquiryMentor />),
       },
       {
         path: '/chatbots/problem-solving-coach',
         moduleName: 'Problem Solving Coach',
-        element: (
-          <DashboardLayout>
-            <ProblemSolvingCoach />
-          </DashboardLayout>
-        ),
+        element: withDashboardLayout(<ProblemSolvingCoach />),
       },
     ],
   },
@@ -873,434 +748,65 @@ export const teacherRoutes = [
     ),
     child: [
       {
-        path: '/learning-hub/classroom-management',
-        moduleName: 'Classroom Management Course',
+        path: '/learning-hub/personalized-micro-courses/:slug',
+        moduleName: 'Personalized Micro Courses',
         element: (
           <DashboardLayout>
-            <ClassroomManagementCourse />
+            <PersonalizedMicroCoursePage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/assessment-strategies',
-        moduleName: 'Assessment Strategies Course',
+        path: '/learning-hub/ai-growth-recommendations/:slug',
+        moduleName: 'AI Growth Recommendations',
         element: (
           <DashboardLayout>
-            <AssessmentStrategiesCourse />
+            <AIGrowthRecommendationPage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/differentiation-course',
-        moduleName: 'Differentiation Course',
+        path: '/learning-hub/ai-guided-tutorials-demonstrations/:slug',
+        moduleName: 'AI Guided Tutorials and Demonstrations',
         element: (
           <DashboardLayout>
-            <DifferentiationCourse />
+            <AIGuidedTutorialPage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/student-engagement-course',
-        moduleName: 'Student Engagement Course',
+        path: '/learning-hub/research-insights-library/:slug',
+        moduleName: 'Research Insights Library',
         element: (
           <DashboardLayout>
-            <StudentEngagementCourse />
+            <ResearchInsightPage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/digital-literacy-course',
-        moduleName: 'Digital Literacy Course',
+        path: '/learning-hub/specialist-deep-dive-tracks/:slug',
+        moduleName: 'Specialist Deep Dive Tracks',
         element: (
           <DashboardLayout>
-            <DigitalLiteracyCourse />
+            <SpecialistDeepDiveTrackPage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/differentiation-tutorial',
-        moduleName: 'Differentiation Tutorial',
+        path: '/learning-hub/sections/:section',
+        moduleName: 'Learning Hub Section View All',
         element: (
           <DashboardLayout>
-            <DifferentiationTutorial />
+            <LearningHubSectionViewAllPage />
           </DashboardLayout>
         ),
       },
       {
-        path: '/learning-hub/lesson-planner-tutorial',
-        moduleName: 'Lesson Planner Tutorial',
+        path: '/learning-hub/:itemSlug',
+        moduleName: 'Legacy Learning Hub Redirect',
         element: (
           <DashboardLayout>
-            <LessonPlannerTutorial />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/assessment-tutorial',
-        moduleName: 'Assessment Tutorial',
-        element: (
-          <DashboardLayout>
-            <AssessmentTutorial />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/blooms-taxonomy',
-        moduleName: 'Blooms Taxonomy Research',
-        element: (
-          <DashboardLayout>
-            <BloomsTaxonomyResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/evidence-based-teaching',
-        moduleName: 'Evidence Based Teaching Research',
-        element: (
-          <DashboardLayout>
-            <EvidenceBasedTeachingResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/assessment-research',
-        moduleName: 'Assessment Research',
-        element: (
-          <DashboardLayout>
-            <AssessmentResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/sel-behavior-research',
-        moduleName: 'SEL Behavior Research',
-        element: (
-          <DashboardLayout>
-            <SELBehaviorResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/growth-mindset-research',
-        moduleName: 'Growth Mindset Research',
-        element: (
-          <DashboardLayout>
-            <GrowthMindsetResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/cognitive-load-research',
-        moduleName: 'Cognitive Load Research',
-        element: (
-          <DashboardLayout>
-            <CognitiveLoadTheoryResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/metacognition-research',
-        moduleName: 'Metacognition Research',
-        element: (
-          <DashboardLayout>
-            <MetacognitionResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/scaffolding-research',
-        moduleName: 'Scaffolding Research',
-        element: (
-          <DashboardLayout>
-            <ScaffoldingResearch />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/student-engagement-path',
-        moduleName: 'Student Engagement Path',
-        element: (
-          <DashboardLayout>
-            <StudentEngagementPath />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/advanced-differentiation-path',
-        moduleName: 'Advanced Differentiation Path',
-        element: (
-          <DashboardLayout>
-            <AdvancedDifferentiationPath />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/tiered-instruction-module',
-        moduleName: 'Tiered Instruction Module',
-        element: (
-          <DashboardLayout>
-            <TieredInstructionModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/content-differentiation-module',
-        moduleName: 'Content Differentiation Module',
-        element: (
-          <DashboardLayout>
-            <ContentDifferentiationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/process-differentiation-module',
-        moduleName: 'Process Differentiation Module',
-        element: (
-          <DashboardLayout>
-            <ProcessDifferentiationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/product-differentiation-module',
-        moduleName: 'Product Differentiation Module',
-        element: (
-          <DashboardLayout>
-            <ProductDifferentiationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/assessment-differentiation-module',
-        moduleName: 'Assessment Differentiation Module',
-        element: (
-          <DashboardLayout>
-            <AssessmentDifferentiationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/advanced-grouping-module',
-        moduleName: 'Advanced Grouping Module',
-        element: (
-          <DashboardLayout>
-            <AdvancedGroupingModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/ai-assessment-path',
-        moduleName: 'AI Assessment Path',
-        element: (
-          <DashboardLayout>
-            <AIAssistedAssessmentPath />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/ai-assessment-intro-module',
-        moduleName: 'AI Assessment Intro Module',
-        element: (
-          <DashboardLayout>
-            <AIAssessmentIntroModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/automated-rubrics-module',
-        moduleName: 'Automated Rubrics Module',
-        element: (
-          <DashboardLayout>
-            <AutomatedRubricsModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/instant-feedback-module',
-        moduleName: 'Instant Feedback Module',
-        element: (
-          <DashboardLayout>
-            <InstantFeedbackModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/formative-automation-module',
-        moduleName: 'Formative Automation Module',
-        element: (
-          <DashboardLayout>
-            <FormativeAutomationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/summative-ai-design-module',
-        moduleName: 'Summative AI Design Module',
-        element: (
-          <DashboardLayout>
-            <SummativeAIDesignModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/stem-mastery',
-        moduleName: 'STEM Mastery Course',
-        element: (
-          <DashboardLayout>
-            <STEMMasteryCourse />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/literacy-expert',
-        moduleName: 'Literacy Expert Course',
-        element: (
-          <DashboardLayout>
-            <LiteracyExpertCourse />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/ngss-foundations',
-        moduleName: 'NGSS Foundations Module',
-        element: (
-          <DashboardLayout>
-            <NGSSFoundationsModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/engineering-design',
-        moduleName: 'Engineering Design Module',
-        element: (
-          <DashboardLayout>
-            <EngineeringDesignModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/computational-thinking',
-        moduleName: 'Computational Thinking Module',
-        element: (
-          <DashboardLayout>
-            <ComputationalThinkingModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/lab-safety',
-        moduleName: 'Lab Safety Module',
-        element: (
-          <DashboardLayout>
-            <LabSafetyModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/phenomena-driven',
-        moduleName: 'Phenomena Driven Module',
-        element: (
-          <DashboardLayout>
-            <PhenomenaDrivenModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/data-literacy',
-        moduleName: 'Data Literacy Module',
-        element: (
-          <DashboardLayout>
-            <DataLiteracyModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/stem-integration',
-        moduleName: 'STEM Integration Module',
-        element: (
-          <DashboardLayout>
-            <STEMIntegrationModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/ngss-assessment',
-        moduleName: 'NGSS Assessment Module',
-        element: (
-          <DashboardLayout>
-            <NGSSAssessmentModule />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/gamification-fundamentals',
-        moduleName: 'Gamification Fundamentals',
-        element: (
-          <DashboardLayout>
-            <GamificationFundamentals />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/points-badges-leaderboards',
-        moduleName: 'Points Badges Leaderboards',
-        element: (
-          <DashboardLayout>
-            <PointsBadgesLeaderboards />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/inquiry-learning-hooks',
-        moduleName: 'Inquiry Learning Hooks',
-        element: (
-          <DashboardLayout>
-            <InquiryLearningHooks />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/quest-based-learning',
-        moduleName: 'Quest Based Learning',
-        element: (
-          <DashboardLayout>
-            <QuestBasedLearning />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/collaborative-game-mechanics',
-        moduleName: 'Collaborative Game Mechanics',
-        element: (
-          <DashboardLayout>
-            <CollaborativeGameMechanics />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/adaptive-gamification',
-        moduleName: 'Adaptive Gamification',
-        element: (
-          <DashboardLayout>
-            <AdaptiveGamification />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/gamified-assessment',
-        moduleName: 'Gamified Assessment',
-        element: (
-          <DashboardLayout>
-            <GamifiedAssessment />
-          </DashboardLayout>
-        ),
-      },
-      {
-        path: '/learning-hub/advanced-inquiry-frameworks',
-        moduleName: 'Advanced Inquiry Frameworks',
-        element: (
-          <DashboardLayout>
-            <AdvancedInquiryFrameworks />
+            <LearningHubLegacyRedirect />
           </DashboardLayout>
         ),
       },
@@ -1441,6 +947,15 @@ export const superAdminRoutes = [
           },
         ],
       },
+      {
+        path: '/administration/learning-hub-content',
+        moduleName: 'Learning Hub content',
+        element: (
+          <DashboardLayout>
+            <LearningHubContentOperations />
+          </DashboardLayout>
+        ),
+      },
     ],
   },
 ];
@@ -1455,26 +970,26 @@ export const orgAdminRoutes = [
       </DashboardLayout>
     ),
   },
+  {
+    path: '/admin/content-packs',
+    moduleName: 'Content Packs',
+    element: (
+      <DashboardLayout>
+        <ContentPacksManagement />
+      </DashboardLayout>
+    ),
+    child: [
       {
-        path: '/admin/content-packs',
-        moduleName: 'Content Packs',
+        path: '/admin/content-packs/:id',
+        moduleName: 'Content Pack Details',
         element: (
           <DashboardLayout>
-            <ContentPacksManagement />
+            <ContentPackDetail />
           </DashboardLayout>
         ),
-        child: [
-          {
-            path: '/admin/content-packs/:id',
-            moduleName: 'Content Pack Details',
-            element: (
-              <DashboardLayout>
-                <ContentPackDetail />
-              </DashboardLayout>
-            ),
-          },
-        ],
       },
+    ],
+  },
   {
     path: '/admin/documents',
     moduleName: 'Documents',
@@ -1504,6 +1019,15 @@ export const orgAdminRoutes = [
       },
     ],
   },
+  {
+    path: '/administration/learning-hub-content',
+    moduleName: 'Learning Hub content',
+    element: (
+      <DashboardLayout>
+        <LearningHubContentOperations />
+      </DashboardLayout>
+    ),
+  },
 ];
 
 export const schoolAdminRoutes = [
@@ -1516,26 +1040,26 @@ export const schoolAdminRoutes = [
       </DashboardLayout>
     ),
   },
+  {
+    path: '/admin/content-packs',
+    moduleName: 'Content Packs',
+    element: (
+      <DashboardLayout>
+        <ContentPacksManagement />
+      </DashboardLayout>
+    ),
+    child: [
       {
-        path: '/admin/content-packs',
-        moduleName: 'Content Packs',
+        path: '/admin/content-packs/:id',
+        moduleName: 'Content Pack Details',
         element: (
           <DashboardLayout>
-            <ContentPacksManagement />
+            <ContentPackDetail />
           </DashboardLayout>
         ),
-        child: [
-          {
-            path: '/admin/content-packs/:id',
-            moduleName: 'Content Pack Details',
-            element: (
-              <DashboardLayout>
-                <ContentPackDetail />
-              </DashboardLayout>
-            ),
-          },
-        ],
       },
+    ],
+  },
   {
     path: '/admin/documents',
     moduleName: 'Documents',

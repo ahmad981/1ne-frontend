@@ -76,6 +76,7 @@ const superAdminMenu = [
     icon: Shield,
     child: [
       { path: '/admin/content-packs', text: 'Content Management', moduleName: 'Content Management', icon: BookOpen, childIcon: BookOpen },
+      { path: '/administration/learning-hub-content', text: 'Learning Hub content', icon: BookOpen },
     ],
   },
   { path: '/profile', text: 'Profile', icon: User },
@@ -94,6 +95,7 @@ const orgAdminMenu = [
       { path: '/admin/documents/upload', text: 'Upload Document', moduleName: 'Upload Document', icon: Upload, childIcon: Upload },
     ],
   },
+  { path: '/administration/learning-hub-content', text: 'Learning Hub content', icon: BookOpen },
   { path: '/profile', text: 'Profile', icon: User },
   { path: '/settings', text: 'Settings', icon: Settings },
 ];

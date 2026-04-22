@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
+import { getSectionItemBySlug } from '../../features/learningHub'
+import type { LearningHubSectionItem } from '../../features/learningHub/types'
 import {
   ArrowLeft,
   BookOpen,
@@ -37,7 +39,9 @@ interface DesignPrinciple {
   impact: string
 }
 
-const CognitiveLoadTheoryResearch = () => {
+const COGNITIVE_SLUG = 'cognitive-load-research'
+
+function CognitiveLoadTheoryResearchInner() {
   const navigate = useNavigate()
   const [activeSection, setActiveSection] = useState<'overview' | 'types' | 'principles' | 'strategies' | 'implementation'>('overview')
 
@@ -574,7 +578,18 @@ const CognitiveLoadTheoryResearch = () => {
   )
 }
 
-export default CognitiveLoadTheoryResearch
+export function CognitiveLoadTheoryResearchView({ item }: { item: LearningHubSectionItem }) {
+  if (!item.researchInsightContent) return null
+  return <CognitiveLoadTheoryResearchInner />
+}
+
+export default function CognitiveLoadTheoryResearch() {
+  const row = getSectionItemBySlug('research-insights-library', COGNITIVE_SLUG)
+  if (!row?.researchInsightContent) {
+    return <Navigate to="/learning-hub" replace />
+  }
+  return <CognitiveLoadTheoryResearchView item={row} />
+}
 
 
 

@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   BookOpen,
   Play,
@@ -21,6 +22,14 @@ import {
   Sparkles,
   Layers,
 } from 'lucide-react'
+import {
+  startLearningSession,
+  recordLearningEvent,
+  completeLearningSession,
+  fetchContentProgress,
+} from '../../redux/features/learningProgress/learningProgressSlice'
+import { fetchLearningHubHome } from '../../redux/features/learningHub/learningHubSlice'
+import axiosInstance from '../../redux/http'
 
 interface Lesson {
   id: number
@@ -41,7 +50,7 @@ interface QuizQuestion {
   explanation: string
 }
 
-const courseData = {
+const staticCourseData = {
   title: 'Differentiation made simple',
   category: 'Differentiation',
   duration: '10 min',
@@ -305,8 +314,341 @@ const courseData = {
   },
 }
 
+function toTrimmedStringArray(value: any): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .map((v) => (v == null ? '' : String(v)).trim())
+      .filter((s) => Boolean(s))
+  }
+  if (typeof value === 'string') {
+    return value
+      .split(/\r?\n+/g)
+      .map((s) => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+function normalizeId(value: any): string {
+  if (value === null || value === undefined) return ''
+  return String(value).trim()
+}
+
+function toDurationString(value: any): string {
+  if (value === null || value === undefined) return ''
+  if (typeof value === 'number' && Number.isFinite(value)) return `${value} min`
+  const s = String(value).trim()
+  if (!s) return ''
+  if (/^\d+(\.\d+)?$/.test(s)) return `${s} min`
+  // If the model already returned e.g. "10 min", keep it.
+  if (s.toLowerCase().includes('min')) return s
+  return `${s} min`
+}
+
+/** Split an array across N lessons so each lesson gets a slice (deterministic). */
+function sliceForLesson<T>(arr: T[], lessonIdx: number, lessonCount: number): T[] {
+  if (!Array.isArray(arr) || arr.length === 0 || lessonCount <= 0) return []
+  const n = Math.max(1, Math.ceil(arr.length / lessonCount))
+  const start = lessonIdx * n
+  return arr.slice(start, start + n)
+}
+
+/**
+ * The LLM structure agent often emits one-line `content_summary` per step. The rich material lives in
+ * curriculum + pedagogy + assessment. Merge those into each lesson so the UI is not empty-looking.
+ */
+function enrichLessonWithPipelineSections(
+  lessonIdx: number,
+  lessonCount: number,
+  baseContent: any[],
+  curriculum: any,
+  pedagogy: any,
+  assessment: any,
+  review: any,
+  quality: any,
+  modules: any[]
+): any[] {
+  const flow = toTrimmedStringArray(pedagogy?.instructional_flow)
+  const concepts = toTrimmedStringArray(curriculum?.key_concepts)
+  const strategies = toTrimmedStringArray(pedagogy?.teaching_strategies)
+  const examples = toTrimmedStringArray(pedagogy?.examples)
+  const reflectionsPed = toTrimmedStringArray(pedagogy?.teacher_reflections)
+  const prereq = toTrimmedStringArray(curriculum?.prerequisites)
+  const skills = toTrimmedStringArray(curriculum?.target_skills)
+  const reflectionPrompts = toTrimmedStringArray(assessment?.reflection_prompts)
+
+  const supplemental: string[] = []
+  if (Array.isArray(modules) && modules[lessonIdx]) {
+    const m = modules[lessonIdx]
+    const line = String(m?.summary || m?.title || '').trim()
+    if (line) supplemental.push(line)
+  }
+  supplemental.push(...sliceForLesson(flow, lessonIdx, lessonCount))
+  supplemental.push(...sliceForLesson(concepts, lessonIdx, lessonCount))
+  supplemental.push(...sliceForLesson(strategies, lessonIdx, lessonCount))
+  supplemental.push(...sliceForLesson(examples, lessonIdx, lessonCount))
+
+  if (lessonIdx === 0) {
+    supplemental.unshift(...prereq.slice(0, 4))
+    supplemental.push(...skills.slice(0, 5))
+    const qfb = String(quality?.quality_feedback || '').trim()
+    if (qfb) supplemental.push(qfb)
+    supplemental.push(...toTrimmedStringArray(review?.improvement_notes).slice(0, 5))
+  }
+
+  const out = [...baseContent]
+
+  const deduped = [...new Set(supplemental.map((s) => s.trim()).filter(Boolean))].slice(0, 12)
+  if (deduped.length) {
+    out.push({
+      type: 'text',
+      data: {
+        heading: 'Extend your practice',
+        paragraphs: deduped,
+      },
+    })
+  }
+
+  const refl =
+    reflectionPrompts[lessonIdx] ||
+    (reflectionPrompts.length ? reflectionPrompts[lessonIdx % reflectionPrompts.length] : '')
+  if (refl) {
+    const tips = sliceForLesson(reflectionsPed, lessonIdx, lessonCount).slice(0, 4)
+    out.push({
+      type: 'interactive',
+      data: {
+        title: 'Reflection',
+        prompt: refl,
+        tips: tips.length ? tips : [],
+      },
+    })
+  }
+
+  const tasks = Array.isArray(assessment?.practice_tasks) ? assessment.practice_tasks : []
+  const task = tasks[lessonIdx]
+  if (task && typeof task === 'object') {
+    const paras = toTrimmedStringArray(
+      task.description ?? task.task ?? task.prompt ?? task.title ?? task.text ?? ''
+    )
+    if (paras.length) {
+      out.push({
+        type: 'text',
+        data: {
+          heading: 'Practice task',
+          paragraphs: paras.slice(0, 8),
+        },
+      })
+    }
+  }
+
+  return out
+}
+
+function buildMicroCourseFromRegistryJsonBlob(registryItem: any, fallback: any): any | null {
+  const blob = registryItem?.json_blob
+  if (!blob || typeof blob !== 'object') return null
+
+  const structure = blob.structure || {}
+  const curriculum = blob.curriculum || {}
+  const pedagogy = blob.pedagogy || {}
+  const assessment = blob.assessment || {}
+  const review = blob.review || {}
+  const quality = blob.quality || {}
+
+  const lessonsRaw = Array.isArray(structure.lessons) ? structure.lessons : []
+  const stepsRaw = Array.isArray(structure.steps) ? structure.steps : []
+  const activitiesRaw = Array.isArray(structure.activities) ? structure.activities : []
+
+  if (!lessonsRaw.length || !stepsRaw.length) return null
+
+  const learningObjectives =
+    toTrimmedStringArray(curriculum?.learning_objectives || curriculum?.learningObjectives || []) || []
+
+  const title = String(registryItem?.title || fallback?.title || 'Micro-course')
+  const description = String(registryItem?.summary || fallback?.description || '')
+  const category = String(registryItem?.category || fallback?.category || '')
+  const difficulty = String(registryItem?.difficulty || fallback?.difficulty || '')
+  const estimatedDurationMin = registryItem?.estimated_duration_min ?? fallback?.duration
+  const duration =
+    typeof estimatedDurationMin === 'number' || /^\d+(\.\d+)?$/.test(String(estimatedDurationMin || ''))
+      ? toDurationString(estimatedDurationMin)
+      : String(estimatedDurationMin || fallback?.duration || '')
+
+  const lessons = lessonsRaw.map((lesson: any, lessonIdx: number) => {
+    const lessonId = lesson?.id ?? lesson?.lesson_id ?? lesson?.order ?? lessonIdx + 1
+    const lessonTitle = String(lesson?.title || `Lesson ${lessonIdx + 1}`)
+    const lessonDuration = toDurationString(lesson?.duration_min ?? lesson?.duration ?? '')
+
+    let lessonSteps = stepsRaw.filter((s: any) => {
+      const sid = s?.lesson_id ?? s?.lessonId ?? s?.lesson ?? s?.order
+      if (sid === undefined || sid === null) return false
+      return normalizeId(sid) === normalizeId(lessonId) || normalizeId(sid) === normalizeId(lessonIdx + 1)
+    })
+
+    // If the model didn't link steps to lessons, distribute by order to avoid dead-ends.
+    if (lessonSteps.length === 0 && stepsRaw.length > 0) {
+      const start = Math.floor((lessonIdx * stepsRaw.length) / lessonsRaw.length)
+      const end = Math.floor(((lessonIdx + 1) * stepsRaw.length) / lessonsRaw.length)
+      lessonSteps = stepsRaw.slice(start, end)
+    }
+
+    const content = lessonSteps
+      .map((step: any, stepIdx: number) => {
+        const stepType = String(step?.type || '').toLowerCase()
+        const interactive =
+          stepType.includes('interactive') || stepType.includes('reflection') || stepType.includes('prompt')
+
+        const stepTitle = String(step?.title || step?.step_title || `Step ${stepIdx + 1}`)
+        const stepSummary = step?.content_summary ?? step?.contentSummary ?? step?.content ?? ''
+        const stepId = step?.step_id ?? step?.id ?? step?.order ?? `${lessonIdx + 1}-${stepIdx + 1}`
+
+        const matchingActivities = activitiesRaw.filter((a: any) => {
+          const aStepId = a?.step_id ?? a?.stepId ?? a?.step
+          return normalizeId(aStepId) === normalizeId(stepId)
+        })
+
+        const descriptions: string[] = []
+        matchingActivities.forEach((a: any) => {
+          descriptions.push(...toTrimmedStringArray(a?.description))
+        })
+
+        if (interactive) {
+          const prompt = String(stepSummary || descriptions[0] || '').trim()
+          const tips = (descriptions.length ? descriptions : toTrimmedStringArray(stepSummary)).slice(0, 4)
+          if (!prompt && tips.length === 0) return null
+          return {
+            type: 'interactive',
+            data: {
+              title: stepTitle,
+              prompt: prompt || '',
+              tips: tips.length ? tips : [],
+            },
+          }
+        }
+
+        const paragraphs = (descriptions.length ? descriptions : toTrimmedStringArray(stepSummary)).slice(0, 6)
+        if (paragraphs.length === 0) return null
+        return {
+          type: 'text',
+          data: {
+            heading: stepTitle,
+            paragraphs,
+          },
+        }
+      })
+      .filter(Boolean)
+
+    const enriched = enrichLessonWithPipelineSections(
+      lessonIdx,
+      lessonsRaw.length,
+      content as any[],
+      curriculum,
+      pedagogy,
+      assessment,
+      review,
+      quality,
+      Array.isArray(structure.modules) ? structure.modules : []
+    )
+
+    if (!enriched.length) return null
+
+    return {
+      id: lessonIdx + 1,
+      title: lessonTitle,
+      duration: lessonDuration || fallback?.lessons?.[lessonIdx]?.duration || '',
+      content: enriched as any[],
+      completed: false,
+    }
+  }).filter(Boolean)
+
+  if (!lessons.length) return null
+
+  // Assessment → quiz mapping
+  const miniQuizzesRaw = Array.isArray(assessment?.mini_quizzes) ? assessment.mini_quizzes : []
+  const questions = miniQuizzesRaw
+    .map((mq: any, idx: number) => {
+      const questionText =
+        mq?.question ?? mq?.prompt ?? mq?.text ?? mq?.stem ?? mq?.title ?? `Question ${idx + 1}`
+
+      const rawOptions = mq?.options ?? mq?.choices ?? mq?.answer_options ?? mq?.answerOptions ?? []
+      const options = Array.isArray(rawOptions) ? rawOptions.map((o) => String(o).trim()).filter(Boolean) : []
+      if (!questionText || !String(questionText).trim()) return null
+
+      const rawCorrect = mq?.correct_answer ?? mq?.correctAnswer ?? mq?.correct_index ?? mq?.correctIndex
+      let correctAnswerIndex = 0
+      if (typeof rawCorrect === 'number' && Number.isFinite(rawCorrect)) {
+        correctAnswerIndex = rawCorrect
+      } else if (typeof rawCorrect === 'string') {
+        const asNum = parseInt(rawCorrect, 10)
+        if (!Number.isNaN(asNum)) correctAnswerIndex = asNum
+        else {
+          const asStr = rawCorrect.trim()
+          const found = options.findIndex((o) => o.toLowerCase() === asStr.toLowerCase())
+          if (found >= 0) correctAnswerIndex = found
+        }
+      }
+
+      // Normalize possible 1-based vs 0-based indices to 0-based for the UI.
+      if (typeof rawCorrect === 'number' && options.length) {
+        if (rawCorrect >= 0 && rawCorrect < options.length) {
+          correctAnswerIndex = rawCorrect
+        } else if (rawCorrect >= 1 && rawCorrect <= options.length) {
+          correctAnswerIndex = rawCorrect - 1
+        }
+      }
+
+      // Clamp to valid range to keep UI stable.
+      if (options.length) {
+        correctAnswerIndex = Math.max(0, Math.min(options.length - 1, correctAnswerIndex))
+      } else {
+        correctAnswerIndex = 0
+      }
+
+      return {
+        id: idx + 1,
+        question: String(questionText),
+        options: options,
+        correctAnswer: correctAnswerIndex,
+        explanation: String(mq?.explanation ?? mq?.rationale ?? mq?.review ?? ''),
+      }
+    })
+    .filter(Boolean)
+
+  return {
+    title,
+    category: category || fallback?.category,
+    duration: duration || fallback?.duration,
+    difficulty: difficulty || fallback?.difficulty,
+    description: description || fallback?.description,
+    learningObjectives: learningObjectives.length ? learningObjectives : fallback?.learningObjectives || [],
+    lessons: lessons as any[],
+    quiz: {
+      questions,
+    },
+  }
+}
+
 const DifferentiationCourse = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const dispatch = useDispatch()
+  const { activeSessionsByContentId = {} } = useSelector((state: any) => state.learningProgress) ?? {}
+  const persisted = (() => {
+    try {
+      const raw = sessionStorage.getItem(`learningHubRouteState:${location.pathname}`)
+      return raw ? JSON.parse(raw) : null
+    } catch {
+      return null
+    }
+  })()
+  const contentId =
+    (location.state as any)?.contentId ||
+    persisted?.contentId ||
+    'learning-hub:differentiation-course'
+  const contentType = (location.state as any)?.contentType || persisted?.contentType || 'micro_course'
+  const [courseData, setCourseData] = useState(staticCourseData)
+  const [courseDataLoading, setCourseDataLoading] = useState(false)
+  const [courseDataError, setCourseDataError] = useState<string | null>(null)
   const [currentLesson, setCurrentLesson] = useState(0)
   const [currentContentIndex, setCurrentContentIndex] = useState(0)
   const [completedLessons, setCompletedLessons] = useState<number[]>([])
@@ -319,6 +661,75 @@ const DifferentiationCourse = () => {
   const currentLessonData = courseData.lessons[currentLesson]
   const currentContent = currentLessonData?.content[currentContentIndex]
   const progress = ((completedLessons.length + (currentLesson > 0 ? 1 : 0)) / courseData.lessons.length) * 100
+  const hideGeneratedDurations = typeof contentId === 'string' && contentId.startsWith('factory-')
+
+  // Load generated micro-course content when the route carries an AI-generated `factory-*` contentId.
+  useEffect(() => {
+    const shouldFetch = typeof contentId === 'string' && contentId.startsWith('factory-')
+    if (!shouldFetch) return
+
+    let cancelled = false
+    const run = async () => {
+      setCourseDataLoading(true)
+      setCourseDataError(null)
+      try {
+        const res = await axiosInstance.get(
+          `/api/v1/content-registry/by-content-id/${encodeURIComponent(contentId)}`
+        )
+        const item = res?.data
+        const next = buildMicroCourseFromRegistryJsonBlob(item, staticCourseData)
+        if (!cancelled && next) {
+          setCourseData(next)
+          // Reset navigation state for the newly loaded course.
+          setCurrentLesson(0)
+          setCurrentContentIndex(0)
+          setCompletedLessons([])
+          setShowQuiz(false)
+          setQuizAnswers({})
+          setQuizSubmitted(false)
+          setCourseCompleted(false)
+          setShowCertificate(false)
+        }
+      } catch (e: any) {
+        if (cancelled) return
+        const msg =
+          e?.response?.data?.detail ||
+          e?.response?.data?.message ||
+          e?.message ||
+          'Could not load generated course content.'
+        setCourseDataError(String(msg))
+      } finally {
+        if (!cancelled) setCourseDataLoading(false)
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contentId])
+
+  useEffect(() => {
+    if (!contentId) return
+    const existing = (activeSessionsByContentId as any)[contentId]
+    if (!existing) {
+      dispatch(
+        startLearningSession({
+          contentId,
+          contentType,
+        })
+      )
+    } else {
+      dispatch(
+        recordLearningEvent({
+          session_id: existing.sessionId,
+          content_id: contentId,
+          event_type: 'content_opened',
+        })
+      )
+    }
+  }, [contentId, contentType, dispatch])
 
   const handleNext = () => {
     if (currentContentIndex < currentLessonData.content.length - 1) {
@@ -333,7 +744,30 @@ const DifferentiationCourse = () => {
       if (!completedLessons.includes(currentLesson)) {
         setCompletedLessons([...completedLessons, currentLesson])
       }
-      setShowQuiz(true)
+      const hasQuiz = Array.isArray(courseData.quiz?.questions) && courseData.quiz.questions.length > 0
+      if (hasQuiz) {
+        setShowQuiz(true)
+      } else {
+        // If generated content doesn't include a quiz, finish the course so the UI doesn't dead-end.
+        setCourseCompleted(true)
+        setTimeout(() => setShowCertificate(true), 1000)
+        const session = (activeSessionsByContentId as any)[contentId]
+        if (session) {
+          dispatch(
+            recordLearningEvent({
+              session_id: session.sessionId,
+              content_id: contentId,
+              event_type: 'content_completed',
+            })
+          )
+          dispatch(
+            completeLearningSession({
+              sessionId: session.sessionId,
+              progress_percent: 100,
+            })
+          )
+        }
+      }
     }
   }
 
@@ -352,18 +786,88 @@ const DifferentiationCourse = () => {
   }
 
   const handleQuizSubmit = () => {
+    const questions = courseData.quiz?.questions || []
+    if (!questions.length) return
     setQuizSubmitted(true)
     const score = Object.entries(quizAnswers).filter(
-      ([qId, answer]) => courseData.quiz.questions[parseInt(qId) - 1].correctAnswer === answer
+      ([qId, answer]) => questions[parseInt(qId) - 1]?.correctAnswer === answer
     ).length
-    if (score >= courseData.quiz.questions.length * 0.7) {
+    if (score >= questions.length * 0.7) {
       setCourseCompleted(true)
       setTimeout(() => setShowCertificate(true), 1000)
+      const session = (activeSessionsByContentId as any)[contentId]
+      if (session) {
+        dispatch(
+          recordLearningEvent({
+            session_id: session.sessionId,
+            content_id: contentId,
+            event_type: 'content_completed',
+          })
+        )
+        dispatch(
+          completeLearningSession({
+            sessionId: session.sessionId,
+            progress_percent: 100,
+          })
+        )
+      }
     }
   }
 
   const handleCompleteCourse = () => {
+    if (contentId) {
+      const session = (activeSessionsByContentId as any)[contentId]
+      if (session) {
+        dispatch(
+          recordLearningEvent({
+            session_id: session.sessionId,
+            content_id: contentId,
+            event_type: 'content_completed',
+          })
+        )
+        dispatch(
+          completeLearningSession({
+            sessionId: session.sessionId,
+            progress_percent: 100,
+          })
+        )
+        dispatch(fetchContentProgress(contentId))
+        dispatch(fetchLearningHubHome())
+      }
+    }
     navigate('/learning-hub')
+  }
+
+  if (courseDataLoading && !showCertificate && !showQuiz) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="text-center">
+          <p className="text-sm font-semibold text-gray-800 mb-2">Loading your generated course...</p>
+          {courseDataError ? <p className="text-xs text-red-700">{courseDataError}</p> : <p className="text-xs text-gray-500">Please wait.</p>}
+        </div>
+      </div>
+    )
+  }
+
+  if (courseDataError && contentId && String(contentId).startsWith('factory-') && !showCertificate) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="max-w-lg w-full rounded-2xl border border-red-200 bg-white p-6 shadow-sm">
+          <h2 className="text-sm font-semibold text-red-800 mb-2">Could not load generated course</h2>
+          <p className="text-xs text-red-700 mb-4">{courseDataError}</p>
+          <button
+            onClick={() => {
+              // Hard refresh state by reloading the page.
+              // This avoids needing a second fetch implementation and keeps UI consistent.
+              window.location.reload()
+            }}
+            className="rounded-lg bg-amber-600 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
   }
 
   if (showCertificate) {
@@ -382,10 +886,12 @@ const DifferentiationCourse = () => {
             <div className="border-2 border-green-200 rounded-2xl p-8 mb-6 bg-gradient-to-br from-green-50 to-emerald-50">
               <h2 className="text-2xl font-bold text-gray-900 mb-2">{courseData.title}</h2>
               <div className="flex items-center justify-center gap-4 text-sm text-gray-600 mb-4">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-4 h-4" />
-                  {courseData.duration}
-                </span>
+                {!hideGeneratedDurations && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-4 h-4" />
+                    {courseData.duration}
+                  </span>
+                )}
                 <span className="flex items-center gap-1">
                   <Target className="w-4 h-4" />
                   {courseData.difficulty}
@@ -602,7 +1108,7 @@ const DifferentiationCourse = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-page-kind="micro_course" data-content-id={contentId || ''} data-content-type={contentType || 'micro_course'}>
       {/* Header */}
       <div className="bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between mb-6">
@@ -611,8 +1117,12 @@ const DifferentiationCourse = () => {
               <span className="rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide">
                 {courseData.category}
               </span>
-              <span className="text-white/80">•</span>
-              <span className="text-white/80 text-sm">{courseData.duration}</span>
+              {!hideGeneratedDurations && (
+                <>
+                  <span className="text-white/80">•</span>
+                  <span className="text-white/80 text-sm">{courseData.duration}</span>
+                </>
+              )}
               <span className="text-white/80">•</span>
               <span className="text-white/80 text-sm">{courseData.difficulty}</span>
             </div>
@@ -687,7 +1197,9 @@ const DifferentiationCourse = () => {
                         }`}>
                           {lesson.title}
                         </p>
-                        <p className="text-xs text-gray-500 mt-0.5">{lesson.duration}</p>
+                        {!hideGeneratedDurations && (
+                          <p className="text-xs text-gray-500 mt-0.5">{lesson.duration}</p>
+                        )}
                       </div>
                     </div>
                   </button>
@@ -704,8 +1216,12 @@ const DifferentiationCourse = () => {
             <div className="mb-6 pb-6 border-b border-gray-200">
               <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
                 <span>Lesson {currentLesson + 1} of {courseData.lessons.length}</span>
-                <span>•</span>
-                <span>{currentLessonData.duration}</span>
+                {!hideGeneratedDurations && (
+                  <>
+                    <span>•</span>
+                    <span>{currentLessonData.duration}</span>
+                  </>
+                )}
               </div>
               <h2 className="text-2xl font-bold text-gray-900">{currentLessonData.title}</h2>
             </div>

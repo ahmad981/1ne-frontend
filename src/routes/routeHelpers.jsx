@@ -69,3 +69,12 @@ export const RoleBasedRedirect = () => {
   return <Navigate to={firstPath} replace />;
 };
 
+export const UnknownRouteRedirect = () => {
+  const user = useSelector((state) => state?.auth?.user);
+  const isRehydrated = useSelector((state) => state?._persist?.rehydrated);
+  if (isRehydrated === false || (isRehydrated === undefined && user === null)) {
+    return null;
+  }
+  return <Navigate to={user ? '/dashboard' : '/login'} replace />;
+};
+
