@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   // Where `/api` requests are forwarded (must match your uvicorn host:port)
-  const apiProxyTarget = env.VITE_PROXY_TARGET || 'http://127.0.0.1:8001'
+  const apiProxyTarget = env.VITE_PROXY_TARGET || 'http://127.0.0.1:8000'
 
   return {
     plugins: [

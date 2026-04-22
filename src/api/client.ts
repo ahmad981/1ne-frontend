@@ -385,7 +385,7 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             ? String((payload as Record<string, unknown>).detail)
             : response.statusText || 'Bad Gateway'
         const devHint = import.meta.env.DEV
-          ? ' Start FastAPI on the host/port in VITE_PROXY_TARGET (see vite.config.ts; default http://127.0.0.1:8001), or set VITE_PROXY_TARGET in .env to match uvicorn. Then restart `yarn dev`.'
+          ? ' Start FastAPI on the host/port in VITE_PROXY_TARGET (see vite.config.ts; default http://127.0.0.1:8000), or set VITE_PROXY_TARGET in .env to match uvicorn. Then restart `yarn dev`.'
           : ' Check that the API server behind the gateway is running.'
         throw new ApiError(response.status, `${base}.${devHint}`, payload)
       }

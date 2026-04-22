@@ -11,6 +11,13 @@ import {
 } from '../../../../../api/quizCatalog'
 import { buildRagScopeGenerationContext, type GenerationSourceContext } from '../../demo/generationFromSources'
 
+function isRequestCancelled(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { name?: string; message?: string }
+  if (e.name === 'AbortError') return true
+  return typeof e.message === 'string' && e.message.toLowerCase().includes('request was cancelled')
+}
+
 // ---------------------------------------------------------------------------
 // Options
 // ---------------------------------------------------------------------------
@@ -107,7 +114,7 @@ export function useQuizRagScope({
         setCatalogBusy(false)
       })
       .catch((err: Error) => {
-        if (err.name === 'AbortError') return
+        if (isRequestCancelled(err)) return
         setCatalogError(err.message)
         setCatalogBusy(false)
       })
@@ -138,7 +145,7 @@ export function useQuizRagScope({
           setCatalogBusy(false)
         })
         .catch((err: Error) => {
-          if (err.name === 'AbortError') return
+          if (isRequestCancelled(err)) return
           setCatalogError(err.message)
           setCatalogBusy(false)
         })
@@ -194,7 +201,7 @@ export function useQuizRagScope({
         setTopicsIndexing(false)
       })
       .catch((err: Error) => {
-        if (err.name === 'AbortError') return
+        if (isRequestCancelled(err)) return
         setTopicsError(err.message)
         setTopicsIndexing(false)
       })
@@ -222,7 +229,7 @@ export function useQuizRagScope({
         })
         .catch((err: Error) => {
           // Silent: keep last value on error or abort
-          if (err.name !== 'AbortError') {
+          if (!isRequestCancelled(err)) {
             console.warn('[useQuizRagScope] scope preview error (non-critical):', err.message)
           }
         })

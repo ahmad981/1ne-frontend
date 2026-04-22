@@ -6,8 +6,8 @@
 // Railway Production Backend URL
 const RAILWAY_BACKEND_URL = 'https://1nebackend-production.up.railway.app'
 
-// Local Development Backend URL (match uvicorn --port, commonly 8001)
-const LOCAL_BACKEND_URL = 'http://127.0.0.1:8001'
+// Local Development Backend URL (match uvicorn --port; align with VITE_PROXY_TARGET default in vite.config.ts)
+const LOCAL_BACKEND_URL = 'http://127.0.0.1:8000'
 
 /**
  * Get the backend base URL from environment variables or use defaults
