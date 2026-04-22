@@ -18,13 +18,30 @@ import {
   Users,
   Lightbulb,
   Crown,
-  Upload,
-  FolderOpen,
+  Wrench,
+  Home,
+  ListChecks,
   ClipboardList,
+  FileSpreadsheet,
+  Award,
 } from 'lucide-react';
 
 const teacherMenu = [
   { path: '/dashboard', text: 'Dashboard', icon: LayoutDashboard },
+  {
+    path: '/teacher-tools',
+    text: 'Teacher Tools',
+    icon: Wrench,
+    child: [
+      { path: '/teacher-tools', text: 'Overview', icon: Home },
+      { path: '/teacher-tools/quiz', text: 'Quiz', icon: ListChecks },
+      { path: '/teacher-tools/assignment', text: 'Assignment', icon: ClipboardList },
+      { path: '/teacher-tools/worksheet', text: 'Worksheet', icon: FileSpreadsheet },
+      { path: '/teacher-tools/exams', text: 'Exams', icon: Award },
+      { path: '/teacher-tools/templates', text: 'Templates', icon: FileText },
+      { path: '/teacher-tools/analytics', text: 'Analytics', icon: BarChart3 },
+    ],
+  },
   { path: '/templates', text: 'Templates Library', icon: FileText },
   { path: '/worksheets/generate', text: 'Worksheet Generator', icon: ClipboardList, moduleName: 'Worksheet Generator' },
   { path: '/chatbots', text: 'Specialized Chatbots', icon: MessageSquare },

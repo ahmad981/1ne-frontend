@@ -128,6 +128,31 @@ import { DocumentsList } from '../pages/features/DocumentsList';
 import { WorksheetGenerator } from '../pages/features/WorksheetGenerator';
 import { WorksheetViewer } from '../pages/features/WorksheetViewer';
 
+import TeacherToolsOverview from '../pages/features/teacher-tools/TeacherToolsOverview';
+import QuizList from '../pages/features/teacher-tools/quiz/QuizList';
+import QuizCreate from '../pages/features/teacher-tools/quiz/QuizCreate';
+import QuizDetail from '../pages/features/teacher-tools/quiz/QuizDetail';
+import QuizSubmissions from '../pages/features/teacher-tools/quiz/QuizSubmissions';
+import QuizAnalytics from '../pages/features/teacher-tools/quiz/QuizAnalytics';
+import AssignmentList from '../pages/features/teacher-tools/assignment/AssignmentList';
+import AssignmentCreate from '../pages/features/teacher-tools/assignment/AssignmentCreate';
+import AssignmentDetail from '../pages/features/teacher-tools/assignment/AssignmentDetail';
+import AssignmentSubmissions from '../pages/features/teacher-tools/assignment/AssignmentSubmissions';
+import AssignmentAnalytics from '../pages/features/teacher-tools/assignment/AssignmentAnalytics';
+import WorksheetList from '../pages/features/teacher-tools/worksheet/WorksheetList';
+import WorksheetCreate from '../pages/features/teacher-tools/worksheet/WorksheetCreate';
+import WorksheetDetail from '../pages/features/teacher-tools/worksheet/WorksheetDetail';
+import WorksheetResponses from '../pages/features/teacher-tools/worksheet/WorksheetResponses';
+import WorksheetAnalytics from '../pages/features/teacher-tools/worksheet/WorksheetAnalytics';
+import ExamList from '../pages/features/teacher-tools/exams/ExamList';
+import ExamCreate from '../pages/features/teacher-tools/exams/ExamCreate';
+import ExamDetail from '../pages/features/teacher-tools/exams/ExamDetail';
+import ExamCandidates from '../pages/features/teacher-tools/exams/ExamCandidates';
+import ExamResults from '../pages/features/teacher-tools/exams/ExamResults';
+import ExamAnalytics from '../pages/features/teacher-tools/exams/ExamAnalytics';
+import TeacherToolsTemplates from '../pages/features/teacher-tools/templates/TeacherToolsTemplates';
+import TeacherToolsUnifiedAnalytics from '../pages/features/teacher-tools/analytics/TeacherToolsUnifiedAnalytics';
+
 export const commonRoutes = [
   {
     path: '/',
@@ -172,6 +197,260 @@ export const teacherRoutes = [
         <DashboardHome />
       </DashboardLayout>
     ),
+  },
+  {
+    path: '/teacher-tools',
+    moduleName: 'Teacher Tools',
+    element: (
+      <DashboardLayout>
+        <TeacherToolsOverview />
+      </DashboardLayout>
+    ),
+    child: [
+      {
+        path: '/teacher-tools/quiz',
+        moduleName: 'Quiz',
+        element: (
+          <DashboardLayout>
+            <QuizList />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/quiz/create',
+        moduleName: 'Create Quiz',
+        element: (
+          <DashboardLayout>
+            <QuizCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/quiz/:quizId/edit',
+        moduleName: 'Edit Quiz',
+        element: (
+          <DashboardLayout>
+            <QuizCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/quiz/:quizId',
+        moduleName: 'Quiz Detail',
+        element: (
+          <DashboardLayout>
+            <QuizDetail />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/quiz/:quizId/submissions',
+        moduleName: 'Quiz Submissions',
+        element: (
+          <DashboardLayout>
+            <QuizSubmissions />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/quiz/:quizId/analytics',
+        moduleName: 'Quiz Analytics',
+        element: (
+          <DashboardLayout>
+            <QuizAnalytics />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment',
+        moduleName: 'Assignment',
+        element: (
+          <DashboardLayout>
+            <AssignmentList />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment/create',
+        moduleName: 'Create Assignment',
+        element: (
+          <DashboardLayout>
+            <AssignmentCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment/:assignmentId/edit',
+        moduleName: 'Edit Assignment',
+        element: (
+          <DashboardLayout>
+            <AssignmentCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment/:assignmentId',
+        moduleName: 'Assignment Detail',
+        element: (
+          <DashboardLayout>
+            <AssignmentDetail />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment/:assignmentId/submissions',
+        moduleName: 'Assignment Submissions',
+        element: (
+          <DashboardLayout>
+            <AssignmentSubmissions />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/assignment/:assignmentId/analytics',
+        moduleName: 'Assignment Analytics',
+        element: (
+          <DashboardLayout>
+            <AssignmentAnalytics />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet',
+        moduleName: 'Worksheet',
+        element: (
+          <DashboardLayout>
+            <WorksheetList />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet/create',
+        moduleName: 'Create Worksheet',
+        element: (
+          <DashboardLayout>
+            <WorksheetCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet/:worksheetId/edit',
+        moduleName: 'Edit Worksheet',
+        element: (
+          <DashboardLayout>
+            <WorksheetCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet/:worksheetId',
+        moduleName: 'Worksheet Detail',
+        element: (
+          <DashboardLayout>
+            <WorksheetDetail />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet/:worksheetId/responses',
+        moduleName: 'Worksheet Responses',
+        element: (
+          <DashboardLayout>
+            <WorksheetResponses />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/worksheet/:worksheetId/analytics',
+        moduleName: 'Worksheet Analytics',
+        element: (
+          <DashboardLayout>
+            <WorksheetAnalytics />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams',
+        moduleName: 'Exams',
+        element: (
+          <DashboardLayout>
+            <ExamList />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/create',
+        moduleName: 'Create Exam',
+        element: (
+          <DashboardLayout>
+            <ExamCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/:examId/edit',
+        moduleName: 'Edit Exam',
+        element: (
+          <DashboardLayout>
+            <ExamCreate />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/:examId',
+        moduleName: 'Exam Detail',
+        element: (
+          <DashboardLayout>
+            <ExamDetail />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/:examId/candidates',
+        moduleName: 'Exam Candidates',
+        element: (
+          <DashboardLayout>
+            <ExamCandidates />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/:examId/results',
+        moduleName: 'Exam Results',
+        element: (
+          <DashboardLayout>
+            <ExamResults />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/exams/:examId/analytics',
+        moduleName: 'Exam Analytics',
+        element: (
+          <DashboardLayout>
+            <ExamAnalytics />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/templates',
+        moduleName: 'Teacher Tools Templates',
+        element: (
+          <DashboardLayout>
+            <TeacherToolsTemplates />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/teacher-tools/analytics',
+        moduleName: 'Teacher Tools Analytics',
+        element: (
+          <DashboardLayout>
+            <TeacherToolsUnifiedAnalytics />
+          </DashboardLayout>
+        ),
+      },
+    ],
   },
   {
     path: '/templates',
