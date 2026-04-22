@@ -100,12 +100,18 @@ export interface DocumentStatus {
     total: number
     percentage: number
     estimated_time_remaining?: string
+    /** Echo from backend; page phases mirror completed/total */
+    pages_processed?: number
+    total_pages?: number
   } | null
   steps_completed: string[]
   current_step: string | null
   error_code: string | null
   error_message: string | null
   remediation_hint: string | null
+  /** Denormalized from stream for header refresh */
+  total_pages?: number | null
+  pages_processed?: number | null
 }
 
 export interface WorksheetQuestion {
@@ -428,110 +434,201 @@ export async function publishDocument(
   })
 }
 
+/** Optional callbacks for document status SSE (fetch + stream lifecycle). */
+export type StreamDocumentStatusOptions = {
+  /** HTTP 200 received with a readable body */
+  onHttpOk?: () => void
+  /** First `data:` JSON payload parsed successfully */
+  onFirstPayload?: () => void
+}
+
+const SSE_FETCH_TIMEOUT_MS = 45_000
+const SSE_STALL_AFTER_MS = 180_000
+
 // SSE Status Stream (using fetch with ReadableStream for custom headers)
 export function streamDocumentStatus(
   documentId: string,
   onStatusUpdate: (status: DocumentStatus) => void,
   onError?: (error: Error) => void,
-  onComplete?: () => void
+  onComplete?: () => void,
+  streamOptions?: StreamDocumentStatusOptions
 ): () => void {
   const url = buildUrl(`v1/admin/documents/${documentId}/status/stream`)
   
   const token = getAuthToken()
   const headers: HeadersInit = {
-    'Accept': 'text/event-stream',
+    Accept: 'text/event-stream',
   }
   if (token) {
-    headers['Authorization'] = `Bearer ${token}`
+    headers.Authorization = `Bearer ${token}`
   }
   
   const abortController = new AbortController()
   let buffer = ''
   let isClosed = false
+  let firstPayloadSeen = false
   
   const processStream = async () => {
+    let stallTimer: ReturnType<typeof setInterval> | null = null
+    let lastActivity = Date.now()
     try {
+      const fetchTimer = setTimeout(() => {
+        abortController.abort()
+      }, SSE_FETCH_TIMEOUT_MS)
+
       const response = await fetch(url, {
         method: 'GET',
         headers,
         signal: abortController.signal,
       })
-      
+      clearTimeout(fetchTimer)
+      lastActivity = Date.now()
+
       if (!response.ok) {
-        throw new Error(`SSE stream failed: ${response.statusText}`)
+        let detail = response.statusText
+        try {
+          const t = await response.text()
+          if (t) detail = `${detail}: ${t.slice(0, 200)}`
+        } catch {
+          /* ignore */
+        }
+        throw new Error(`SSE stream failed (${response.status}): ${detail}`)
       }
-      
+
+      const ct = response.headers.get('content-type') || ''
+      if (ct && !/event-stream/i.test(ct)) {
+        console.warn('[streamDocumentStatus] Content-Type is not text/event-stream:', ct)
+      }
+
       if (!response.body) {
         throw new Error('No response body received')
       }
-      
+
+      streamOptions?.onHttpOk?.()
+
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
-      
+
+      stallTimer = setInterval(() => {
+        if (isClosed) return
+        if (Date.now() - lastActivity > SSE_STALL_AFTER_MS) {
+          abortController.abort()
+          if (onError && !isClosed) {
+            onError(
+              new Error(
+                'Status stream stalled (no data for several minutes). Check network, API URL (VITE_API_BASE_URL / VITE_USE_LOCAL), and backend logs.'
+              )
+            )
+          }
+        }
+      }, 10_000)
+
       while (true) {
         if (isClosed) break
-        
+
         const { done, value } = await reader.read()
-        
+        lastActivity = Date.now()
+
         if (done) {
+          if (!isClosed && onComplete) onComplete()
           break
         }
-        
+
         buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
+
+        if (!firstPayloadSeen && buffer.length > 400 && /<!DOCTYPE|<html[\s>]/i.test(buffer)) {
+          throw new Error(
+            'Received HTML instead of an event stream. The API URL may point at the frontend or a proxy without /api. Set VITE_USE_LOCAL=true or VITE_API_BASE_URL to your FastAPI origin.'
+          )
+        }
+
+        const lines = buffer.split(/\r?\n/)
         buffer = lines.pop() || ''
-        
+
         for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const jsonStr = line.slice(6).trim()
-            if (!jsonStr) continue
-            try {
-              const raw = JSON.parse(jsonStr) as Record<string, unknown>
-              // Normalize backend payload so UI always receives valid DocumentStatus (matrix)
-              const progress = raw.progress != null && typeof raw.progress === 'object'
-                ? {
-                    step: String((raw.progress as Record<string, unknown>).step ?? raw.current_step ?? raw.status ?? ''),
-                    completed: Number((raw.progress as Record<string, unknown>).completed ?? 0),
-                    total: Number((raw.progress as Record<string, unknown>).total ?? 0),
-                    percentage: Number((raw.progress as Record<string, unknown>).percentage ?? 0),
-                    estimated_time_remaining: (raw.progress as Record<string, unknown>).estimated_time_remaining as string | undefined,
-                  }
-                : null
-              const status: DocumentStatus = {
-                document_id: String(raw.document_id ?? ''),
-                status: String(raw.status ?? 'uploaded'),
-                progress,
-                steps_completed: Array.isArray(raw.steps_completed) ? raw.steps_completed as string[] : [],
-                current_step: raw.current_step != null ? String(raw.current_step) : null,
-                error_code: raw.error_code != null ? String(raw.error_code) : null,
-                error_message: raw.error_message != null ? String(raw.error_message) : null,
-                remediation_hint: raw.remediation_hint != null ? String(raw.remediation_hint) : null,
-              }
-              onStatusUpdate(status)
-              if (status.status === 'published' || status.status === 'failed') {
-                if (onComplete) onComplete()
-                isClosed = true
-                return
-              }
-            } catch (error) {
-              console.error('Error parsing status update:', error)
-              if (onError) onError(error as Error)
+          const trimmed = line.trim()
+          if (!trimmed || trimmed.startsWith(':')) {
+            continue
+          }
+          const dataMatch = trimmed.match(/^data:\s*(.*)$/i)
+          if (!dataMatch) {
+            continue
+          }
+          const jsonStr = dataMatch[1].trim()
+          if (!jsonStr) continue
+          try {
+            const raw = JSON.parse(jsonStr) as Record<string, unknown>
+            if (raw.type === 'heartbeat') {
+              continue
             }
+            const pRaw =
+              raw.progress != null && typeof raw.progress === 'object'
+                ? (raw.progress as Record<string, unknown>)
+                : null
+            const progress = pRaw
+              ? {
+                  step: String(pRaw.step ?? raw.current_step ?? raw.status ?? ''),
+                  completed: Number(pRaw.completed ?? 0),
+                  total: Number(pRaw.total ?? 0),
+                  percentage: Number(pRaw.percentage ?? 0),
+                  estimated_time_remaining: pRaw.estimated_time_remaining as string | undefined,
+                  pages_processed:
+                    pRaw.pages_processed != null ? Number(pRaw.pages_processed) : undefined,
+                  total_pages: pRaw.total_pages != null ? Number(pRaw.total_pages) : undefined,
+                }
+              : null
+            const status: DocumentStatus = {
+              document_id: String(raw.document_id ?? ''),
+              status: String(raw.status ?? 'uploaded'),
+              progress,
+              steps_completed: Array.isArray(raw.steps_completed) ? raw.steps_completed as string[] : [],
+              current_step: raw.current_step != null ? String(raw.current_step) : null,
+              error_code: raw.error_code != null ? String(raw.error_code) : null,
+              error_message: raw.error_message != null ? String(raw.error_message) : null,
+              remediation_hint: raw.remediation_hint != null ? String(raw.remediation_hint) : null,
+              total_pages: raw.total_pages != null ? Number(raw.total_pages) : null,
+              pages_processed: raw.pages_processed != null ? Number(raw.pages_processed) : null,
+            }
+            if (!firstPayloadSeen) {
+              firstPayloadSeen = true
+              streamOptions?.onFirstPayload?.()
+            }
+            onStatusUpdate(status)
+            if (status.status === 'published' || status.status === 'failed') {
+              if (onComplete) onComplete()
+              isClosed = true
+              return
+            }
+          } catch (error) {
+            console.error('Error parsing status update:', error)
+            if (onError) onError(error as Error)
           }
         }
       }
-    } catch (error: any) {
-      if (error.name !== 'AbortError' && !isClosed) {
-        console.error('SSE stream error:', error)
-        if (onError) onError(error)
+    } catch (error: unknown) {
+      if (isClosed) return
+      const err = error as { name?: string; message?: string }
+      if (err.name === 'AbortError') {
+        if (!firstPayloadSeen && onError) {
+          onError(
+            new Error(
+              'Timed out waiting for the status stream (no response in time). Confirm the backend is running, CORS allows your origin, and VITE_API_BASE_URL / VITE_USE_LOCAL points at FastAPI (not the Vite dev page).'
+            )
+          )
+        }
+        return
       }
+      console.error('SSE stream error:', error)
+      if (onError) {
+        onError(error instanceof Error ? error : new Error(String(error)))
+      }
+    } finally {
+      if (stallTimer) clearInterval(stallTimer)
     }
   }
   
-  // Start processing stream
   processStream()
   
-  // Return cleanup function
   return () => {
     isClosed = true
     abortController.abort()

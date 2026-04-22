@@ -5,6 +5,8 @@
 import React, { useState } from 'react'
 import { Upload, FileText, X, CheckCircle, AlertCircle, Loader2 } from 'lucide-react'
 import { uploadDocumentStream, UploadProgressEvent } from '../../api/contentIngestion'
+import { TocJsonOptionalSection } from './TocJsonOptionalSection'
+import { parseChapterMapFromJson } from './tocChapterMapParse'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useNavigate } from 'react-router-dom'
 
@@ -30,6 +32,7 @@ export const SimpleDocumentUpload = ({
   const [packGrade, setPackGrade] = useState('')
   const [packCurriculum, setPackCurriculum] = useState('')
   
+  const [tocJsonText, setTocJsonText] = useState('')
   const [forceOcr, setForceOcr] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState<UploadProgressEvent | null>(null)
@@ -73,7 +76,14 @@ export const SimpleDocumentUpload = ({
       setError('Please select a file')
       return
     }
-    
+
+    const tocParsed = parseChapterMapFromJson(tocJsonText)
+    if (!tocParsed.ok) {
+      setError(tocParsed.message)
+      return
+    }
+    const chapterMap = tocParsed.empty ? undefined : tocParsed.chapters
+
     setUploading(true)
     setError(null)
     setProgress({ type: 'progress', step: 'starting', message: 'Starting upload...', percentage: 0 })
@@ -90,6 +100,7 @@ export const SimpleDocumentUpload = ({
           file,
           title: title || undefined,
           author: author || undefined,
+          chapter_map: chapterMap,
           force_ocr: forceOcr,
         },
         handleProgress
@@ -255,6 +266,8 @@ export const SimpleDocumentUpload = ({
           disabled={uploading}
         />
       </div>
+
+      <TocJsonOptionalSection value={tocJsonText} onChange={setTocJsonText} disabled={uploading} />
       
       <div className="flex items-center">
         <input

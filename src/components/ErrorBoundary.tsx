@@ -45,8 +45,8 @@ export class ErrorBoundary extends Component<Props, State> {
       error: null,
       errorInfo: null,
     })
-    // Reload the page to ensure clean state
-    window.location.href = '/login'
+    // Full reload recovers UI state; do not force /login (users still had a valid session).
+    window.location.reload()
   }
 
   render() {
@@ -95,7 +95,7 @@ export class ErrorBoundary extends Component<Props, State> {
               onClick={this.handleReset}
               className="w-full btn-primary"
             >
-              Go to Login
+              Reload page
             </button>
           </div>
         </div>

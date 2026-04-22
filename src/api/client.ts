@@ -261,10 +261,16 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     let payload: unknown = null
     const contentType = response.headers.get('content-type')
 
-    if (contentType && contentType.includes('application/json')) {
-      payload = await response.json()
+    if (response.status === 204) {
+      payload = null
+    } else if (contentType?.includes('application/json')) {
+      try {
+        payload = await response.json()
+      } catch {
+        payload = null
+      }
     } else {
-      payload = await response.text()
+      payload = (await response.text()) || null
     }
 
     if (!response.ok) {
@@ -316,9 +322,14 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
             clearTimeout(timeoutId)
             
             const retryContentType = retryResponse.headers.get('content-type')
-            const retryPayload = retryContentType && retryContentType.includes('application/json')
-              ? await retryResponse.json()
-              : await retryResponse.text()
+            let retryPayload: unknown
+            if (retryResponse.status === 204) {
+              retryPayload = null
+            } else if (retryContentType?.includes('application/json')) {
+              try { retryPayload = await retryResponse.json() } catch { retryPayload = null }
+            } else {
+              retryPayload = (await retryResponse.text()) || null
+            }
             
             if (retryResponse.ok) {
               return retryPayload as T
@@ -346,6 +357,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
                 localStorage.setItem('persist:root', JSON.stringify(parsed))
                 console.warn('[apiRequest] ⚠️ Token expired, cleared from storage')
                 console.warn('[apiRequest] 💡 Please log in again')
+                // Keep Redux in sync with storage (otherwise PrivateRoutes/token state can disagree and confuse login).
+                if (storeRef) {
+                  try {
+                    const [{ logoutUser }, { persistor }] = await Promise.all([
+                      import('../redux/features/auth/authSlice'),
+                      import('../redux/store'),
+                    ])
+                    storeRef.dispatch(logoutUser())
+                    await persistor.purge()
+                  } catch (syncErr) {
+                    console.warn('[apiRequest] Could not sync Redux after auth clear:', syncErr)
+                  }
+                }
               }
             }
           }
@@ -353,7 +377,19 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           console.error('[apiRequest] Failed to clear expired token:', error)
         }
       }
-      
+
+      // 502 from Vite dev server = proxy could not connect to FastAPI (ECONNREFUSED / wrong port).
+      if (response.status === 502) {
+        const base =
+          typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
+            ? String((payload as Record<string, unknown>).detail)
+            : response.statusText || 'Bad Gateway'
+        const devHint = import.meta.env.DEV
+          ? ' Start FastAPI on the host/port in VITE_PROXY_TARGET (see vite.config.ts; default http://127.0.0.1:8001), or set VITE_PROXY_TARGET in .env to match uvicorn. Then restart `yarn dev`.'
+          : ' Check that the API server behind the gateway is running.'
+        throw new ApiError(response.status, `${base}.${devHint}`, payload)
+      }
+
       const message = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
         ? String((payload as Record<string, unknown>).detail)
         : response.statusText || 'Request failed'

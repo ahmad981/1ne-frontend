@@ -1,19 +1,68 @@
 /**
  * Document Details Page
  */
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, RefreshCw, CheckCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, RefreshCw, CheckCircle, AlertTriangle, Layers } from 'lucide-react'
 import {
   getDocument,
   retryDocumentProcessing,
   runQAValidation,
   publishDocument,
   Document,
+  type DocumentStatus,
 } from '../../api/contentIngestion'
 import { ProcessingStatusCard } from '../../components/contentIngestion/ProcessingStatusCard'
 import { QAValidationResults } from '../../components/contentIngestion/QAValidationResults'
 import { useSnackbar } from '../../hooks/useSnackbar'
+
+type ChunkingSummary = {
+  chunks_total?: number
+  chunk_size_tokens?: number
+  chunk_overlap_tokens?: number
+  chunk_profile?: string
+  topic_scope_mode?: string
+  primary_topic_label?: string
+  chunks_topic_fallback_filled?: number
+  catalog_toc_source?: string
+}
+
+function describeTopicScopeMode(mode: string | undefined): string {
+  switch (mode) {
+    case 'chapter_map':
+      return 'Chapter map / PDF outline (table of contents)'
+    case 'chapter_map_plus_page_bins':
+      return 'TOC / outline + page windows for any gaps'
+    case 'pdf_outline_only':
+      return 'PDF bookmarks (outline) only'
+    case 'pdf_outline_plus_page_bins':
+      return 'PDF outline + page windows for gaps'
+    case 'page_bins_only':
+      return 'Page windows (no outline in PDF — strands by page range)'
+    default:
+      return mode ? String(mode) : '—'
+  }
+}
+
+function humanizeChunkProfile(profile: string | undefined): string {
+  if (!profile) return '—'
+  if (profile === 'digital_profile') return 'Digital PDF (native text)'
+  if (profile === 'ocr_profile') return 'Scanned / OCR pipeline'
+  if (profile === 'ocr_profile_rechunk') return 'Scanned / OCR — finer chunks for coverage'
+  return profile.replace(/_/g, ' ')
+}
+
+/** Same set as backend POST .../retry — lets user recover stuck pipelines (e.g. hung PDF open). */
+const RETRYABLE_STATUSES = new Set([
+  'failed',
+  'text_extracting',
+  'ocr_running',
+  'normalizing',
+  'chunking',
+  'embedding',
+  'indexing',
+  'qa_validation',
+])
 
 export const DocumentDetails = () => {
   const { id } = useParams<{ id: string }>()
@@ -45,6 +94,32 @@ export const DocumentDetails = () => {
       setLoading(false)
     }
   }
+
+  const handleStreamStatus = useCallback((s: DocumentStatus) => {
+    setDocument((prev) => {
+      if (!prev) return prev
+      const rawTop = s.total_pages != null && !Number.isNaN(s.total_pages) ? s.total_pages : null
+      const fromProgressTotal =
+        s.progress != null &&
+        typeof s.progress.total === 'number' &&
+        s.progress.total > 0
+          ? s.progress.total
+          : null
+      const fromProgressTp =
+        s.progress != null &&
+        s.progress.total_pages != null &&
+        !Number.isNaN(s.progress.total_pages) &&
+        s.progress.total_pages > 0
+          ? s.progress.total_pages
+          : null
+      const tp = rawTop ?? fromProgressTotal ?? fromProgressTp ?? prev.total_pages
+      return {
+        ...prev,
+        status: s.status,
+        total_pages: tp,
+      }
+    })
+  }, [])
   
   const handleRetry = async () => {
     if (!id) return
@@ -52,7 +127,7 @@ export const DocumentDetails = () => {
     try {
       setActionLoading(true)
       await retryDocumentProcessing(id)
-      toast.success('Document processing restarted')
+      toast.success('Processing restarted from the beginning')
       loadDocument()
     } catch (error: any) {
       toast.error(error.message || 'Failed to retry processing')
@@ -169,6 +244,78 @@ export const DocumentDetails = () => {
               </div>
             )}
           </div>
+
+          {(() => {
+            const cs = document.processing_metadata?.chunking_summary as ChunkingSummary | undefined
+            if (!cs || (cs.chunks_total == null && !cs.chunk_profile)) return null
+            return (
+              <div className="mt-6 rounded-xl border border-slate-200 bg-slate-50/80 p-5">
+                <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+                  <Layers className="h-4 w-4 text-indigo-600 shrink-0" aria-hidden />
+                  Indexing snapshot
+                </div>
+                <p className="mt-1 text-xs text-slate-600">
+                  Same pipeline for any textbook or board: chunk sizes adapt to digital vs scanned PDFs; topic
+                  strands fall back to the document title when no chapter map is provided.
+                </p>
+                <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                  {cs.chunks_total != null && (
+                    <div>
+                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Chunks stored</dt>
+                      <dd className="font-semibold text-slate-900">{cs.chunks_total.toLocaleString()}</dd>
+                    </div>
+                  )}
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Chunking profile</dt>
+                    <dd className="font-semibold text-slate-900">{humanizeChunkProfile(cs.chunk_profile)}</dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Target size / overlap</dt>
+                    <dd className="font-semibold text-slate-900">
+                      {cs.chunk_size_tokens != null ? `${cs.chunk_size_tokens} tok` : '—'}
+                      {cs.chunk_overlap_tokens != null ? ` · ${cs.chunk_overlap_tokens} tok overlap` : ''}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Topic strands</dt>
+                    <dd className="font-semibold text-slate-900">{describeTopicScopeMode(cs.topic_scope_mode)}</dd>
+                  </div>
+                  {cs.catalog_toc_source ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">TOC source</dt>
+                      <dd className="mt-0.5 text-xs font-medium text-slate-700">
+                        {cs.catalog_toc_source === 'pdf_outline_auto'
+                          ? 'PDF bookmarks (outline)'
+                          : cs.catalog_toc_source === 'docx_headings_auto'
+                            ? 'Word Heading 1 sections'
+                            : cs.catalog_toc_source === 'client_json'
+                              ? 'Uploaded TOC (JSON)'
+                              : cs.catalog_toc_source}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {cs.primary_topic_label ? (
+                    <div className="sm:col-span-2">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-slate-500">Default strand label</dt>
+                      <dd className="mt-0.5 font-medium text-slate-800">{cs.primary_topic_label}</dd>
+                    </div>
+                  ) : null}
+                  {typeof cs.chunks_topic_fallback_filled === 'number' && cs.chunks_topic_fallback_filled > 0 ? (
+                    <div className="sm:col-span-2 text-xs text-slate-600">
+                      Auto-labeled {cs.chunks_topic_fallback_filled.toLocaleString()} chunk
+                      {cs.chunks_topic_fallback_filled === 1 ? '' : 's'} without TOC mapping.
+                    </div>
+                  ) : null}
+                </dl>
+                {document.chapter_map && document.chapter_map.length > 0 ? (
+                  <p className="mt-3 text-xs text-slate-600">
+                    Chapter map: {document.chapter_map.length}{' '}
+                    {document.chapter_map.length === 1 ? 'entry' : 'entries'} (used when page ranges match).
+                  </p>
+                ) : null}
+              </div>
+            )
+          })()}
         </div>
         
         {isProcessing && (
@@ -176,6 +323,7 @@ export const DocumentDetails = () => {
             <ProcessingStatusCard
               documentId={document.id}
               onComplete={loadDocument}
+              onStreamStatus={handleStreamStatus}
               onError={(error) => {
                 toast.error(`Processing error: ${error}`)
                 loadDocument()
@@ -184,27 +332,48 @@ export const DocumentDetails = () => {
           </div>
         )}
         
-        {document.status === 'failed' && (
-          <div className="bg-white rounded-lg shadow p-6 mb-6">
+        {RETRYABLE_STATUSES.has(document.status) && (
+          <div
+            className={`bg-white rounded-lg shadow p-6 mb-6 ${
+              document.status === 'failed' ? '' : 'border border-amber-200 bg-amber-50/40'
+            }`}
+          >
             <div className="flex items-start space-x-3">
-              <AlertTriangle className="w-6 h-6 text-red-600 flex-shrink-0" />
+              <AlertTriangle
+                className={`w-6 h-6 flex-shrink-0 ${
+                  document.status === 'failed' ? 'text-red-600' : 'text-amber-600'
+                }`}
+              />
               <div className="flex-1">
-                <h3 className="font-semibold text-red-900 mb-2">Processing Failed</h3>
-                {document.error_message && (
-                  <p className="text-red-700 mb-2">{document.error_message}</p>
-                )}
-                {document.remediation_hint && (
-                  <p className="text-sm text-red-600 mb-4">
-                    <strong>Hint:</strong> {document.remediation_hint}
-                  </p>
+                {document.status === 'failed' ? (
+                  <>
+                    <h3 className="font-semibold text-red-900 mb-2">Processing Failed</h3>
+                    {document.error_message && (
+                      <p className="text-red-700 mb-2">{document.error_message}</p>
+                    )}
+                    {document.remediation_hint && (
+                      <p className="text-sm text-red-600 mb-4">
+                        <strong>Hint:</strong> {document.remediation_hint}
+                      </p>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <h3 className="font-semibold text-amber-900 mb-2">Processing stuck or very slow?</h3>
+                    <p className="text-sm text-amber-900/90 mb-4">
+                      If the step above has not moved for many minutes, restart from the beginning. Partial
+                      progress for this document will be cleared and ingestion will run again.
+                    </p>
+                  </>
                 )}
                 <button
+                  type="button"
                   onClick={handleRetry}
                   disabled={actionLoading}
                   className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50"
                 >
                   <RefreshCw className="w-4 h-4 inline mr-2" />
-                  Retry Processing
+                  Retry processing
                 </button>
               </div>
             </div>
@@ -246,7 +415,8 @@ export const DocumentDetails = () => {
               <h3 className="text-lg font-semibold">Document Published</h3>
             </div>
             <p className="text-gray-600">
-              This document is now available for worksheet generation.
+              This document is in your catalog for worksheets, quizzes, and other tools that retrieve from indexed
+              chunks. Any board or language is supported as long as text extraction succeeded.
             </p>
           </div>
         )}

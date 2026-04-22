@@ -1536,6 +1536,7 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
         if (!response.ok) {
           // Try to parse error response
           return response.text().then((errorText) => {
+            const status = response.status
             let errorMessage = `Stream failed: ${response.statusText}`
             try {
               const errorJson = JSON.parse(errorText)
@@ -1546,11 +1547,25 @@ export const useTemplateStream = (): UseTemplateStreamReturn => {
                   errorMessage = errorJson.detail.message
                 } else if (errorJson.detail.missing) {
                   errorMessage = `Missing required fields: ${errorJson.detail.missing.join(', ')}`
+                } else if (Array.isArray(errorJson.detail)) {
+                  // FastAPI 422: [{ loc, msg, type }, ...]
+                  const parts = errorJson.detail.map(
+                    (e: { msg?: string; loc?: unknown[] }) =>
+                      (e && e.msg) || JSON.stringify(e),
+                  )
+                  errorMessage = parts.length ? parts.join('; ') : errorMessage
                 }
               }
             } catch {
               errorMessage = errorText || errorMessage
             }
+            // Validation, auth, not-found: show the real error — do NOT replace with static exemplar
+            if (status >= 400 && status < 500) {
+              setError(errorMessage)
+              setIsStreaming(false)
+              return
+            }
+            // 5xx / gateway: allow exemplar only as a last-resort preview when the template provides one
             if (applyExemplarFallback(`Provider error: ${errorMessage}`)) {
               return
             }

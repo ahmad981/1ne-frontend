@@ -198,7 +198,7 @@ export function QuizRagBuildSection({
             step={2}
             kicker="Retrieval sources"
             title="Source materials"
-            subtitle="Choose one or more approved catalog titles. The generator retrieves grounded context from these editions first — this is the primary input for a RAG workflow."
+            subtitle="Pick any published pack in your workspace (any board or publisher). Retrieval uses indexed chunks; titles and topic strands come from pack and document metadata."
           />
         </div>
         <div className="space-y-5 p-6">
@@ -235,7 +235,31 @@ export function QuizRagBuildSection({
                 )}
               </div>
 
+              {rag.catalogError && !rag.catalogBusy && (
+                <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-950">
+                  <AlertCircle className="h-5 w-5 shrink-0 text-red-600 mt-0.5" aria-hidden />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold">Could not load catalog</p>
+                    <p className="mt-0.5 text-red-900/80 text-xs">{rag.catalogError}</p>
+                    <button
+                      type="button"
+                      onClick={rag.retryCatalog}
+                      className="mt-2 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {rag.catalogBusy && rag.filteredCatalog.length === 0 ? (
+                  <>
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-100" />
+                    ))}
+                  </>
+                ) : null}
                 {rag.filteredCatalog.map((b) => {
                   const on = rag.selectedBookIds.includes(b.id)
                   return (
@@ -285,15 +309,32 @@ export function QuizRagBuildSection({
               {rag.filteredCatalog.length === 0 && !rag.catalogBusy && (
                 <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-200 bg-gray-50 px-6 py-10 text-center">
                   <Search className="h-8 w-8 text-gray-300" aria-hidden />
-                  <p className="mt-2 text-sm font-medium text-gray-800">No catalog titles match this search</p>
-                  <p className="mt-1 max-w-sm text-xs text-gray-600">Try a shorter query or clear the search field.</p>
-                  <button
-                    type="button"
-                    onClick={() => rag.setCatalogQuery('')}
-                    className="mt-4 rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-800"
-                  >
-                    Clear search
-                  </button>
+                  {rag.catalogQuery.trim() ? (
+                    <>
+                      <p className="mt-2 text-sm font-medium text-gray-800">No catalog titles match this search</p>
+                      <p className="mt-1 max-w-sm text-xs text-gray-600">
+                        Try a shorter query, adjust subject or grade above, or clear the search field.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => rag.setCatalogQuery('')}
+                        className="mt-4 rounded-full bg-gray-900 px-4 py-2 text-xs font-semibold text-white hover:bg-gray-800"
+                      >
+                        Clear search
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mt-2 text-sm font-medium text-gray-800">No catalog titles for this subject and grade</p>
+                      <p className="mt-1 max-w-sm text-xs text-gray-600">
+                        The list only shows <span className="font-medium">active content packs</span> that include at least one{' '}
+                        <span className="font-medium">published</span> document whose pack metadata matches{' '}
+                        <span className="font-medium">{subject}</span> and <span className="font-medium">{grade}</span>. Choose a
+                        matching subject/grade, publish your material from the library, or use &quot;Generate without source
+                        materials&quot; above.
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 
@@ -350,7 +391,7 @@ export function QuizRagBuildSection({
             step={3}
             kicker="Scope definition"
             title="Topics & refinement"
-            subtitle="Multi-select topic strands that exist across your chosen titles, then add an optional free-text hint to steer retrieval."
+            subtitle="Strands come from the book's PDF outline or chapter map when available; otherwise they are grouped by page ranges. Pick one or more, then optionally narrow with the hint below."
           />
         </div>
         <div className="space-y-5 p-6">
@@ -382,12 +423,25 @@ export function QuizRagBuildSection({
                     />
                   </div>
 
+                {rag.topicsError && !rag.topicsIndexing && (
+                  <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden />
+                    <span>Topics unavailable — {rag.topicsError}</span>
+                  </div>
+                )}
+
                 {rag.topicsIndexing ? (
                   <div className="mt-3 h-24 animate-pulse rounded-xl bg-gray-100" aria-hidden />
                 ) : (
                   <div className="mt-3 max-h-44 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/50 p-2">
                     {rag.topicOptionsFiltered.length === 0 ? (
-                      <p className="px-2 py-6 text-center text-xs text-gray-600">No topics match “{rag.topicQuery.trim()}”.</p>
+                      <p className="px-2 py-6 text-center text-xs text-gray-600">
+                        {rag.topicQuery.trim()
+                          ? `No topics match "${rag.topicQuery.trim()}".`
+                          : rag.availableTopics.length === 0
+                            ? 'No topic strands returned for this selection. Try refreshing the page, or use Scope refinement below to steer generation.'
+                            : 'No topics match your filter.'}
+                      </p>
                     ) : (
                       <div className="flex flex-wrap gap-2">
                         {rag.topicOptionsFiltered.map((t) => {

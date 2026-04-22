@@ -4,6 +4,8 @@
 import React, { useState, useEffect } from 'react'
 import { Upload, FileText, X } from 'lucide-react'
 import { uploadDocument, ContentPack, DocumentUploadRequest } from '../../api/contentIngestion'
+import { TocJsonOptionalSection } from './TocJsonOptionalSection'
+import { parseChapterMapFromJson } from './tocChapterMapParse'
 
 interface DocumentUploadFormProps {
   packs: ContentPack[]
@@ -22,6 +24,7 @@ export const DocumentUploadForm = ({
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState('')
   const [author, setAuthor] = useState('')
+  const [tocJsonText, setTocJsonText] = useState('')
   const [forceOcr, setForceOcr] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -52,7 +55,14 @@ export const DocumentUploadForm = ({
       setError('Please select a file')
       return
     }
-    
+
+    const tocParsed = parseChapterMapFromJson(tocJsonText)
+    if (!tocParsed.ok) {
+      setError(tocParsed.message)
+      return
+    }
+    const chapterMap = tocParsed.empty ? undefined : tocParsed.chapters
+
     setUploading(true)
     setError(null)
     
@@ -62,6 +72,7 @@ export const DocumentUploadForm = ({
         file,
         title: title || undefined,
         author: author || undefined,
+        chapter_map: chapterMap,
         force_ocr: forceOcr,
       }
       
@@ -160,6 +171,8 @@ export const DocumentUploadForm = ({
           placeholder="Author name"
         />
       </div>
+
+      <TocJsonOptionalSection value={tocJsonText} onChange={setTocJsonText} disabled={uploading} />
       
       <div className="flex items-center">
         <input

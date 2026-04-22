@@ -24,6 +24,8 @@ import {
   ClipboardList,
   FileSpreadsheet,
   Award,
+  FolderOpen,
+  Upload,
 } from 'lucide-react';
 
 const teacherMenu = [
