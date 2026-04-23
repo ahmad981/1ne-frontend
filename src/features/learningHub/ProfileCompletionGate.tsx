@@ -90,7 +90,7 @@ export function ProfileCompletionGate() {
     setError(null)
     try {
       const data = await apiRequest<ProfileCompletionStatusResponse>(
-        '/api/v1/learning-hub/profile-completion-status'
+        '/v1/learning-hub/profile-completion-status'
       )
       setStatus(data)
     } catch (e: any) {

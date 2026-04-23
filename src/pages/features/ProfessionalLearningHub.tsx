@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Play,
@@ -144,114 +144,6 @@ const loading = false
 const filteredContinueItems: HubContinueItem[] = []
 const error = ''
 const effectiveTutorials = tutorials
-
-// ---------------------------------------------------------------------------
-// AI Personalization Loading Component
-// ---------------------------------------------------------------------------
-const AI_STEPS = [
-  { id: 'profile', label: 'Reading your teaching profile', detail: 'Subjects, grade band, goals, experience' },
-  { id: 'gaps', label: 'Identifying skill development opportunities', detail: 'Comparing your profile with learning outcomes data' },
-  { id: 'micro', label: 'Generating personalized micro-courses', detail: 'Creating 5–10 min learning units matched to your needs' },
-  { id: 'growth', label: 'Building your AI growth recommendations', detail: 'Ranking learning paths by potential impact' },
-  { id: 'tutorials', label: 'Curating AI-guided tutorials', detail: 'Selecting demos relevant to your classroom context' },
-  { id: 'rank', label: 'Ranking and scoring your content', detail: 'Applying personalization signals for best-fit ordering' },
-]
-
-function AIPersonalizationLoader() {
-  const [activeStep, setActiveStep] = useState(0)
-  const [completedSteps, setCompletedSteps] = useState<number[]>([])
-  const [dots, setDots] = useState('.')
-  const stepRef = useRef(0)
-
-  useEffect(() => {
-    const dotsInterval = setInterval(() => {
-      setDots((d) => (d.length >= 3 ? '.' : d + '.'))
-    }, 500)
-    return () => clearInterval(dotsInterval)
-  }, [])
-
-  useEffect(() => {
-    const advance = () => {
-      if (stepRef.current >= AI_STEPS.length - 1) return
-      setCompletedSteps((prev) => [...prev, stepRef.current])
-      stepRef.current += 1
-      setActiveStep(stepRef.current)
-      const next = 1800 + Math.random() * 1200
-      setTimeout(advance, next)
-    }
-    const timer = setTimeout(advance, 2000)
-    return () => clearTimeout(timer)
-  }, [])
-
-  return (
-    <div className="rounded-3xl border border-purple-100 bg-gradient-to-br from-slate-900 via-purple-950 to-slate-900 p-8 shadow-2xl text-white">
-      <div className="flex items-center gap-3 mb-8">
-        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-purple-500/20 ring-1 ring-purple-400/30">
-          <Brain className="h-5 w-5 text-purple-300" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-purple-300">AI Personalization Engine</p>
-          <p className="text-lg font-semibold text-white">Building your learning profile{dots}</p>
-        </div>
-        <div className="ml-auto">
-          <Loader2 className="h-5 w-5 text-purple-400 animate-spin" />
-        </div>
-      </div>
-
-      <div className="space-y-3">
-        {AI_STEPS.map((step, idx) => {
-          const isDone = completedSteps.includes(idx)
-          const isActive = activeStep === idx
-
-          return (
-            <div
-              key={step.id}
-              className={`flex items-start gap-3 rounded-2xl px-4 py-3 transition-all duration-500 ${
-                isActive
-                  ? 'bg-purple-500/20 ring-1 ring-purple-400/40'
-                  : isDone
-                  ? 'bg-white/5'
-                  : 'opacity-40 cursor-default'
-              }`}
-            >
-              <div className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold transition-all ${
-                isDone
-                  ? 'bg-green-500 text-white'
-                  : isActive
-                  ? 'bg-purple-400 text-white ring-2 ring-purple-400/40'
-                  : 'bg-white/10 text-white/40'
-              }`}>
-                {isDone ? '✓' : isActive ? <Loader2 className="h-3 w-3 animate-spin" /> : idx + 1}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-semibold leading-tight ${isDone ? 'text-white/70' : isActive ? 'text-white' : 'text-white/40'}`}>
-                  {step.label}
-                  {isActive && <span className="text-purple-300">{dots}</span>}
-                </p>
-                {(isActive || isDone) && (
-                  <p className={`mt-0.5 text-xs ${isDone ? 'text-white/40' : 'text-purple-300/80'}`}>
-                    {step.detail}
-                  </p>
-                )}
-              </div>
-              {isDone && (
-                <span className="mt-0.5 text-xs font-semibold text-green-400 flex-shrink-0">Done</span>
-              )}
-              {isActive && (
-                <span className="mt-0.5 text-xs font-semibold text-purple-300 flex-shrink-0 animate-pulse">In progress</span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      <div className="mt-8 flex items-center gap-2 rounded-2xl bg-white/5 px-4 py-3 text-xs text-white/50">
-        <Sparkles className="h-4 w-4 text-purple-400 flex-shrink-0" />
-        <span>Your personalized content will appear here once the AI finishes — usually within 30–60 seconds.</span>
-      </div>
-    </div>
-  )
-}
 
 type HubBootstrapPayload = {
   stage_message?: string | null
@@ -497,8 +389,9 @@ const ProfessionalLearningHub = () => {
   const hubData = useLearningHubHomeData()
   const { usingSlate, slateMode } = hubData
 
-  const showColdStart = PERSONALIZATION_ENABLED && !usingSlate && slateMode === 'no_profile'
-  useHubBootstrapOrchestration(!!showColdStart)
+  const isProfileIncomplete =
+    PERSONALIZATION_ENABLED && (hubData.isProfileIncomplete || personalizationMode === 'no_profile')
+  useHubBootstrapOrchestration(!!isProfileIncomplete)
   const hubBootstrap = useSelector(selectHubBootstrap)
   const retryStatus = useSelector(selectHubBootstrapRetryStatus)
   const showBootstrapBanner = useSelector(selectShowBootstrapBanner)
@@ -508,7 +401,7 @@ const ProfessionalLearningHub = () => {
   const canEnterHub =
     hubBootstrap?.can_enter_hub === true || hubData.pageReadinessState === 'hub_ready'
   const isHubBootstrapping =
-    PERSONALIZATION_ENABLED && !showColdStart && !canEnterHub && showBootstrapBanner && !hasReadyInventory
+    PERSONALIZATION_ENABLED && !isProfileIncomplete && !canEnterHub && showBootstrapBanner && !hasReadyInventory
 
   // Anti-stuck auto-recovery:
   // If orchestration progress does not change for 60s and backend says we're timing out,
@@ -575,11 +468,25 @@ const ProfessionalLearningHub = () => {
   // Static dummy data is only shown in cold_start mode (no profile) or when disabled.
 
   const shouldUseStaticFallback = !PERSONALIZATION_ENABLED || slateMode === 'no_profile'
+  const sectionStatusByKey: Record<string, string> = Array.isArray(sectionReadiness)
+    ? sectionReadiness.reduce((acc: Record<string, string>, r: any) => {
+        if (r?.section) acc[r.section] = String(r.status || '')
+        return acc
+      }, {})
+    : {}
+  const progressiveVisibleLimit = (section: string, fullLimit: number) => {
+    if (!hubData.usingSlate) return fullLimit
+    const status = sectionStatusByKey[section]
+    // Entry experience: surface one visible card per section until the section is fully ready.
+    return status === 'ready' ? fullLimit : 1
+  }
 
   const effectiveMicroCourses = hubData.usingSlate
     ? (hubData.microCourses
         ? dedup(
-            hubData.microCourses.visible_items.slice(0, SECTION_DISPLAY_LIMITS.micro_courses.visible).map((item: any) => ({
+            hubData.microCourses.visible_items
+              .slice(0, progressiveVisibleLimit('micro_courses', SECTION_DISPLAY_LIMITS.micro_courses.visible))
+              .map((item: any) => ({
               title: item.title || item.content_id,
               duration: item.display_meta?.duration || '',
               category: item.display_meta?.category || item.content_type || '',
@@ -604,7 +511,15 @@ const ProfessionalLearningHub = () => {
   const effectiveAiRecommendations = hubData.usingSlate
     ? (hubData.growthRecommendations
         ? dedup(
-            hubData.growthRecommendations.visible_items.slice(0, SECTION_DISPLAY_LIMITS.growth_recommendations.visible).map((item: any) => ({
+            hubData.growthRecommendations.visible_items
+              .slice(
+                0,
+                progressiveVisibleLimit(
+                  'growth_recommendations',
+                  SECTION_DISPLAY_LIMITS.growth_recommendations.visible
+                )
+              )
+              .map((item: any) => ({
               skill: item.title || item.content_id,
               reason: toUserReason(item.reason_codes),
               impact: 'High',
@@ -630,7 +545,9 @@ const ProfessionalLearningHub = () => {
   const effectiveTutorialsData = hubData.usingSlate
     ? (hubData.tutorials
         ? dedup(
-            hubData.tutorials.visible_items.slice(0, SECTION_DISPLAY_LIMITS.tutorials.visible).map((item: any) => ({
+            hubData.tutorials.visible_items
+              .slice(0, progressiveVisibleLimit('tutorials', SECTION_DISPLAY_LIMITS.tutorials.visible))
+              .map((item: any) => ({
               title: item.title || item.content_id,
               type: item.display_meta?.category || 'Tutorial',
               duration: item.display_meta?.duration || '',
@@ -657,7 +574,15 @@ const ProfessionalLearningHub = () => {
             hubData.researchInsights.visible_items,
             (item: any) => item.content_id,
             (item: any) => item.title
-          ).slice(0, SECTION_DISPLAY_LIMITS.research_insights.visible).map((item: any) => ({
+          )
+            .slice(
+              0,
+              progressiveVisibleLimit(
+                'research_insights',
+                SECTION_DISPLAY_LIMITS.research_insights.visible
+              )
+            )
+            .map((item: any) => ({
             title: item.title || item.content_id,
             summary: item.display_meta?.summary || '',
             duration: item.display_meta?.duration || '6 min read',
@@ -680,7 +605,15 @@ const ProfessionalLearningHub = () => {
             hubData.specialistTracks.visible_items,
             (item: any) => item.content_id,
             (item: any) => item.title
-          ).slice(0, SECTION_DISPLAY_LIMITS.specialist_tracks.visible).map((item: any) => ({
+          )
+            .slice(
+              0,
+              progressiveVisibleLimit(
+                'specialist_tracks',
+                SECTION_DISPLAY_LIMITS.specialist_tracks.visible
+              )
+            )
+            .map((item: any) => ({
             title: item.title || item.content_id,
             description: item.display_meta?.summary || '',
             modules: item.display_meta?.module_count || 0,
@@ -722,23 +655,28 @@ const ProfessionalLearningHub = () => {
     (hubData.specialistTracks?.locked_preview_items?.length ?? 0)
   const readySectionsCount = (hubData.minimumReadySections || []).length
   const shouldShowMicroViewAll =
+    sectionStatusByKey.micro_courses === 'ready' &&
     (hubData.microCourses?.visible_items?.length ?? 0) >= 5 &&
     (((hubData.microCourses?.visible_items?.length ?? 0) > 5) ||
       ((hubData.microCourses?.locked_preview_items?.length ?? 0) > 0))
   const shouldShowGrowthViewAll =
     growthReady &&
+    sectionStatusByKey.growth_recommendations === 'ready' &&
     (hubData.growthRecommendations?.visible_items?.length ?? 0) >= 3 &&
     (((hubData.growthRecommendations?.visible_items?.length ?? 0) > 3) ||
       ((hubData.growthRecommendations?.locked_preview_items?.length ?? 0) > 0))
   const shouldShowTutorialsViewAll =
+    sectionStatusByKey.tutorials === 'ready' &&
     (hubData.tutorials?.visible_items?.length ?? 0) >= 3 &&
     (((hubData.tutorials?.visible_items?.length ?? 0) > 3) ||
       ((hubData.tutorials?.locked_preview_items?.length ?? 0) > 0))
   const shouldShowResearchViewAll =
+    sectionStatusByKey.research_insights === 'ready' &&
     (hubData.researchInsights?.visible_items?.length ?? 0) >= 5 &&
     (((hubData.researchInsights?.visible_items?.length ?? 0) > 5) ||
       ((hubData.researchInsights?.locked_preview_items?.length ?? 0) > 0))
   const shouldShowSpecialistViewAll =
+    sectionStatusByKey.specialist_tracks === 'ready' &&
     (hubData.specialistTracks?.visible_items?.length ?? 0) >= 3 &&
     (((hubData.specialistTracks?.visible_items?.length ?? 0) > 3) ||
       ((hubData.specialistTracks?.locked_preview_items?.length ?? 0) > 0))
@@ -849,32 +787,10 @@ const ProfessionalLearningHub = () => {
     })
   }
 
-  // ─── Single-source-of-truth gate (no race condition) ────────────────────────
-  //
-  // Both `slateMode` and `usingSlate` come from the SAME Redux key
-  // (personalization.slateMode / personalization.slateSections). They update in the
-  // same atomic Redux dispatch, so they can never be inconsistent with each other.
-  //
-  // Rules:
-  //  isAIProcessing  → show the AI loader, hide ALL content sections
-  //  showColdStart   → show "complete your profile" banner + static sections
-  //
-  // slateMode === null  : API not yet resolved / cleared → treat as loading → show loader
-  // slateMode === 'initializing' : backend confirmed background job running → show loader
-  // slateMode === 'no_profile'   : backend confirmed no profile → show cold start
-  // usingSlate === true          : real sections arrived → hide loader, show grid
-  // Initial unknown state on hard refresh: do not render loader or dummy sections.
   // Wait for first slate response to avoid visible blinking.
   const isAwaitingInitialSlate = PERSONALIZATION_ENABLED && !usingSlate && slateMode === null
-  const isAIProcessing =
-    PERSONALIZATION_ENABLED &&
-    !canEnterHub &&
-    !usingSlate &&
-    showBootstrapBanner &&
-    !hasReadyInventory &&
-    (slateMode === 'initializing' || slateMode === 'partial_ready' || slateMode === 'personalized')
-  const showMainSections = !isAIProcessing && !isAwaitingInitialSlate
-  const showStaticPanels = !PERSONALIZATION_ENABLED || showColdStart
+  const showMainSections = !isAwaitingInitialSlate
+  const showStaticPanels = !PERSONALIZATION_ENABLED
   const preparingSections =
     hubData.usingSlate && Array.isArray(sectionReadiness)
       ? sectionReadiness.filter((r: any) => r.status === 'preparing' || r.status === 'partial_ready')
@@ -888,31 +804,8 @@ const ProfessionalLearningHub = () => {
   ]
   const totalVisiblePersonalized = visibleCounts.reduce((acc, n) => acc + n, 0)
 
-  const heroTitle = isAIProcessing
-    ? 'Building your personalized professional learning hub'
-    : showColdStart
-      ? 'Complete your profile to unlock your personalized learning hub'
-      : 'Grow as fast as your students — with your personalized professional learning hub'
-
-  const heroSubtitle = isAIProcessing
-    ? 'Our AI is preparing section-specific recommendations, tutorials, and next-step unlocks tailored to your profile.'
-    : showColdStart
-      ? 'Add your subjects, grade band, and goals to enable personalized recommendations and adaptive section unlocks.'
-      : `You currently have ${totalVisiblePersonalized} personalized items ready across your learning sections.`
-
-  // ─── Debounced loader visibility ─────────────────────────────────────────────
-  // Only show the AI loader after 250ms of continuous processing. This prevents
-  // a visible flash when the backend responds quickly (e.g. on navigation back
-  // where a fresh fetch resolves before the user notices the loader).
-  const [loaderVisible, setLoaderVisible] = useState(false)
-  useEffect(() => {
-    if (!isAIProcessing) {
-      setLoaderVisible(false)
-      return
-    }
-    const timer = setTimeout(() => setLoaderVisible(true), 250)
-    return () => clearTimeout(timer)
-  }, [isAIProcessing])
+  const heroTitle = 'Grow as fast as your students — with your personalized professional learning hub'
+  const heroSubtitle = `You currently have ${totalVisiblePersonalized} personalized items ready across your learning sections.`
 
   if (isHubBootstrapping) {
     const loaderPct =
@@ -936,6 +829,15 @@ const ProfessionalLearningHub = () => {
           }
           retryStatus={retryStatus}
         />
+      </div>
+    )
+  }
+
+  // Strict profile gate: when profile is insufficient, render only completion flow.
+  if (isProfileIncomplete) {
+    return (
+      <div className="space-y-8">
+        <ProfileCompletionGate />
       </div>
     )
   }
@@ -969,8 +871,6 @@ const ProfessionalLearningHub = () => {
         </div>
       )}
 
-      {showColdStart && <ProfileCompletionGate />}
-
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-8 py-10 text-white shadow-xl">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl space-y-5">
@@ -981,10 +881,10 @@ const ProfessionalLearningHub = () => {
             <p className="text-sm text-white/80">{heroSubtitle}</p>
             <div className="flex flex-wrap gap-4 text-xs font-semibold uppercase tracking-wide">
               <span className="rounded-full bg-white/15 px-3 py-1">
-                {isAIProcessing ? 'Preparing personalized content' : 'Adaptive learning plan'}
+                {'Adaptive learning plan'}
               </span>
               <span className="rounded-full bg-white/15 px-3 py-1">
-                {showColdStart ? 'Profile-driven setup' : 'Evidence-backed'}
+                {'Evidence-backed'}
               </span>
               <span className="rounded-full bg-white/15 px-3 py-1">AI-personalized</span>
             </div>
@@ -1079,10 +979,7 @@ const ProfessionalLearningHub = () => {
         </section>
       )}
 
-      {/* Loader: only renders after 250ms to avoid visible flash on fast responses */}
-      {loaderVisible && <AIPersonalizationLoader />}
-
-      {/* Grid: hidden while processing OR waiting for first slate response */}
+      {/* Grid: hidden while waiting for first slate response */}
       {showMainSections && <section className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
         <div className="space-y-6">
           <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">

@@ -558,7 +558,7 @@ const Profile = () => {
 
     const preflight = preflightAction.payload as PreflightResult;
 
-    if (preflight.severity === 'major_reset') {
+    if (preflight.requires_confirmation) {
       // Show blocking confirmation modal
       setPreflightModal({ open: true, preflight, pendingPayload: payload });
       return;

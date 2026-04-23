@@ -63,6 +63,8 @@ export interface LearningHubHomeData {
   heroReady: boolean;
   globalGenerationStage: string | null;
   globalProgressPercent: number;
+  /** Canonical frontend gate condition sourced from backend mode/completeness */
+  isProfileIncomplete: boolean;
 }
 
 export function useLearningHubHomeData(): LearningHubHomeData {
@@ -113,6 +115,7 @@ export function useLearningHubHomeData(): LearningHubHomeData {
     PERSONALIZATION_ENABLED &&
     hasSections &&
     SLATE_RENDERABLE_MODES.includes(String(slateMode || ''));
+  const isProfileIncomplete = PERSONALIZATION_ENABLED && slateMode === 'no_profile';
 
   if (usingSlate) {
     return {
@@ -130,6 +133,7 @@ export function useLearningHubHomeData(): LearningHubHomeData {
       heroReady,
       globalGenerationStage,
       globalProgressPercent,
+      isProfileIncomplete,
     };
   }
 
@@ -148,5 +152,6 @@ export function useLearningHubHomeData(): LearningHubHomeData {
     heroReady,
     globalGenerationStage,
     globalProgressPercent,
+    isProfileIncomplete,
   };
 }
