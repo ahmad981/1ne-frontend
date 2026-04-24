@@ -22,13 +22,16 @@ const SLOW_INTERVAL_MS = 10000;
 const BACKOFF_AFTER_MS = 30000;
 const STOP_AFTER_MS = 120000;
 
-export function usePersonalizationPoller(mode: PersonalizationUIMode) {
+export function usePersonalizationPoller(mode: PersonalizationUIMode, enabled: boolean = true) {
   const dispatch = useDispatch();
   const elapsedRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showTakingLonger, setShowTakingLonger] = useState(false);
 
-  const shouldPoll = PERSONALIZATION_ENABLED && (mode === 'initializing' || mode === 'partial_ready');
+  const shouldPoll =
+    PERSONALIZATION_ENABLED &&
+    enabled &&
+    (mode === 'initializing' || mode === 'partial_ready');
 
   useEffect(() => {
     if (!shouldPoll) {

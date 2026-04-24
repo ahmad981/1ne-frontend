@@ -30,10 +30,12 @@ function getAuthToken(): string | null {
  */
 export function useHubBootstrapSSE(enabled: boolean): {
   connected: boolean;
+  fallbackPolling: boolean;
   error: string | null;
 } {
   const dispatch = useDispatch();
   const [connected, setConnected] = useState(false);
+  const [fallbackPolling, setFallbackPolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Stable ref so the async SSE loop can read the latest abort state.
@@ -50,11 +52,13 @@ export function useHubBootstrapSSE(enabled: boolean): {
         clearInterval(pollRef.current);
         pollRef.current = null;
       }
+      setFallbackPolling(false);
     }
 
     function startPolling() {
       stopPolling();
       // Fire immediately then on interval.
+      setFallbackPolling(true);
       dispatch(fetchLearningHubSlate() as any);
       pollRef.current = setInterval(() => {
         dispatch(fetchLearningHubSlate() as any);
@@ -93,6 +97,7 @@ export function useHubBootstrapSSE(enabled: boolean): {
         if (!active) return;
 
         setConnected(true);
+        setFallbackPolling(false);
         setError(null);
 
         const reader = response.body.getReader();
@@ -141,6 +146,7 @@ export function useHubBootstrapSSE(enabled: boolean): {
     return () => {
       active = false;
       setConnected(false);
+      setFallbackPolling(false);
       abortRef.current?.abort();
       abortRef.current = null;
       stopPolling();
@@ -149,5 +155,5 @@ export function useHubBootstrapSSE(enabled: boolean): {
     // showBootstrapBanner) — re-run whenever any of them changes.
   }, [enabled, dispatch]);
 
-  return { connected, error };
+  return { connected, fallbackPolling, error };
 }

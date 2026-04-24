@@ -25,22 +25,26 @@ export function useHubBootstrapOrchestration(showColdStart: boolean) {
   // SSE is the primary transport while bootstrapping is in progress.
   const sseEnabled =
     PERSONALIZATION_ENABLED && !showColdStart && !canEnterHub && showBootstrapBanner;
-  const { connected: sseConnected } = useHubBootstrapSSE(sseEnabled);
+  const { connected: sseConnected, fallbackPolling: sseFallbackPolling } = useHubBootstrapSSE(sseEnabled);
 
   // Polling interval is the fallback: only runs when SSE is not connected.
   useEffect(() => {
-    if (!PERSONALIZATION_ENABLED || showColdStart || canEnterHub) return;
+    if (!PERSONALIZATION_ENABLED || showColdStart || canEnterHub || !showBootstrapBanner) return;
     // SSE is live — skip polling to avoid redundant fetches.
-    if (sseConnected) return;
+    if (sseConnected || sseFallbackPolling) return;
     const id = window.setInterval(() => {
       dispatch(fetchLearningHubSlate());
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [dispatch, showColdStart, canEnterHub, sseConnected]);
+  }, [dispatch, showColdStart, canEnterHub, sseConnected, sseFallbackPolling, showBootstrapBanner]);
 
   useEffect(() => {
     if (hubBootstrap?.can_enter_hub) {
       dispatch(fetchLearningHubSlate());
     }
   }, [dispatch, hubBootstrap?.can_enter_hub]);
+
+  const bootstrapPollingActive =
+    sseEnabled && (sseConnected || sseFallbackPolling || !canEnterHub);
+  return { bootstrapPollingActive };
 }

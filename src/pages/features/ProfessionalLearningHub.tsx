@@ -383,7 +383,6 @@ const ProfessionalLearningHub = () => {
   const dispatch = useDispatch()
   const { mode: personalizationMode, sectionReadiness } = usePersonalizationStatus()
   const { trackCardClick, trackContentStart } = useActivityTracker()
-  usePersonalizationPoller(personalizationMode)
 
   // Backend slate data (when PERSONALIZATION_ENABLED=true and slate is available)
   const hubData = useLearningHubHomeData()
@@ -391,7 +390,8 @@ const ProfessionalLearningHub = () => {
 
   const isProfileIncomplete =
     PERSONALIZATION_ENABLED && (hubData.isProfileIncomplete || personalizationMode === 'no_profile')
-  useHubBootstrapOrchestration(!!isProfileIncomplete)
+  const { bootstrapPollingActive } = useHubBootstrapOrchestration(!!isProfileIncomplete)
+  usePersonalizationPoller(personalizationMode, !bootstrapPollingActive)
   const hubBootstrap = useSelector(selectHubBootstrap)
   const retryStatus = useSelector(selectHubBootstrapRetryStatus)
   const showBootstrapBanner = useSelector(selectShowBootstrapBanner)
@@ -655,31 +655,15 @@ const ProfessionalLearningHub = () => {
     (hubData.specialistTracks?.locked_preview_items?.length ?? 0)
   const readySectionsCount = (hubData.minimumReadySections || []).length
   const shouldShowMicroViewAll =
-    sectionStatusByKey.micro_courses === 'ready' &&
-    (hubData.microCourses?.visible_items?.length ?? 0) >= 5 &&
-    (((hubData.microCourses?.visible_items?.length ?? 0) > 5) ||
-      ((hubData.microCourses?.locked_preview_items?.length ?? 0) > 0))
+    sectionStatusByKey.micro_courses === 'ready'
   const shouldShowGrowthViewAll =
-    growthReady &&
-    sectionStatusByKey.growth_recommendations === 'ready' &&
-    (hubData.growthRecommendations?.visible_items?.length ?? 0) >= 3 &&
-    (((hubData.growthRecommendations?.visible_items?.length ?? 0) > 3) ||
-      ((hubData.growthRecommendations?.locked_preview_items?.length ?? 0) > 0))
+    sectionStatusByKey.growth_recommendations === 'ready'
   const shouldShowTutorialsViewAll =
-    sectionStatusByKey.tutorials === 'ready' &&
-    (hubData.tutorials?.visible_items?.length ?? 0) >= 3 &&
-    (((hubData.tutorials?.visible_items?.length ?? 0) > 3) ||
-      ((hubData.tutorials?.locked_preview_items?.length ?? 0) > 0))
+    sectionStatusByKey.tutorials === 'ready'
   const shouldShowResearchViewAll =
-    sectionStatusByKey.research_insights === 'ready' &&
-    (hubData.researchInsights?.visible_items?.length ?? 0) >= 5 &&
-    (((hubData.researchInsights?.visible_items?.length ?? 0) > 5) ||
-      ((hubData.researchInsights?.locked_preview_items?.length ?? 0) > 0))
+    sectionStatusByKey.research_insights === 'ready'
   const shouldShowSpecialistViewAll =
-    sectionStatusByKey.specialist_tracks === 'ready' &&
-    (hubData.specialistTracks?.visible_items?.length ?? 0) >= 3 &&
-    (((hubData.specialistTracks?.visible_items?.length ?? 0) > 3) ||
-      ((hubData.specialistTracks?.locked_preview_items?.length ?? 0) > 0))
+    sectionStatusByKey.specialist_tracks === 'ready'
   // In personalized mode, always show sections that exist in the slate (even if currently empty)
   // so users see generating/preparing states rather than sections silently disappearing.
   const shouldShowTutorials = displayedTutorials.length > 0 || (hubData.usingSlate && hubData.tutorials != null)
@@ -807,6 +791,14 @@ const ProfessionalLearningHub = () => {
   const heroTitle = 'Grow as fast as your students — with your personalized professional learning hub'
   const heroSubtitle = `You currently have ${totalVisiblePersonalized} personalized items ready across your learning sections.`
 
+  if (isProfileIncomplete) {
+    return (
+      <div className="space-y-8">
+        <ProfileCompletionGate />
+      </div>
+    )
+  }
+
   if (isHubBootstrapping) {
     const loaderPct =
       hubBootstrap?.progress_percent ??
@@ -829,15 +821,6 @@ const ProfessionalLearningHub = () => {
           }
           retryStatus={retryStatus}
         />
-      </div>
-    )
-  }
-
-  // Strict profile gate: when profile is insufficient, render only completion flow.
-  if (isProfileIncomplete) {
-    return (
-      <div className="space-y-8">
-        <ProfileCompletionGate />
       </div>
     )
   }
