@@ -46,7 +46,7 @@ const teacherMenu = [
     ],
   },
   // Templates hidden in demo navigation for now (route preserved for phase-2 re-enable).
-  { path: '/templates', text: 'Templates Library', icon: FileText },
+  { path: '/templates', text: 'Templates Library', icon: FileText }, 
   { path: '/worksheets/generate', text: 'Worksheet Generator', icon: ClipboardList, moduleName: 'Worksheet Generator' },
   { path: '/chatbots', text: 'Specialized Chatbots', icon: MessageSquare },
   { path: '/youtube-quiz', text: 'YouTube Quiz Generator', icon: Youtube },
