@@ -74,6 +74,11 @@ export default function ExamList() {
       if (tab === 'Completed' && e.status !== 'completed') return false
       if (tab === 'Draft' && e.status !== 'draft') return false
       if (tab === 'Archived' && e.status !== 'archived') return false
+      if (tab === 'Ongoing') {
+        if (e.status !== 'scheduled') return false
+        const start = e.scheduleStart ? new Date(e.scheduleStart) : null
+        if (!start || start > new Date()) return false
+      }
       if (e.scheduleStart) {
         const day = e.scheduleStart.slice(0, 10)
         if (filters.dateFrom && day < filters.dateFrom) return false

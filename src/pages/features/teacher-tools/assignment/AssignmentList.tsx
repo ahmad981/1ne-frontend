@@ -74,6 +74,20 @@ export default function AssignmentList() {
       if (tab === 'Graded' && a.graded === 0) return false
       if (tab === 'Archived' && a.status !== 'archived') return false
       if (tab === 'Draft' && a.status !== 'draft') return false
+      if (tab === 'Due Soon') {
+        if (a.status === 'archived' || a.status === 'graded') return false
+        if (!a.dueAt) return false
+        const due = new Date(a.dueAt)
+        const now = new Date()
+        const in7 = new Date(now)
+        in7.setDate(in7.getDate() + 7)
+        if (due < now || due > in7) return false
+      }
+      if (tab === 'Overdue') {
+        if (a.status === 'archived' || a.status === 'graded') return false
+        if (!a.dueAt) return false
+        if (new Date(a.dueAt) >= new Date()) return false
+      }
       if (a.dueAt) {
         const day = a.dueAt.slice(0, 10)
         if (filters.dateFrom && day < filters.dateFrom) return false

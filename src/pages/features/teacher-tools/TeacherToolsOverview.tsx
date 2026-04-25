@@ -4,7 +4,6 @@ import {
   BarChart3,
   Calendar,
   ClipboardCheck,
-  FileText,
   Layers,
   Plus,
   Sparkles,
@@ -398,7 +397,7 @@ export default function TeacherToolsOverview() {
             )}
           </section>
 
-          <section className="grid gap-6 lg:grid-cols-2">
+          <section className="grid gap-6">
             <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900">Continue editing</h3>
               <p className="mt-0.5 text-xs text-gray-500">Drafts in your library — opens the editor.</p>
@@ -421,16 +420,6 @@ export default function TeacherToolsOverview() {
               {filteredDrafts.length === 0 && (
                 <p className="mt-2 text-sm text-gray-500">No drafts match these filters.</p>
               )}
-            </div>
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900">Reusable templates</h3>
-              <p className="mt-1 text-sm text-gray-600">Jump to the template library for quick reuse.</p>
-              <Link
-                to="/teacher-tools/templates"
-                className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-500"
-              >
-                <FileText className="h-4 w-4" /> Open templates
-              </Link>
             </div>
           </section>
 

@@ -40,10 +40,12 @@ const teacherMenu = [
       { path: '/teacher-tools/assignment', text: 'Assignment', icon: ClipboardList },
       { path: '/teacher-tools/worksheet', text: 'Worksheet', icon: FileSpreadsheet },
       { path: '/teacher-tools/exams', text: 'Exams', icon: Award },
-      { path: '/teacher-tools/templates', text: 'Templates', icon: FileText },
+      // Templates hidden from demo nav — route/code preserved, re-enable by uncommenting:
+      // { path: '/teacher-tools/templates', text: 'Templates', icon: FileText },
       { path: '/teacher-tools/analytics', text: 'Analytics', icon: BarChart3 },
     ],
   },
+  // Templates hidden in demo navigation for now (route preserved for phase-2 re-enable).
   { path: '/templates', text: 'Templates Library', icon: FileText },
   { path: '/worksheets/generate', text: 'Worksheet Generator', icon: ClipboardList, moduleName: 'Worksheet Generator' },
   { path: '/chatbots', text: 'Specialized Chatbots', icon: MessageSquare },
