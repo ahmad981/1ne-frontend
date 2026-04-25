@@ -332,7 +332,7 @@ export const DocumentDetails = () => {
           </div>
         )}
         
-        {RETRYABLE_STATUSES.has(document.status) && (
+        {document.status === 'failed' && (
           <div
             className={`bg-white rounded-lg shadow p-6 mb-6 ${
               document.status === 'failed' ? '' : 'border border-amber-200 bg-amber-50/40'
