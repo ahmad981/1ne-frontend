@@ -20,6 +20,16 @@ type SectionItem = {
   }
 }
 
+type SectionResponse = {
+  section: string
+  visible_items: SectionItem[]
+  locked_preview_items: SectionItem[]
+  reserve_items: SectionItem[]
+  total?: number
+  total_assigned?: number
+  total_exposed?: number
+}
+
 const sectionTitle: Record<string, string> = {
   micro_courses: 'Personalized Micro-Courses',
   growth_recommendations: 'AI Growth Recommendations',
@@ -32,6 +42,7 @@ export default function LearningHubSectionViewAllPage() {
   const navigate = useNavigate()
   const { section } = useParams()
   const [items, setItems] = useState<SectionItem[]>([])
+  const [sectionPayload, setSectionPayload] = useState<SectionResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +54,7 @@ export default function LearningHubSectionViewAllPage() {
       try {
         const { data } = await axiosInstance.get(`/api/v1/learning-hub/sections/${section}`)
         if (!mounted) return
+        setSectionPayload(data)
         const merged: SectionItem[] = [
           ...(data.visible_items || []),
           ...(data.locked_preview_items || []),
@@ -69,7 +81,7 @@ export default function LearningHubSectionViewAllPage() {
   }, [items])
 
   const openItem = (item: SectionItem) => {
-    if (!item.route || item.locked) return
+    if (item.locked || !item.route) return
     navigate(item.route, {
       state: {
         content_id: item.content_id,
@@ -97,6 +109,14 @@ export default function LearningHubSectionViewAllPage() {
 
       {!loading && !error && (
         <div className="space-y-6">
+          {sectionPayload && (
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
+              Showing {sectionPayload.total_exposed ?? items.length} items available to UI
+              {(sectionPayload.total_assigned ?? 0) > (sectionPayload.total_exposed ?? items.length)
+                ? ` (${sectionPayload.total_assigned} assigned in backend, some filtered by backend rules)`
+                : ''}
+            </div>
+          )}
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Available now</h2>
             <div className="mt-3 space-y-3">
@@ -132,6 +152,12 @@ export default function LearningHubSectionViewAllPage() {
               {grouped.locked.length === 0 && <p className="text-sm text-gray-400">No locked preview items.</p>}
             </div>
           </section>
+
+          {items.some((i) => !i.route && !i.locked) && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              Some unlocked items are still preparing routes. Refresh shortly to open them.
+            </div>
+          )}
 
         </div>
       )}

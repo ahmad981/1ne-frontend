@@ -121,6 +121,10 @@ export function useHubBootstrapSSE(enabled: boolean): {
               }
               if (json.can_enter_hub) {
                 // Hub is ready — stop everything.
+                setConnected(false);
+                setFallbackPolling(false);
+                // Pull one final authoritative home payload to avoid transition flicker.
+                dispatch(fetchLearningHubSlate() as any);
                 controller.abort();
                 return;
               }

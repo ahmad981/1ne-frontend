@@ -19,24 +19,26 @@ export function useHubBootstrapOrchestration(showColdStart: boolean) {
   const hubBootstrap = useSelector(selectHubBootstrap);
   const pageReadiness = useSelector((s) => s.personalization?.pageReadinessState);
   const showBootstrapBanner = useSelector((s) => s.personalization?.showBootstrapBanner ?? false);
+  const gateState = useSelector((s) => s.personalization?.hubGateState ?? 'bootstrapping');
   const canEnterHub =
     hubBootstrap?.can_enter_hub === true || pageReadiness === 'hub_ready';
+  const shouldKeepBootstrapTransport = gateState === 'bootstrapping' && !canEnterHub;
 
   // SSE is the primary transport while bootstrapping is in progress.
   const sseEnabled =
-    PERSONALIZATION_ENABLED && !showColdStart && !canEnterHub && showBootstrapBanner;
+    PERSONALIZATION_ENABLED && !showColdStart && shouldKeepBootstrapTransport;
   const { connected: sseConnected, fallbackPolling: sseFallbackPolling } = useHubBootstrapSSE(sseEnabled);
 
   // Polling interval is the fallback: only runs when SSE is not connected.
   useEffect(() => {
-    if (!PERSONALIZATION_ENABLED || showColdStart || canEnterHub || !showBootstrapBanner) return;
+    if (!PERSONALIZATION_ENABLED || showColdStart || canEnterHub || !shouldKeepBootstrapTransport) return;
     // SSE is live — skip polling to avoid redundant fetches.
     if (sseConnected || sseFallbackPolling) return;
     const id = window.setInterval(() => {
       dispatch(fetchLearningHubSlate());
     }, POLL_MS);
     return () => window.clearInterval(id);
-  }, [dispatch, showColdStart, canEnterHub, sseConnected, sseFallbackPolling, showBootstrapBanner]);
+  }, [dispatch, showColdStart, canEnterHub, sseConnected, sseFallbackPolling, shouldKeepBootstrapTransport]);
 
   useEffect(() => {
     if (hubBootstrap?.can_enter_hub) {

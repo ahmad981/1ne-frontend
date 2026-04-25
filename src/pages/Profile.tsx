@@ -21,6 +21,7 @@ import {
   clearPreflightResult,
   resetPersonalization,
   clearHubSyncStatus,
+  clearSlateMode,
 } from '../redux/features/personalization/personalizationSlice';
 import { PersonalizationImpactModal } from '../features/personalization/PersonalizationImpactModal';
 import type { PreflightResult } from '../features/personalization/PersonalizationImpactModal';
@@ -509,6 +510,8 @@ const Profile = () => {
       const sync = result.payload?.personalization_sync;
       if (PERSONALIZATION_ENABLED) {
         if (sync && sync.status === 'queued') {
+          // Clear stale mode immediately so hub gating does not transiently read old ready-state.
+          dispatch(clearSlateMode());
           toast.success('Profile saved.');
           if (severity === 'major_reset' || sync.severity === 'major_reset') {
             toast.info('Rebuilding your personalized recommendations…');

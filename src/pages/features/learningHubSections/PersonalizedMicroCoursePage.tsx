@@ -11,6 +11,7 @@ const PersonalizedMicroCoursePage = () => {
   const location = useLocation()
   const [backendItem, setBackendItem] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const contentId = (location?.state as any)?.content_id
   const assignmentId = (location?.state as any)?.assignment_id
 
@@ -18,6 +19,7 @@ const PersonalizedMicroCoursePage = () => {
     let mounted = true
     const run = async () => {
       if (!contentId) {
+        setDetailError('This page was opened without a backend content identifier. Open it from the Learning Hub to load the latest personalized content.')
         setLoading(false)
         return
       }
@@ -42,7 +44,7 @@ const PersonalizedMicroCoursePage = () => {
           })
         }
       } catch {
-        // fallback below
+        setDetailError('This item is still generating or unavailable right now.')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -60,6 +62,20 @@ const PersonalizedMicroCoursePage = () => {
   }
 
   if (!item || !item.personalizedMicroCourseContent) {
+    if (detailError) {
+      return (
+        <div className='p-6 space-y-3'>
+          <p className='text-sm text-amber-700'>{detailError}</p>
+          <button
+            type='button'
+            onClick={() => window.history.back()}
+            className='rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 hover:bg-gray-50'
+          >
+            Back
+          </button>
+        </div>
+      )
+    }
     return <Navigate to='/learning-hub' replace />
   }
 

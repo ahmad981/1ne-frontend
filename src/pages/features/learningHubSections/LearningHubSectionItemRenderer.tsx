@@ -17,6 +17,7 @@ const LearningHubSectionItemRenderer = ({ sectionKey }: LearningHubSectionItemRe
   const location = useLocation()
   const [backendItem, setBackendItem] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [detailError, setDetailError] = useState<string | null>(null)
   const contentId = (location?.state as any)?.content_id
   const assignmentId = (location?.state as any)?.assignment_id
 
@@ -24,6 +25,7 @@ const LearningHubSectionItemRenderer = ({ sectionKey }: LearningHubSectionItemRe
     let mounted = true
     const run = async () => {
       if (!contentId) {
+        setDetailError('This page was opened without backend identifiers. Open it from Learning Hub cards to load the latest item.')
         setLoading(false)
         return
       }
@@ -50,7 +52,7 @@ const LearningHubSectionItemRenderer = ({ sectionKey }: LearningHubSectionItemRe
           specialistDeepDiveContent: payload.specialistDeepDiveContent || payload.specialist_deep_dive_content,
         })
       } catch {
-        // no-op; fallback below
+        setDetailError('This item is still generating or unavailable right now.')
       } finally {
         if (mounted) setLoading(false)
       }
@@ -68,6 +70,20 @@ const LearningHubSectionItemRenderer = ({ sectionKey }: LearningHubSectionItemRe
   }
 
   if (!item) {
+    if (detailError) {
+      return (
+        <div className='p-6 space-y-3'>
+          <p className='text-sm text-amber-700'>{detailError}</p>
+          <button
+            type='button'
+            onClick={() => window.history.back()}
+            className='rounded-full border border-gray-300 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-700 hover:bg-gray-50'
+          >
+            Back
+          </button>
+        </div>
+      )
+    }
     return <Navigate to='/learning-hub' replace />
   }
 

@@ -150,6 +150,51 @@ export const fetchLearningHubSlate = createAsyncThunk(
 const delay = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * Canonical gate-state derivation for Learning Hub.
+ * Keeps reducer flags and UI selectors consistent with the same precedence:
+ * profile_incomplete > hub_ready > bootstrapping > fallback.
+ */
+function deriveHubGateSignals({
+  hubBootstrap,
+  pageReadinessState,
+  heroReady,
+  orchestration,
+  hubSyncStatus,
+  slateMode,
+}) {
+  const profileIncomplete = slateMode === 'no_profile';
+  if (profileIncomplete) {
+    return {
+      gateState: 'profile_gate',
+      isProfileIncomplete: true,
+      isHubReady: false,
+      shouldShowBootstrap: false,
+      hasReadyInventory: false,
+    };
+  }
+
+  const hbCanEnter = hubBootstrap?.can_enter_hub === true;
+  const orchCanEnter = orchestration?.can_enter_hub === true;
+  const pageReady = pageReadinessState === 'hub_ready';
+  const heroReadyBool = heroReady === true;
+  const isHubReady = hbCanEnter || orchCanEnter || pageReady || heroReadyBool;
+
+  const hbBootstrap = hubBootstrap?.show_bootstrap_banner === true;
+  const pageBootstrapping = pageReadinessState === 'hub_bootstrapping';
+  const syncing = hubSyncStatus === 'updating';
+  const shouldShowBootstrap = !isHubReady && (hbBootstrap || pageBootstrapping || syncing);
+
+  const gateState = isHubReady ? 'hub_ready' : 'bootstrapping';
+  return {
+    gateState,
+    isProfileIncomplete: false,
+    isHubReady,
+    shouldShowBootstrap,
+    hasReadyInventory: isHubReady || !shouldShowBootstrap,
+  };
+}
+
+/**
  * After profile or teacher-identity mutation, poll hub home until personalization output advances.
  * `receipt` comes from API `personalization_sync` or a synthetic baseline for DELETE flows.
  */
@@ -226,6 +271,7 @@ const initialState = {
   showBootstrapBanner: false,
   /** Extracted from hub_bootstrap: true when backend has ready inventory for the hub */
   hasReadyInventory: false,
+  hubGateState: 'bootstrapping',
 
   // Retry button / auto-recovery state for bootstrapping
   hubBootstrapRetryStatus: 'idle', // idle | loading | succeeded | failed
@@ -263,6 +309,15 @@ const personalizationSlice = createSlice({
       state.pageReadinessState = action.payload.page_readiness_state ?? state.pageReadinessState;
       state.showBootstrapBanner = action.payload.show_bootstrap_banner ?? state.showBootstrapBanner;
       state.hasReadyInventory = action.payload.has_ready_inventory ?? state.hasReadyInventory;
+      const derivedSignals = deriveHubGateSignals({
+        hubBootstrap: state.hubBootstrap,
+        pageReadinessState: state.pageReadinessState,
+        heroReady: state.heroReady,
+        orchestration: state.hubBootstrap,
+        hubSyncStatus: state.hubSyncStatus,
+        slateMode: state.slateMode,
+      });
+      state.hubGateState = derivedSignals.gateState;
       if (action.payload.can_enter_hub) {
         state.slateMode = 'personalized';
       }
@@ -360,13 +415,8 @@ const personalizationSlice = createSlice({
         const hb = action.payload.hub_bootstrap;
         if (hb && typeof hb === 'object') {
           state.hubBootstrap = hb;
-          state.showBootstrapBanner = hb.show_bootstrap_banner ?? false;
-          state.hasReadyInventory = hb.has_ready_inventory ?? false;
         } else {
-          // No hub_bootstrap in response → hub is in personalized/ready state, not orchestrating.
-          // Clear banner flags so stale true values from a prior orchestration session don't persist.
-          state.showBootstrapBanner = false;
-          state.hasReadyInventory = true;
+          // hub_bootstrap missing: derive ready/bootstrap from stable backend readiness signals.
           const orch = action.payload.orchestration;
           if (orch) {
             state.hubBootstrap = {
@@ -380,7 +430,26 @@ const personalizationSlice = createSlice({
           } else {
             state.hubBootstrap = null;
           }
+          const derivedSignals = deriveHubGateSignals({
+            hubBootstrap: state.hubBootstrap,
+            pageReadinessState: state.pageReadinessState,
+            heroReady: state.heroReady,
+            orchestration: orch,
+            hubSyncStatus: state.hubSyncStatus,
+            slateMode: state.slateMode,
+          });
         }
+        const gateSignals = deriveHubGateSignals({
+          hubBootstrap: state.hubBootstrap,
+          pageReadinessState: state.pageReadinessState,
+          heroReady: state.heroReady,
+          orchestration: action.payload.orchestration ?? null,
+          hubSyncStatus: state.hubSyncStatus,
+          slateMode: state.slateMode,
+        });
+        state.hubGateState = gateSignals.gateState;
+        state.showBootstrapBanner = gateSignals.shouldShowBootstrap;
+        state.hasReadyInventory = gateSignals.hasReadyInventory;
       })
       .addCase(fetchLearningHubSlate.rejected, (state, action) => {
         state.slateStatus = 'failed';
@@ -486,5 +555,45 @@ export const selectSectionReadinessStatus = (section) => (state) => {
 export const selectHubBootstrapRetryStatus = (state) =>
   state.personalization?.hubBootstrapRetryStatus ?? 'idle';
 
-export const selectShowBootstrapBanner = (state) => state.personalization?.showBootstrapBanner ?? false;
-export const selectHasReadyInventory = (state) => state.personalization?.hasReadyInventory ?? false;
+export const selectIsHubReady = (state) => {
+  const p = state.personalization ?? {};
+  return deriveHubGateSignals({
+    hubBootstrap: p.hubBootstrap ?? null,
+    pageReadinessState: p.pageReadinessState ?? null,
+    heroReady: !!p.heroReady,
+    orchestration: p.hubBootstrap ?? null,
+    hubSyncStatus: p.hubSyncStatus ?? 'idle',
+    slateMode: p.slateMode ?? null,
+  });
+  return signals.gateState === 'hub_ready';
+};
+
+export const selectShouldShowBootstrap = (state) => {
+  const p = state.personalization ?? {};
+  return deriveHubGateSignals({
+    hubBootstrap: p.hubBootstrap ?? null,
+    pageReadinessState: p.pageReadinessState ?? null,
+    heroReady: !!p.heroReady,
+    orchestration: p.hubBootstrap ?? null,
+    hubSyncStatus: p.hubSyncStatus ?? 'idle',
+    slateMode: p.slateMode ?? null,
+  });
+  return signals.gateState === 'bootstrapping' && signals.shouldShowBootstrap;
+};
+
+export const selectHasReadyInventory = (state) => {
+  const p = state.personalization ?? {};
+  return deriveHubGateSignals({
+    hubBootstrap: p.hubBootstrap ?? null,
+    pageReadinessState: p.pageReadinessState ?? null,
+    heroReady: !!p.heroReady,
+    orchestration: p.hubBootstrap ?? null,
+    hubSyncStatus: p.hubSyncStatus ?? 'idle',
+    slateMode: p.slateMode ?? null,
+  }).hasReadyInventory;
+};
+
+export const selectHubGateState = (state) =>
+  state.personalization?.hubGateState ?? 'bootstrapping';
+
+export const selectShowBootstrapBanner = selectShouldShowBootstrap;

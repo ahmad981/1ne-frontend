@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import {
   Play,
@@ -29,7 +29,8 @@ import {
   retryLearningHubBootstrap,
   selectHubBootstrap,
   selectHubBootstrapRetryStatus,
-  selectShowBootstrapBanner,
+  selectShouldShowBootstrap,
+  selectHubGateState,
   selectHasReadyInventory,
   fetchLearningHubSlate,
   clearHubSyncStatus,
@@ -394,14 +395,74 @@ const ProfessionalLearningHub = () => {
   usePersonalizationPoller(personalizationMode, !bootstrapPollingActive)
   const hubBootstrap = useSelector(selectHubBootstrap)
   const retryStatus = useSelector(selectHubBootstrapRetryStatus)
-  const showBootstrapBanner = useSelector(selectShowBootstrapBanner)
+  const shouldShowBootstrap = useSelector(selectShouldShowBootstrap)
+  const hubGateState = useSelector(selectHubGateState)
   const hasReadyInventory = useSelector(selectHasReadyInventory)
   const hubSyncStatus = useSelector((state: any) => state.personalization?.hubSyncStatus ?? 'idle')
   const hubSyncError = useSelector((state: any) => state.personalization?.hubSyncError ?? null)
-  const canEnterHub =
-    hubBootstrap?.can_enter_hub === true || hubData.pageReadinessState === 'hub_ready'
+  const backendCanEnterHub = hubGateState === 'hub_ready'
+  const [stickyHubReady, setStickyHubReady] = useState<boolean>(backendCanEnterHub)
+  const lastBootstrapSessionRef = useRef<string | null>(hubBootstrap?.orchestration_session_id ?? null)
+  useEffect(() => {
+    if (backendCanEnterHub) {
+      setStickyHubReady(true)
+      return
+    }
+    const nextSessionId = hubBootstrap?.orchestration_session_id ?? null
+    const sessionChanged =
+      nextSessionId !== lastBootstrapSessionRef.current &&
+      nextSessionId != null
+    if (sessionChanged) {
+      // New orchestration session started (profile update/reset): allow purple gate again.
+      setStickyHubReady(false)
+    }
+    if (isProfileIncomplete) {
+      setStickyHubReady(false)
+    }
+    if (hubSyncStatus === 'updating') {
+      // Profile updates start a new personalization run; allow purple bootstrap
+      // to reappear instead of staying pinned in hub-ready mode.
+      setStickyHubReady(false)
+    }
+    lastBootstrapSessionRef.current = nextSessionId
+  }, [backendCanEnterHub, hubBootstrap?.orchestration_session_id, hubSyncStatus, isProfileIncomplete])
+  const canEnterHub = backendCanEnterHub || (stickyHubReady && !shouldShowBootstrap)
   const isHubBootstrapping =
-    PERSONALIZATION_ENABLED && !isProfileIncomplete && !canEnterHub && showBootstrapBanner && !hasReadyInventory
+    PERSONALIZATION_ENABLED &&
+    !isProfileIncomplete &&
+    !canEnterHub &&
+    shouldShowBootstrap &&
+    !hasReadyInventory
+  const prevHubSyncStatusRef = useRef(hubSyncStatus)
+
+  useEffect(() => {
+    if (!PERSONALIZATION_ENABLED || !import.meta.env.DEV) return
+    // Dev-only gate diagnostics while validating profile-update orchestration transitions.
+    console.info('[learning-hub-gate]', {
+      isProfileIncomplete,
+      isHubBootstrapping,
+      canEnterHub,
+      shouldShowBootstrap,
+      hasReadyInventory,
+      hubSyncStatus,
+    })
+    if (
+      prevHubSyncStatusRef.current === 'updating' &&
+      hubSyncStatus === 'idle' &&
+      canEnterHub &&
+      !isHubBootstrapping
+    ) {
+      console.info('[learning-hub-metric] bootstrapping_skipped_to_ready_after_profile_update')
+    }
+    prevHubSyncStatusRef.current = hubSyncStatus
+  }, [
+    canEnterHub,
+    hasReadyInventory,
+    hubSyncStatus,
+    isHubBootstrapping,
+    isProfileIncomplete,
+    shouldShowBootstrap,
+  ])
 
   // Anti-stuck auto-recovery:
   // If orchestration progress does not change for 60s and backend says we're timing out,
@@ -474,11 +535,10 @@ const ProfessionalLearningHub = () => {
         return acc
       }, {})
     : {}
-  const progressiveVisibleLimit = (section: string, fullLimit: number) => {
-    if (!hubData.usingSlate) return fullLimit
-    const status = sectionStatusByKey[section]
-    // Entry experience: surface one visible card per section until the section is fully ready.
-    return status === 'ready' ? fullLimit : 1
+  const progressiveVisibleLimit = (_section: string, fullLimit: number) => {
+    // Show full available visible inventory immediately (up to display caps),
+    // even when section readiness is still partial/preparing.
+    return fullLimit
   }
 
   const effectiveMicroCourses = hubData.usingSlate
@@ -654,16 +714,16 @@ const ProfessionalLearningHub = () => {
     (hubData.researchInsights?.locked_preview_items?.length ?? 0) +
     (hubData.specialistTracks?.locked_preview_items?.length ?? 0)
   const readySectionsCount = (hubData.minimumReadySections || []).length
-  const shouldShowMicroViewAll =
-    sectionStatusByKey.micro_courses === 'ready'
-  const shouldShowGrowthViewAll =
-    sectionStatusByKey.growth_recommendations === 'ready'
-  const shouldShowTutorialsViewAll =
-    sectionStatusByKey.tutorials === 'ready'
-  const shouldShowResearchViewAll =
-    sectionStatusByKey.research_insights === 'ready'
-  const shouldShowSpecialistViewAll =
-    sectionStatusByKey.specialist_tracks === 'ready'
+  const sectionHasVisibleItems = (sectionData: any) =>
+    (sectionData?.visible_items?.length ?? 0) > 0
+  const sectionAllowsViewAll = (key: string, sectionData: any) =>
+    sectionStatusByKey[key] === 'ready' ||
+    (sectionStatusByKey[key] === 'partial_ready' && sectionHasVisibleItems(sectionData))
+  const shouldShowMicroViewAll = sectionAllowsViewAll('micro_courses', hubData.microCourses)
+  const shouldShowGrowthViewAll = sectionAllowsViewAll('growth_recommendations', hubData.growthRecommendations)
+  const shouldShowTutorialsViewAll = sectionAllowsViewAll('tutorials', hubData.tutorials)
+  const shouldShowResearchViewAll = sectionAllowsViewAll('research_insights', hubData.researchInsights)
+  const shouldShowSpecialistViewAll = sectionAllowsViewAll('specialist_tracks', hubData.specialistTracks)
   // In personalized mode, always show sections that exist in the slate (even if currently empty)
   // so users see generating/preparing states rather than sections silently disappearing.
   const shouldShowTutorials = displayedTutorials.length > 0 || (hubData.usingSlate && hubData.tutorials != null)
@@ -853,6 +913,17 @@ const ProfessionalLearningHub = () => {
           </button>
         </div>
       )}
+      {PERSONALIZATION_ENABLED &&
+        canEnterHub &&
+        hubBootstrap?.generation_inflight &&
+        hubSyncStatus !== 'updating' && (
+          <div className="flex items-center gap-3 rounded-2xl bg-purple-50 border border-purple-200 px-4 py-3 text-sm text-purple-900">
+            <Loader2 className="h-4 w-4 flex-shrink-0 animate-spin text-purple-500" />
+            <span>
+              More courses are being generated to refill your learning inventory. New content will appear shortly.
+            </span>
+          </div>
+        )}
 
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 px-8 py-10 text-white shadow-xl">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
