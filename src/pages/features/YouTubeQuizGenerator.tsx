@@ -6,7 +6,6 @@ import {
   Sparkles,
   GraduationCap,
   BookOpen,
-  Clock,
   CheckCircle2,
   Video,
   ListChecks,
@@ -15,16 +14,16 @@ import {
   Languages,
   Mic,
   Target,
-  Star,
   Link as LinkIcon,
-  Users,
-  Network,
-  ShieldCheck,
   Eye,
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { generateYouTubeQuiz, YouTubeQuizSection } from '../../api/youtubeQuiz'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { LessonFlowBuilder } from './youtube-quiz/LessonFlowBuilder'
+import { ClassroomUseFlow } from './youtube-quiz/ClassroomUseFlow'
+import { QuickStartVideoSources } from './youtube-quiz/QuickStartVideoSources'
+import { AICapabilityPreview } from './youtube-quiz/AICapabilityPreview'
 
 interface QuizPreview {
   title: string
@@ -34,36 +33,6 @@ interface QuizPreview {
 
 const questionStyles = ['Multiple choice', 'Higher-order thinking', 'Quick check', 'Discussion prompt']
 
-const roadmapSteps = [
-  {
-    title: 'Teacher pilots',
-    copy: 'Invite classrooms to beta test adaptive checkpoints with real student groups.',
-    icon: Users,
-  },
-  {
-    title: 'District integrations',
-    copy: 'Connect to Clever, Canvas, and Google Classroom for roster-aware analytics.',
-    icon: Network,
-  },
-  {
-    title: 'Accessibility audit',
-    copy: 'Partner with specialists to ensure captions, transcripts, and alt-text meet WCAG 2.2.',
-    icon: ShieldCheck,
-  },
-]
-
-const recommendedChannels = [
-  {
-    name: 'CrashCourse EDU',
-    focus: 'Standards-aligned humanities and science explainers',
-    gradeBand: 'Grades 6-12',
-  },
-  {
-    name: 'Numberphile Classroom',
-    focus: 'Conceptual mathematics storytelling',
-    gradeBand: 'Grades 7-12',
-  },
-]
 
 const referenceVideos = [
   {
@@ -136,32 +105,6 @@ const pedagogyNotes = [
   },
 ]
 
-const playlistIdeas = [
-  {
-    title: 'Inquiry Launch',
-    description: 'Curate short clips to launch your next project-based learning inquiry or case study.',
-  },
-  {
-    title: 'Flipped Mini-lesson',
-    description: 'Assign explanatory videos for home viewing with instant comprehension checks when class starts.',
-  },
-  {
-    title: 'Career Spotlight',
-    description: 'Highlight industry interviews and connect them to course standards with scenario-based questions.',
-  },
-  {
-    title: 'SEL Morning Meeting',
-    description: 'Use calming or empathy-building clips to kick off advisory with reflection prompts.',
-  },
-  {
-    title: 'STEM Lab Prep',
-    description: 'Share lab demonstration videos before experiments to walk students through safety and setup.',
-  },
-  {
-    title: 'Language Listening Center',
-    description: 'Supply authentic language videos with comprehension checks for multilingual classrooms.',
-  },
-]
 
 const workflowSteps = [
   {
@@ -195,6 +138,7 @@ const YouTubeQuizGenerator = () => {
   const [hasGenerated, setHasGenerated] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [appliedStrategy, setAppliedStrategy] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const getVideoUrlValidationError = (url: string): string | null => {
@@ -391,6 +335,12 @@ const YouTubeQuizGenerator = () => {
                 <p className="mt-1 text-sm text-gray-600">
                   Paste a YouTube lesson, set your audience, and let our AI craft scaffolded question pathways.
                 </p>
+                {appliedStrategy && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Strategy applied: {appliedStrategy}
+                  </div>
+                )}
               </div>
               <div className="flex gap-2">
                 <button
@@ -606,22 +556,7 @@ const YouTubeQuizGenerator = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                <ListChecks className="h-5 w-5 text-red-500" /> Playlist strategy builder
-              </h3>
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Designed for blended learning</span>
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              {playlistIdeas.map((idea) => (
-                <div key={idea.title} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="font-semibold text-gray-900">{idea.title}</p>
-                  <p className="mt-2 text-sm text-gray-600">{idea.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LessonFlowBuilder onStrategyApplied={setAppliedStrategy} />
         </div>
 
         <aside className="space-y-6">
@@ -674,73 +609,13 @@ const YouTubeQuizGenerator = () => {
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600">
-              <Youtube className="h-4 w-4 text-red-500" /> Educator-ready channels
-            </h3>
-            <div className="mt-4 space-y-4 text-sm text-gray-700">
-              {recommendedChannels.map((channel) => (
-                <div key={channel.name} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="font-semibold text-gray-900">{channel.name}</p>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">{channel.gradeBand}</p>
-                  <p className="mt-2 text-sm text-gray-600">{channel.focus}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <QuickStartVideoSources />
 
-          <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 text-white shadow-md">
-            <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-              <Clock className="h-4 w-4 text-amber-300" /> Upcoming features
-            </h3>
-            <ul className="mt-4 space-y-4 text-sm">
-              <li className="flex gap-3">
-                <Sparkles className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Adaptive watch checkpoints</p>
-                  <p className="text-white/70">Auto-pause videos and surface live polls when attention dips.</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <BookOpen className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Curriculum tagging engine</p>
-                  <p className="text-white/70">Map each question to district standards, NGSS, TEKS, and more.</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <GraduationCap className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Student playlist analytics</p>
-                  <p className="text-white/70">Track mastery by clip, regroup learners, and export insight dashboards.</p>
-                </div>
-              </li>
-            </ul>
-          </div>
+          <AICapabilityPreview />
         </aside>
       </section>
 
-      <section>
-        <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 text-white shadow-md">
-          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-            <Target className="h-4 w-4 text-amber-300" /> Implementation roadmap
-          </h3>
-          <ul className="mt-4 space-y-4 text-sm text-white/80">
-            {roadmapSteps.map((step) => {
-              const Icon = step.icon
-              return (
-                <li key={step.title} className="flex gap-3">
-                  <Icon className="mt-1 h-4 w-4 text-amber-300" />
-                  <div>
-                    <p className="font-semibold text-white">{step.title}</p>
-                    <p className="text-sm text-white/70">{step.copy}</p>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      </section>
+      <ClassroomUseFlow />
     </div>
   )
 }
