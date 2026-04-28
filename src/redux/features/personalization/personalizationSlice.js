@@ -133,6 +133,7 @@ export const fetchLearningHubSlate = createAsyncThunk(
           global_progress_percent: data.global_progress_percent ?? 0,
           orchestration: data.orchestration ?? null,
           hub_bootstrap: data.hub_bootstrap ?? null,
+          section_readiness: data.section_readiness ?? data.hub_bootstrap?.section_readiness ?? {},
           profile_completeness: data.profile_completeness ?? null,
           personalization_version: data.personalization_version ?? null,
         };
@@ -175,9 +176,7 @@ function deriveHubGateSignals({
 
   const hbCanEnter = hubBootstrap?.can_enter_hub === true;
   const orchCanEnter = orchestration?.can_enter_hub === true;
-  const pageReady = pageReadinessState === 'hub_ready';
-  const heroReadyBool = heroReady === true;
-  const isHubReady = hbCanEnter || orchCanEnter || pageReady || heroReadyBool;
+  const isHubReady = hbCanEnter || orchCanEnter;
 
   const hbBootstrap = hubBootstrap?.show_bootstrap_banner === true;
   const pageBootstrapping = pageReadinessState === 'hub_bootstrapping';
@@ -263,6 +262,7 @@ const initialState = {
   heroReady: false,
   globalGenerationStage: null,
   globalProgressPercent: 0,
+  hubSectionReadiness: {},
 
   /** Full payload from GET /learning-hub/home `hub_bootstrap` — loader source of truth */
   hubBootstrap: null,
@@ -306,6 +306,7 @@ const personalizationSlice = createSlice({
     },
     updateHubBootstrapFromSSE(state, action) {
       state.hubBootstrap = action.payload;
+      state.hubSectionReadiness = action.payload?.section_readiness ?? state.hubSectionReadiness;
       state.pageReadinessState = action.payload.page_readiness_state ?? state.pageReadinessState;
       state.showBootstrapBanner = action.payload.show_bootstrap_banner ?? state.showBootstrapBanner;
       state.hasReadyInventory = action.payload.has_ready_inventory ?? state.hasReadyInventory;
@@ -412,9 +413,13 @@ const personalizationSlice = createSlice({
         state.heroReady = !!action.payload.hero_ready;
         state.globalGenerationStage = action.payload.global_generation_stage ?? null;
         state.globalProgressPercent = Number(action.payload.global_progress_percent || 0);
+        state.hubSectionReadiness = action.payload.section_readiness ?? {};
         const hb = action.payload.hub_bootstrap;
         if (hb && typeof hb === 'object') {
           state.hubBootstrap = hb;
+          if (!Object.keys(state.hubSectionReadiness || {}).length) {
+            state.hubSectionReadiness = hb.section_readiness ?? {};
+          }
         } else {
           // hub_bootstrap missing: derive ready/bootstrap from stable backend readiness signals.
           const orch = action.payload.orchestration;
@@ -541,6 +546,7 @@ export const selectSlateSections = (state) => state.personalization?.slateSectio
 export const selectSectionReadiness = (state) => state.personalization?.sectionReadiness || [];
 export const selectPersonalizationVersion = (state) => state.personalization?.personalizationVersion || 0;
 export const selectHubBootstrap = (state) => state.personalization?.hubBootstrap ?? null;
+export const selectHubSectionReadiness = (state) => state.personalization?.hubSectionReadiness ?? {};
 
 /**
  * Returns the readiness status for a given section key.
@@ -557,7 +563,7 @@ export const selectHubBootstrapRetryStatus = (state) =>
 
 export const selectIsHubReady = (state) => {
   const p = state.personalization ?? {};
-  return deriveHubGateSignals({
+  const signals = deriveHubGateSignals({
     hubBootstrap: p.hubBootstrap ?? null,
     pageReadinessState: p.pageReadinessState ?? null,
     heroReady: !!p.heroReady,
@@ -570,7 +576,7 @@ export const selectIsHubReady = (state) => {
 
 export const selectShouldShowBootstrap = (state) => {
   const p = state.personalization ?? {};
-  return deriveHubGateSignals({
+  const signals = deriveHubGateSignals({
     hubBootstrap: p.hubBootstrap ?? null,
     pageReadinessState: p.pageReadinessState ?? null,
     heroReady: !!p.heroReady,

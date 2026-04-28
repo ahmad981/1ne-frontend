@@ -63,6 +63,7 @@ export interface LearningHubHomeData {
   heroReady: boolean;
   globalGenerationStage: string | null;
   globalProgressPercent: number;
+  hubSectionReadiness: Record<string, any>;
   /** Canonical frontend gate condition sourced from backend mode/completeness */
   isProfileIncomplete: boolean;
 }
@@ -79,6 +80,7 @@ export function useLearningHubHomeData(): LearningHubHomeData {
   const heroReady = useSelector((s) => !!s.personalization?.heroReady);
   const globalGenerationStage = useSelector((s) => s.personalization?.globalGenerationStage ?? null);
   const globalProgressPercent = useSelector((s) => Number(s.personalization?.globalProgressPercent || 0));
+  const hubSectionReadiness = useSelector((s) => s.personalization?.hubSectionReadiness ?? {});
 
   useEffect(() => {
     if (PERSONALIZATION_ENABLED) {
@@ -133,6 +135,7 @@ export function useLearningHubHomeData(): LearningHubHomeData {
       heroReady,
       globalGenerationStage,
       globalProgressPercent,
+      hubSectionReadiness,
       isProfileIncomplete,
     };
   }
@@ -152,6 +155,7 @@ export function useLearningHubHomeData(): LearningHubHomeData {
     heroReady,
     globalGenerationStage,
     globalProgressPercent,
+    hubSectionReadiness,
     isProfileIncomplete,
   };
 }

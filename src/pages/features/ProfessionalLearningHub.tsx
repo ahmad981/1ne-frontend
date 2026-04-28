@@ -30,7 +30,6 @@ import {
   selectHubBootstrap,
   selectHubBootstrapRetryStatus,
   selectShouldShowBootstrap,
-  selectHubGateState,
   selectHasReadyInventory,
   fetchLearningHubSlate,
   clearHubSyncStatus,
@@ -378,6 +377,31 @@ function LockedPreviewCard({
   )
 }
 
+function PreparingSlots({
+  count,
+  label = 'More personalized content is being prepared',
+}: {
+  count: number
+  label?: string
+}) {
+  if (count <= 0) return null
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-gray-500">{label}</p>
+      {Array.from({ length: count }).map((_, idx) => (
+        <div
+          key={`preparing-slot-${idx}`}
+          className="rounded-2xl border border-dashed border-purple-200 bg-purple-50/60 p-4"
+        >
+          <div className="h-3 w-28 animate-pulse rounded bg-purple-200" />
+          <div className="mt-2 h-2.5 w-3/4 animate-pulse rounded bg-purple-100" />
+          <div className="mt-2 h-2.5 w-1/2 animate-pulse rounded bg-purple-100" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 const ProfessionalLearningHub = () => {
   useLearningHubRouteScrollToTop()
   const navigate = useNavigate()
@@ -396,11 +420,10 @@ const ProfessionalLearningHub = () => {
   const hubBootstrap = useSelector(selectHubBootstrap)
   const retryStatus = useSelector(selectHubBootstrapRetryStatus)
   const shouldShowBootstrap = useSelector(selectShouldShowBootstrap)
-  const hubGateState = useSelector(selectHubGateState)
   const hasReadyInventory = useSelector(selectHasReadyInventory)
   const hubSyncStatus = useSelector((state: any) => state.personalization?.hubSyncStatus ?? 'idle')
   const hubSyncError = useSelector((state: any) => state.personalization?.hubSyncError ?? null)
-  const backendCanEnterHub = hubGateState === 'hub_ready'
+  const backendCanEnterHub = hubBootstrap?.can_enter_hub === true
   const [stickyHubReady, setStickyHubReady] = useState<boolean>(backendCanEnterHub)
   const lastBootstrapSessionRef = useRef<string | null>(hubBootstrap?.orchestration_session_id ?? null)
   useEffect(() => {
@@ -535,6 +558,15 @@ const ProfessionalLearningHub = () => {
         return acc
       }, {})
     : {}
+  const hubSectionReadiness = hubData.hubSectionReadiness || {}
+  const sectionPreparingMore = (key: string) => {
+    const sec = hubSectionReadiness?.[key] || {}
+    return sec.is_preparing_more === true || sec.is_generating === true
+  }
+  const sectionTargetVisible = (key: string, fallback: number) =>
+    Number(hubSectionReadiness?.[key]?.target_visible_count ?? fallback)
+  const sectionTargetLocked = (key: string, fallback: number) =>
+    Number(hubSectionReadiness?.[key]?.target_locked_count ?? fallback)
   const progressiveVisibleLimit = (_section: string, fullLimit: number) => {
     // Show full available visible inventory immediately (up to display caps),
     // even when section readiness is still partial/preparing.
@@ -701,6 +733,26 @@ const ProfessionalLearningHub = () => {
   const displayedTutorials = effectiveTutorialsData
   const displayedResearch = effectiveResearchInsights
   const displayedSpecialist = effectiveSpecialistTracks
+  const microPreparingSlots = Math.max(
+    0,
+    sectionTargetVisible('micro_courses', SECTION_DISPLAY_LIMITS.micro_courses.visible) - displayedMicroCourses.length
+  )
+  const growthPreparingSlots = Math.max(
+    0,
+    sectionTargetVisible('growth_recommendations', SECTION_DISPLAY_LIMITS.growth_recommendations.visible) - displayedGrowthRecommendations.length
+  )
+  const tutorialPreparingSlots = Math.max(
+    0,
+    sectionTargetVisible('tutorials', SECTION_DISPLAY_LIMITS.tutorials.visible) - displayedTutorials.length
+  )
+  const researchPreparingSlots = Math.max(
+    0,
+    sectionTargetVisible('research_insights', SECTION_DISPLAY_LIMITS.research_insights.visible) - displayedResearch.length
+  )
+  const specialistPreparingSlots = Math.max(
+    0,
+    sectionTargetVisible('specialist_tracks', SECTION_DISPLAY_LIMITS.specialist_tracks.visible) - displayedSpecialist.length
+  )
   const visibleUnlockedCount =
     (hubData.microCourses?.visible_items?.length ?? 0) +
     (hubData.growthRecommendations?.visible_items?.length ?? 0) +
@@ -724,11 +776,13 @@ const ProfessionalLearningHub = () => {
   const shouldShowTutorialsViewAll = sectionAllowsViewAll('tutorials', hubData.tutorials)
   const shouldShowResearchViewAll = sectionAllowsViewAll('research_insights', hubData.researchInsights)
   const shouldShowSpecialistViewAll = sectionAllowsViewAll('specialist_tracks', hubData.specialistTracks)
+  const shouldShowMicro = displayedMicroCourses.length > 0 || (hubData.usingSlate && (hubData.microCourses != null || sectionPreparingMore('micro_courses')))
+  const shouldShowGrowth = displayedGrowthRecommendations.length > 0 || (hubData.usingSlate && (hubData.growthRecommendations != null || sectionPreparingMore('growth_recommendations')))
   // In personalized mode, always show sections that exist in the slate (even if currently empty)
   // so users see generating/preparing states rather than sections silently disappearing.
-  const shouldShowTutorials = displayedTutorials.length > 0 || (hubData.usingSlate && hubData.tutorials != null)
-  const shouldShowResearch = displayedResearch.length > 0 || (hubData.usingSlate && hubData.researchInsights != null)
-  const shouldShowSpecialist = displayedSpecialist.length > 0 || (hubData.usingSlate && hubData.specialistTracks != null)
+  const shouldShowTutorials = displayedTutorials.length > 0 || (hubData.usingSlate && (hubData.tutorials != null || sectionPreparingMore('tutorials')))
+  const shouldShowResearch = displayedResearch.length > 0 || (hubData.usingSlate && (hubData.researchInsights != null || sectionPreparingMore('research_insights')))
+  const shouldShowSpecialist = displayedSpecialist.length > 0 || (hubData.usingSlate && (hubData.specialistTracks != null || sectionPreparingMore('specialist_tracks')))
 
   /**
    * Navigate to a card destination using the full entity-binding contract.
@@ -1132,6 +1186,10 @@ const ProfessionalLearningHub = () => {
                   />
                 ))}
 
+              {hubData.usingSlate && sectionPreparingMore('micro_courses') && (
+                <PreparingSlots count={microPreparingSlots} />
+              )}
+
               {/* Generating / failed placeholders from section readiness */}
               {hubData.usingSlate &&
                 sectionReadiness
@@ -1200,13 +1258,16 @@ const ProfessionalLearningHub = () => {
                   )}
                 </div>
               ))}
+              {hubData.usingSlate && sectionPreparingMore('tutorials') && (
+                <PreparingSlots count={tutorialPreparingSlots} />
+              )}
             </div>
           </div> : null}
 
         </div>
 
         <aside className="space-y-6">
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          {(shouldShowGrowth || !hubData.usingSlate) && <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600">
                 <Target className="h-4 w-4 text-amber-500" /> AI growth recommendations
@@ -1282,8 +1343,23 @@ const ProfessionalLearningHub = () => {
                   </div>
                 </div>
               ))}
+              {hubData.usingSlate &&
+                (hubData.growthRecommendations?.locked_preview_items ?? [])
+                  .slice(0, sectionTargetLocked('growth_recommendations', SECTION_DISPLAY_LIMITS.growth_recommendations.locked))
+                  .map((item: any) => (
+                    <LockedPreviewCard
+                      key={item.content_id || item.assignment_id}
+                      title={item.title}
+                      category={item.display_meta?.category}
+                      duration={item.display_meta?.duration}
+                      unlockHint={item.unlock_hint || 'Complete visible items to unlock this next.'}
+                    />
+                  ))}
+              {hubData.usingSlate && sectionPreparingMore('growth_recommendations') && (
+                <PreparingSlots count={growthPreparingSlots} />
+              )}
             </div>
-          </div>
+          </div>}
 
           {showStaticPanels && <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1362,6 +1438,9 @@ const ProfessionalLearningHub = () => {
               </div>
             </div>
           ))}
+          {hubData.usingSlate && sectionPreparingMore('research_insights') && (
+            <PreparingSlots count={researchPreparingSlots} />
+          )}
         </div>
       </section>}
 
@@ -1426,6 +1505,9 @@ const ProfessionalLearningHub = () => {
               </button>
             </div>
           ))}
+          {hubData.usingSlate && sectionPreparingMore('specialist_tracks') && (
+            <PreparingSlots count={specialistPreparingSlots} />
+          )}
         </div>
       </section>}
 

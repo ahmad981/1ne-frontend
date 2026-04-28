@@ -117,6 +117,13 @@ export default function LearningHubSectionViewAllPage() {
                 : ''}
             </div>
           )}
+          {sectionPayload &&
+            ((sectionPayload.total_assigned ?? 0) > (sectionPayload.total_exposed ?? items.length) ||
+              (grouped.visible.length === 0 && grouped.locked.length === 0)) && (
+              <div className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-xs text-purple-800">
+                More personalized content is being prepared for this section.
+              </div>
+            )}
           <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-700">Available now</h2>
             <div className="mt-3 space-y-3">

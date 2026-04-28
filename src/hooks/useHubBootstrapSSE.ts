@@ -120,13 +120,9 @@ export function useHubBootstrapSSE(enabled: boolean): {
                 dispatch(updateHubBootstrapFromSSE(json) as any);
               }
               if (json.can_enter_hub) {
-                // Hub is ready — stop everything.
-                setConnected(false);
-                setFallbackPolling(false);
-                // Pull one final authoritative home payload to avoid transition flicker.
+                // Hub can open, but generation may still be preparing more inventory.
+                // Keep SSE alive; orchestration hook decides when to stop transport.
                 dispatch(fetchLearningHubSlate() as any);
-                controller.abort();
-                return;
               }
             } catch {
               // Malformed JSON line — ignore and continue.
