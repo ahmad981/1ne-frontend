@@ -138,7 +138,8 @@ const YouTubeQuizGenerator = () => {
   const [hasGenerated, setHasGenerated] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [appliedStrategy, setAppliedStrategy] = useState<string | null>(null)
+  const [appliedStrategyId, setAppliedStrategyId] = useState<string | null>(null)
+  const [appliedStrategyTitle, setAppliedStrategyTitle] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const getVideoUrlValidationError = (url: string): string | null => {
@@ -219,6 +220,7 @@ const YouTubeQuizGenerator = () => {
         quiz_language: language,
         question_styles: selectedStyles,
         question_count: questionCount,
+        lesson_strategy_id: appliedStrategyId ?? undefined,
       })
 
       const generatedQuiz: QuizPreview = {
@@ -335,10 +337,10 @@ const YouTubeQuizGenerator = () => {
                 <p className="mt-1 text-sm text-gray-600">
                   Paste a YouTube lesson, set your audience, and let our AI craft scaffolded question pathways.
                 </p>
-                {appliedStrategy && (
+                {appliedStrategyTitle && (
                   <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    Strategy applied: {appliedStrategy}
+                    Strategy applied: {appliedStrategyTitle}
                   </div>
                 )}
               </div>
@@ -556,7 +558,12 @@ const YouTubeQuizGenerator = () => {
             </div>
           </div>
 
-          <LessonFlowBuilder onStrategyApplied={setAppliedStrategy} />
+          <LessonFlowBuilder
+            onStrategyApplied={(strategyId, strategyTitle) => {
+              setAppliedStrategyId(strategyId)
+              setAppliedStrategyTitle(strategyTitle)
+            }}
+          />
         </div>
 
         <aside className="space-y-6">
