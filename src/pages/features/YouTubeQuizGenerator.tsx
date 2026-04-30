@@ -32,6 +32,11 @@ interface QuizPreview {
 }
 
 const questionStyles = ['Multiple choice', 'Higher-order thinking', 'Quick check', 'Discussion prompt']
+const difficultyOptions = [
+  { label: 'Easy', value: 'easy' as const },
+  { label: 'Medium', value: 'medium' as const },
+  { label: 'Challenging', value: 'challenging' as const },
+]
 
 
 const referenceVideos = [
@@ -133,6 +138,8 @@ const YouTubeQuizGenerator = () => {
   const [language, setLanguage] = useState('English')
   const [selectedStyles, setSelectedStyles] = useState<string[]>(['Multiple choice', 'Higher-order thinking'])
   const [questionCount, setQuestionCount] = useState(6)
+  const [difficultyLevel, setDifficultyLevel] = useState<'easy' | 'medium' | 'challenging'>('medium')
+  const [accessibilityMode, setAccessibilityMode] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [quizPreview, setQuizPreview] = useState<QuizPreview | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
@@ -186,6 +193,19 @@ const YouTubeQuizGenerator = () => {
     }, 100)
   }
 
+  const handleDifficultyChange = (nextDifficulty: 'easy' | 'medium' | 'challenging') => {
+    setDifficultyLevel(nextDifficulty)
+    toast.info(`Adaptive Difficulty: ${nextDifficulty.charAt(0).toUpperCase()}${nextDifficulty.slice(1)}`)
+  }
+
+  const handleAccessibilityToggle = () => {
+    setAccessibilityMode((prev) => {
+      const next = !prev
+      toast.info(`Accessibility Assistant: ${next ? 'Enabled' : 'Disabled'}`)
+      return next
+    })
+  }
+
   const handleGenerateQuiz = () => {
     const validationError = getVideoUrlValidationError(videoUrl)
     if (validationError) {
@@ -221,6 +241,8 @@ const YouTubeQuizGenerator = () => {
         question_styles: selectedStyles,
         question_count: questionCount,
         lesson_strategy_id: appliedStrategyId ?? undefined,
+        difficultyLevel,
+        accessibilityMode,
       })
 
       const generatedQuiz: QuizPreview = {
@@ -343,6 +365,22 @@ const YouTubeQuizGenerator = () => {
                     Strategy applied: {appliedStrategyTitle}
                   </div>
                 )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Adaptive Difficulty: {difficultyOptions.find((item) => item.value === difficultyLevel)?.label}
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Accessibility Assistant: {accessibilityMode ? 'Enabled' : 'Disabled'}
+                  </div>
+                  {hasGenerated && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Worksheet Ready
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button
@@ -489,6 +527,48 @@ const YouTubeQuizGenerator = () => {
                   />
                   <p className="mt-1 text-xs text-gray-500">Slider adjusts pacing recommendations & differentiations.</p>
                 </div>
+              </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                <p className="text-sm font-semibold text-gray-700">Quiz Intelligence controls</p>
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Adaptive difficulty</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {difficultyOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleDifficultyChange(option.value)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            difficultyLevel === option.value
+                              ? 'border-red-400 bg-red-50 text-red-600'
+                              : 'border-gray-200 text-gray-600 hover:border-red-200 hover:text-red-600'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Accessibility assistant</p>
+                    <button
+                      type="button"
+                      onClick={handleAccessibilityToggle}
+                      className={`mt-2 inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        accessibilityMode
+                          ? 'border-red-400 bg-red-50 text-red-600'
+                          : 'border-gray-200 text-gray-600 hover:border-red-200 hover:text-red-600'
+                      }`}
+                    >
+                      Accessibility Mode: {accessibilityMode ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-500">
+                  Worksheet from Quiz becomes available after generation and uses your generated quiz result.
+                </p>
               </div>
             </div>
 

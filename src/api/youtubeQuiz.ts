@@ -9,6 +9,8 @@ export interface YouTubeQuizGenerateRequest {
   question_styles: string[]
   question_count: number
   lesson_strategy_id?: string
+  difficultyLevel?: 'easy' | 'medium' | 'challenging'
+  accessibilityMode?: boolean
 }
 
 export interface LessonStrategySummary {
