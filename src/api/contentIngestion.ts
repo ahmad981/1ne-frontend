@@ -261,11 +261,11 @@ export async function uploadDocumentStream(
   const url = buildUrl('v1/admin/documents/upload-stream')
   const token = getAuthToken()
   
-  // Add timeout for upload (120 seconds for large files)
+  // Add timeout for upload (large textbooks can take longer to start streaming)
   const controller = new AbortController()
   const timeoutId = setTimeout(() => {
     controller.abort()
-  }, 120000) // 120 seconds timeout
+  }, 15 * 60 * 1000) // 15 minutes
   
   try {
     const response = await fetch(url, {
@@ -295,7 +295,7 @@ export async function uploadDocumentStream(
     
     let result: { document_id: string; pack_id: string } | null = null
     let lastActivityTime = Date.now()
-    const STREAM_TIMEOUT = 60000 // 60 seconds for stream inactivity
+    const STREAM_TIMEOUT = 5 * 60 * 1000 // 5 minutes for stream inactivity
     
     while (true) {
       // Check for stream timeout
@@ -342,7 +342,7 @@ export async function uploadDocumentStream(
   } catch (error: any) {
     clearTimeout(timeoutId)
     if (error.name === 'AbortError') {
-      throw new Error('Upload request timed out after 120 seconds')
+      throw new Error('Upload request timed out after 15 minutes')
     }
     throw error
   }

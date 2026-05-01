@@ -55,13 +55,6 @@ function humanizeChunkProfile(profile: string | undefined): string {
 /** Same set as backend POST .../retry — lets user recover stuck pipelines (e.g. hung PDF open). */
 const RETRYABLE_STATUSES = new Set([
   'failed',
-  'text_extracting',
-  'ocr_running',
-  'normalizing',
-  'chunking',
-  'embedding',
-  'indexing',
-  'qa_validation',
 ])
 
 export const DocumentDetails = () => {

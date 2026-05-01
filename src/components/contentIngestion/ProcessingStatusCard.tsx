@@ -18,7 +18,7 @@ interface ProcessingStatusCardProps {
 const PROCESSING_STEPS = [
   { name: 'uploaded', label: 'Uploaded' },
   { name: 'text_extracting', label: 'Extracting Text' },
-  { name: 'ocr_running', label: 'Running OCR' },
+  { name: 'ocr_running', label: 'Processing OCR (async)' },
   { name: 'normalizing', label: 'Normalizing' },
   { name: 'chunking', label: 'Chunking' },
   { name: 'embedding', label: 'Generating Embeddings' },
