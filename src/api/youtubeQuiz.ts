@@ -11,6 +11,8 @@ export interface YouTubeQuizGenerateRequest {
   lesson_strategy_id?: string
   difficultyLevel?: 'easy' | 'medium' | 'challenging'
   accessibilityMode?: boolean
+  /** When set, backend resolves URL, subject lens, grade band, learning focus, and question styles from the library. */
+  videoId?: string
 }
 
 export interface LessonStrategySummary {

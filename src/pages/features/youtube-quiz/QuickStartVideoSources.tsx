@@ -1,266 +1,87 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Youtube, Play, CheckCircle2 } from 'lucide-react'
 import { useSnackbar } from '../../../hooks/useSnackbar'
+import { ApiError } from '../../../api/client'
+import {
+  getVideoRecommendations,
+  type VideoLibraryChannel,
+  type VideoLibraryVideo,
+} from '../../../api/videoLibrary'
 
-interface DemoVideo {
-  title: string
-  gradeBand: string
-  subject: string
-  duration: string
-  tags: string[]
-  transcript: boolean
-  bestQuizType: string
-}
-
-interface Channel {
-  id: string
-  name: string
-  focus: string
-  gradeBand: string
-  cardCls: string
-  activeCls: string
-  videos: DemoVideo[]
-}
-
-// TODO: Replace with backend API response later.
-const CHANNELS: Channel[] = [
+/** Preserves original six channel color themes (presentation only). */
+const CHANNEL_CARD_PRESETS: { cardCls: string; activeCls: string }[] = [
   {
-    id: 'crashcourse',
-    name: 'CrashCourse EDU',
-    focus: 'Standards-aligned humanities and science explainers',
-    gradeBand: 'Grades 6–12',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-purple-300',
     activeCls: 'border-purple-400 bg-purple-50',
-    videos: [
-      {
-        title: 'The French Revolution — CrashCourse World History',
-        gradeBand: 'Grades 9–10',
-        subject: 'Social Sciences',
-        duration: '12:41',
-        tags: ['History', 'Revolution', 'Europe'],
-        transcript: true,
-        bestQuizType: 'Higher-order thinking + Discussion',
-      },
-      {
-        title: 'Mitosis vs Meiosis — CrashCourse Biology',
-        gradeBand: 'Grades 9–10',
-        subject: 'Science & STEM',
-        duration: '11:02',
-        tags: ['Biology', 'Cell division', 'Genetics'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Quick check',
-      },
-      {
-        title: 'The Civil War — CrashCourse US History',
-        gradeBand: 'Grades 10–11',
-        subject: 'Social Sciences',
-        duration: '14:23',
-        tags: ['American History', 'Politics', 'Conflict'],
-        transcript: true,
-        bestQuizType: 'Critical analysis + Discussion',
-      },
-    ],
   },
   {
-    id: 'numberphile',
-    name: 'Numberphile Classroom',
-    focus: 'Conceptual mathematics storytelling',
-    gradeBand: 'Grades 7–12',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-blue-300',
     activeCls: 'border-blue-400 bg-blue-50',
-    videos: [
-      {
-        title: "Why Can't You Divide by Zero?",
-        gradeBand: 'Grades 6–8',
-        subject: 'Mathematics',
-        duration: '7:21',
-        tags: ['Division', 'Number theory', 'Concept'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Open-ended',
-      },
-      {
-        title: 'The Fibonacci Sequence — Hidden in Nature',
-        gradeBand: 'Grades 7–9',
-        subject: 'Mathematics',
-        duration: '9:14',
-        tags: ['Patterns', 'Sequences', 'Nature'],
-        transcript: true,
-        bestQuizType: 'Higher-order thinking + Discussion',
-      },
-      {
-        title: 'What is the Riemann Hypothesis?',
-        gradeBand: 'Grades 11–12',
-        subject: 'Mathematics',
-        duration: '15:48',
-        tags: ['Advanced maths', 'Primes', 'Unsolved'],
-        transcript: false,
-        bestQuizType: 'Discussion + Higher-order thinking',
-      },
-    ],
   },
   {
-    id: 'khan',
-    name: 'Khan Academy Science',
-    focus: 'Mastery-based STEM progression',
-    gradeBand: 'Grades 4–12',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-green-300',
     activeCls: 'border-green-400 bg-green-50',
-    videos: [
-      {
-        title: "Newton's Laws of Motion — Introduction",
-        gradeBand: 'Grades 8–9',
-        subject: 'Science & STEM',
-        duration: '8:36',
-        tags: ['Physics', 'Forces', 'Newton'],
-        transcript: true,
-        bestQuizType: 'Quick check + Multiple choice',
-      },
-      {
-        title: 'The Periodic Table — Elements & Trends',
-        gradeBand: 'Grades 9–10',
-        subject: 'Science & STEM',
-        duration: '10:55',
-        tags: ['Chemistry', 'Periodic table', 'Elements'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Vocabulary',
-      },
-      {
-        title: 'DNA Replication — In Detail',
-        gradeBand: 'Grades 10–11',
-        subject: 'Science & STEM',
-        duration: '13:02',
-        tags: ['Biology', 'DNA', 'Genetics'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Quick check',
-      },
-    ],
   },
   {
-    id: 'ted-ed',
-    name: 'TED-Ed Lessons',
-    focus: 'Curiosity-driven interdisciplinary content',
-    gradeBand: 'Grades 6–12',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-red-300',
     activeCls: 'border-red-400 bg-red-50',
-    videos: [
-      {
-        title: 'How to Make Your Writing Suspenseful',
-        gradeBand: 'Grades 7–9',
-        subject: 'English Language Arts',
-        duration: '4:43',
-        tags: ['Writing', 'Craft', 'Narrative'],
-        transcript: true,
-        bestQuizType: 'Discussion + Higher-order thinking',
-      },
-      {
-        title: 'The Science of Symmetry',
-        gradeBand: 'Grades 6–8',
-        subject: 'Mathematics',
-        duration: '5:12',
-        tags: ['Patterns', 'Maths', 'Nature'],
-        transcript: true,
-        bestQuizType: 'Open-ended + Multiple choice',
-      },
-      {
-        title: 'How Pandemics Spread',
-        gradeBand: 'Grades 9–11',
-        subject: 'Science & STEM',
-        duration: '6:28',
-        tags: ['Biology', 'Public health', 'History'],
-        transcript: true,
-        bestQuizType: 'Discussion + Critical analysis',
-      },
-    ],
   },
   {
-    id: 'natgeo',
-    name: 'National Geographic Education',
-    focus: 'Visual storytelling — geography, ecology, and culture',
-    gradeBand: 'Grades 5–10',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-yellow-300',
     activeCls: 'border-yellow-400 bg-yellow-50',
-    videos: [
-      {
-        title: 'Climate Change 101 — Causes and Effects',
-        gradeBand: 'Grades 7–9',
-        subject: 'Science & STEM',
-        duration: '3:52',
-        tags: ['Climate', 'Environment', 'Geography'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Discussion',
-      },
-      {
-        title: 'Ocean Ecosystems — Life Beneath the Waves',
-        gradeBand: 'Grades 5–7',
-        subject: 'Science & STEM',
-        duration: '5:34',
-        tags: ['Ocean', 'Biodiversity', 'Ecology'],
-        transcript: true,
-        bestQuizType: 'Quick check + Concept comprehension',
-      },
-      {
-        title: 'Deforestation — Causes and Solutions',
-        gradeBand: 'Grades 8–10',
-        subject: 'Science & STEM',
-        duration: '4:17',
-        tags: ['Environment', 'Forests', 'Sustainability'],
-        transcript: false,
-        bestQuizType: 'Higher-order thinking + Discussion',
-      },
-    ],
   },
   {
-    id: 'scishow',
-    name: 'SciShow Kids',
-    focus: 'Accessible STEM for early learners',
-    gradeBand: 'Grades K–5',
     cardCls: 'border-gray-100 bg-gray-50 hover:border-orange-300',
     activeCls: 'border-orange-400 bg-orange-50',
-    videos: [
-      {
-        title: 'Why Do We Have Seasons?',
-        gradeBand: 'Grades 2–4',
-        subject: 'Science & STEM',
-        duration: '3:22',
-        tags: ['Earth science', 'Seasons', 'Space'],
-        transcript: true,
-        bestQuizType: 'Quick check + Multiple choice',
-      },
-      {
-        title: 'What is a Volcano?',
-        gradeBand: 'Grades 1–3',
-        subject: 'Science & STEM',
-        duration: '2:58',
-        tags: ['Geology', 'Volcanoes', 'Earth'],
-        transcript: true,
-        bestQuizType: 'Quick check + Vocabulary',
-      },
-      {
-        title: 'The Water Cycle Explained Simply',
-        gradeBand: 'Grades 3–5',
-        subject: 'Science & STEM',
-        duration: '4:05',
-        tags: ['Water cycle', 'Weather', 'Environment'],
-        transcript: true,
-        bestQuizType: 'Multiple choice + Concept comprehension',
-      },
-    ],
   },
 ]
 
 interface Props {
-  onDemoVideoSelected?: (videoTitle: string) => void
+  onVideoPicked?: (p: { videoId: string; youtubeUrl: string; title: string }) => void
 }
 
-export function QuickStartVideoSources({ onDemoVideoSelected }: Props) {
+export function QuickStartVideoSources({ onVideoPicked }: Props) {
   const { toast } = useSnackbar()
+  const [channels, setChannels] = useState<VideoLibraryChannel[]>([])
+  const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [loadMessage, setLoadMessage] = useState<string | null>(null)
   const [activeChannelId, setActiveChannelId] = useState<string | null>(null)
-  const [selectedDemoVideo, setSelectedDemoVideo] = useState<string | null>(null)
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null)
+  const [selectedTitle, setSelectedTitle] = useState<string | null>(null)
 
-  const handleSelectVideo = (videoTitle: string) => {
-    setSelectedDemoVideo(videoTitle)
-    toast.success(`"${videoTitle}" selected for quiz generation.`)
-    onDemoVideoSelected?.(videoTitle)
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      setLoadState('loading')
+      setLoadMessage(null)
+      try {
+        const res = await getVideoRecommendations()
+        if (cancelled) return
+        setChannels(res.channels ?? [])
+        setLoadState('idle')
+      } catch (e) {
+        if (cancelled) return
+        setLoadState('error')
+        let msg = 'Could not load recommendations.'
+        if (e instanceof ApiError && typeof e.message === 'string' && e.message.trim()) {
+          msg = e.message
+        }
+        setLoadMessage(msg)
+        toast.error(msg)
+      }
+    }
+    void run()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once on mount
+  }, [])
+
+  const handleSelectVideo = (video: VideoLibraryVideo) => {
+    setSelectedVideoId(video.id)
+    setSelectedTitle(video.title)
+    toast.success(`"${video.title}" selected for quiz generation.`)
+    onVideoPicked?.({ videoId: video.id, youtubeUrl: video.youtubeUrl, title: video.title })
   }
 
   return (
@@ -272,23 +93,31 @@ export function QuickStartVideoSources({ onDemoVideoSelected }: Props) {
       <p className="mt-1 text-xs text-gray-500">
         Select a channel to browse recommended videos.
       </p>
+      {loadState === 'loading' && (
+        <p className="mt-1 text-xs text-gray-500">Loading recommendations…</p>
+      )}
+      {loadState === 'error' && loadMessage && (
+        <p className="mt-1 text-xs text-gray-500">{loadMessage}</p>
+      )}
 
-      {selectedDemoVideo && (
+      {selectedTitle && (
         <div className="mt-3 flex items-center gap-2 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs font-semibold text-green-700">
           <CheckCircle2 className="h-3.5 w-3.5 flex-shrink-0" />
-          <span className="truncate">Selected: {selectedDemoVideo}</span>
+          <span className="truncate">Selected: {selectedTitle}</span>
         </div>
       )}
 
       <div className="mt-4 space-y-2">
-        {CHANNELS.map((ch) => {
+        {channels.map((ch, channelIndex) => {
+          const preset = CHANNEL_CARD_PRESETS[channelIndex % CHANNEL_CARD_PRESETS.length]
           const isActive = activeChannelId === ch.id
           return (
             <div key={ch.id}>
               <button
+                type="button"
                 onClick={() => setActiveChannelId(isActive ? null : ch.id)}
                 className={`w-full rounded-2xl border-2 p-3 text-left transition-all ${
-                  isActive ? ch.activeCls : ch.cardCls
+                  isActive ? preset.activeCls : preset.cardCls
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
@@ -305,17 +134,17 @@ export function QuickStartVideoSources({ onDemoVideoSelected }: Props) {
 
               {isActive && (
                 <div className="mt-2 space-y-2 pl-1">
-                  {ch.videos.map((v, idx) => (
+                  {ch.videos.map((v) => (
                     <div
-                      key={idx}
+                      key={v.id}
                       className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm"
                     >
                       <p className="text-xs font-semibold leading-snug text-gray-900">{v.title}</p>
 
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {v.tags.map((tag) => (
+                        {v.tags.map((tag, ti) => (
                           <span
-                            key={tag}
+                            key={`${v.id}-${ti}-${tag}`}
                             className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-600"
                           >
                             {tag}
@@ -338,14 +167,15 @@ export function QuickStartVideoSources({ onDemoVideoSelected }: Props) {
                       </p>
 
                       <button
-                        onClick={() => handleSelectVideo(v.title)}
+                        type="button"
+                        onClick={() => handleSelectVideo(v)}
                         className={`mt-2 w-full rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                          selectedDemoVideo === v.title
+                          selectedVideoId === v.id
                             ? 'bg-green-500 text-white'
                             : 'bg-red-50 text-red-600 hover:bg-red-100'
                         }`}
                       >
-                        {selectedDemoVideo === v.title ? (
+                        {selectedVideoId === v.id ? (
                           <span className="flex items-center justify-center gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Selected
                           </span>

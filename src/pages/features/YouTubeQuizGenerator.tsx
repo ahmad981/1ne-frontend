@@ -147,6 +147,7 @@ const YouTubeQuizGenerator = () => {
   const [apiError, setApiError] = useState<string | null>(null)
   const [appliedStrategyId, setAppliedStrategyId] = useState<string | null>(null)
   const [appliedStrategyTitle, setAppliedStrategyTitle] = useState<string | null>(null)
+  const [selectedLibraryVideoId, setSelectedLibraryVideoId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const getVideoUrlValidationError = (url: string): string | null => {
@@ -182,6 +183,7 @@ const YouTubeQuizGenerator = () => {
   }
 
   const handleUseReference = (video: typeof referenceVideos[0]) => {
+    setSelectedLibraryVideoId(null)
     setVideoUrl(video.url)
     setGradeBand(video.gradeBand)
     setSubjectArea(video.subjectArea)
@@ -243,6 +245,7 @@ const YouTubeQuizGenerator = () => {
         lesson_strategy_id: appliedStrategyId ?? undefined,
         difficultyLevel,
         accessibilityMode,
+        ...(selectedLibraryVideoId ? { videoId: selectedLibraryVideoId } : {}),
       })
 
       const generatedQuiz: QuizPreview = {
@@ -411,6 +414,7 @@ const YouTubeQuizGenerator = () => {
                     onChange={(event) => {
                       const nextUrl = event.target.value
                       setVideoUrl(nextUrl)
+                      setSelectedLibraryVideoId(null)
                       setUrlError(nextUrl.trim() ? getVideoUrlValidationError(nextUrl) : null)
                       setApiError(null)
                       setHasGenerated(false)
@@ -696,7 +700,12 @@ const YouTubeQuizGenerator = () => {
             </ul>
           </div>
 
-          <QuickStartVideoSources />
+          <QuickStartVideoSources
+            onVideoPicked={({ youtubeUrl, videoId }) => {
+              setVideoUrl(youtubeUrl)
+              setSelectedLibraryVideoId(videoId)
+            }}
+          />
 
           <AICapabilityPreview />
         </aside>
