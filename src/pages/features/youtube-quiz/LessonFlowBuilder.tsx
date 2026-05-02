@@ -101,16 +101,22 @@ export function LessonFlowBuilder({ onStrategyApplied }: Props) {
   const [appliedId, setAppliedId] = useState<string | null>(null)
 
   useEffect(() => {
+    let cancelled = false
     const loadStrategies = async () => {
       try {
         const response = await getLessonStrategies()
+        if (cancelled) return
         setStrategies(response)
       } catch (error) {
+        if (cancelled) return
         console.error('Failed to load lesson strategies', error)
         toast.error('Unable to load lesson strategies right now.')
       }
     }
     loadStrategies()
+    return () => {
+      cancelled = true
+    }
   }, [toast])
 
   const strategyCards = useMemo<StrategyCard[]>(
@@ -151,13 +157,14 @@ export function LessonFlowBuilder({ onStrategyApplied }: Props) {
         )}
       </div>
 
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
+      <div className="mt-5 grid gap-3 md:grid-cols-3" data-testid="lesson-strategy-grid">
         {strategyCards.map((s) => {
           const isActive = activeId === s.id
           const Icon = s.Icon
           return (
             <button
               key={s.id}
+              data-testid={`lesson-strategy-card-${s.id}`}
               onClick={() => setActiveId(isActive ? null : s.id)}
               className={`rounded-2xl border-2 p-4 text-left transition-all ${
                 isActive ? s.activeCls : s.cardCls

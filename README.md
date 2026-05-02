@@ -47,6 +47,30 @@ npm run dev
 
 4. Open your browser and navigate to `http://localhost:5173`
 
+## End-to-end tests (Playwright)
+
+### Prerequisites
+- Start backend + frontend together from repo root:
+```powershell
+.\dev-local.ps1
+```
+
+### Run E2E
+Playwright E2E uses **UI login** (real `/api/v1/auth/login`). Provide credentials via env vars:
+
+```powershell
+cd 1ne-frontend
+$env:E2E_EMAIL="teacher@example.com"
+$env:E2E_PASSWORD="your_password"
+yarn test:e2e
+```
+
+Optional overrides:
+- `PLAYWRIGHT_BASE_URL` (default `http://localhost:5173`)
+
+### Notes (Windows file locks)
+If `yarn add` / installs fail with `EPERM unlink ... .node`, stop any running Node/Vite processes and retry.
+
 ### Connecting to the FastAPI backend
 
 1. From `/Backend`: `alembic upgrade head && python -m src.seed.minimal`
