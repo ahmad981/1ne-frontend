@@ -6,7 +6,6 @@ import {
   Sparkles,
   GraduationCap,
   BookOpen,
-  Clock,
   CheckCircle2,
   Video,
   ListChecks,
@@ -15,16 +14,16 @@ import {
   Languages,
   Mic,
   Target,
-  Star,
   Link as LinkIcon,
-  Users,
-  Network,
-  ShieldCheck,
   Eye,
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { generateYouTubeQuiz, YouTubeQuizSection } from '../../api/youtubeQuiz'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { LessonFlowBuilder } from './youtube-quiz/LessonFlowBuilder'
+import { ClassroomUseFlow } from './youtube-quiz/ClassroomUseFlow'
+import { QuickStartVideoSources } from './youtube-quiz/QuickStartVideoSources'
+import { AICapabilityPreview } from './youtube-quiz/AICapabilityPreview'
 
 interface QuizPreview {
   title: string
@@ -33,37 +32,12 @@ interface QuizPreview {
 }
 
 const questionStyles = ['Multiple choice', 'Higher-order thinking', 'Quick check', 'Discussion prompt']
-
-const roadmapSteps = [
-  {
-    title: 'Teacher pilots',
-    copy: 'Invite classrooms to beta test adaptive checkpoints with real student groups.',
-    icon: Users,
-  },
-  {
-    title: 'District integrations',
-    copy: 'Connect to Clever, Canvas, and Google Classroom for roster-aware analytics.',
-    icon: Network,
-  },
-  {
-    title: 'Accessibility audit',
-    copy: 'Partner with specialists to ensure captions, transcripts, and alt-text meet WCAG 2.2.',
-    icon: ShieldCheck,
-  },
+const difficultyOptions = [
+  { label: 'Easy', value: 'easy' as const },
+  { label: 'Medium', value: 'medium' as const },
+  { label: 'Challenging', value: 'challenging' as const },
 ]
 
-const recommendedChannels = [
-  {
-    name: 'CrashCourse EDU',
-    focus: 'Standards-aligned humanities and science explainers',
-    gradeBand: 'Grades 6-12',
-  },
-  {
-    name: 'Numberphile Classroom',
-    focus: 'Conceptual mathematics storytelling',
-    gradeBand: 'Grades 7-12',
-  },
-]
 
 const referenceVideos = [
   {
@@ -136,32 +110,6 @@ const pedagogyNotes = [
   },
 ]
 
-const playlistIdeas = [
-  {
-    title: 'Inquiry Launch',
-    description: 'Curate short clips to launch your next project-based learning inquiry or case study.',
-  },
-  {
-    title: 'Flipped Mini-lesson',
-    description: 'Assign explanatory videos for home viewing with instant comprehension checks when class starts.',
-  },
-  {
-    title: 'Career Spotlight',
-    description: 'Highlight industry interviews and connect them to course standards with scenario-based questions.',
-  },
-  {
-    title: 'SEL Morning Meeting',
-    description: 'Use calming or empathy-building clips to kick off advisory with reflection prompts.',
-  },
-  {
-    title: 'STEM Lab Prep',
-    description: 'Share lab demonstration videos before experiments to walk students through safety and setup.',
-  },
-  {
-    title: 'Language Listening Center',
-    description: 'Supply authentic language videos with comprehension checks for multilingual classrooms.',
-  },
-]
 
 const workflowSteps = [
   {
@@ -190,11 +138,16 @@ const YouTubeQuizGenerator = () => {
   const [language, setLanguage] = useState('English')
   const [selectedStyles, setSelectedStyles] = useState<string[]>(['Multiple choice', 'Higher-order thinking'])
   const [questionCount, setQuestionCount] = useState(6)
+  const [difficultyLevel, setDifficultyLevel] = useState<'easy' | 'medium' | 'challenging'>('medium')
+  const [accessibilityMode, setAccessibilityMode] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [quizPreview, setQuizPreview] = useState<QuizPreview | null>(null)
   const [hasGenerated, setHasGenerated] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [appliedStrategyId, setAppliedStrategyId] = useState<string | null>(null)
+  const [appliedStrategyTitle, setAppliedStrategyTitle] = useState<string | null>(null)
+  const [selectedLibraryVideoId, setSelectedLibraryVideoId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const getVideoUrlValidationError = (url: string): string | null => {
@@ -230,6 +183,7 @@ const YouTubeQuizGenerator = () => {
   }
 
   const handleUseReference = (video: typeof referenceVideos[0]) => {
+    setSelectedLibraryVideoId(null)
     setVideoUrl(video.url)
     setGradeBand(video.gradeBand)
     setSubjectArea(video.subjectArea)
@@ -239,6 +193,19 @@ const YouTubeQuizGenerator = () => {
     setTimeout(() => {
       handleGenerateQuizWithData(video)
     }, 100)
+  }
+
+  const handleDifficultyChange = (nextDifficulty: 'easy' | 'medium' | 'challenging') => {
+    setDifficultyLevel(nextDifficulty)
+    toast.info(`Adaptive Difficulty: ${nextDifficulty.charAt(0).toUpperCase()}${nextDifficulty.slice(1)}`)
+  }
+
+  const handleAccessibilityToggle = () => {
+    setAccessibilityMode((prev) => {
+      const next = !prev
+      toast.info(`Accessibility Assistant: ${next ? 'Enabled' : 'Disabled'}`)
+      return next
+    })
   }
 
   const handleGenerateQuiz = () => {
@@ -275,6 +242,10 @@ const YouTubeQuizGenerator = () => {
         quiz_language: language,
         question_styles: selectedStyles,
         question_count: questionCount,
+        lesson_strategy_id: appliedStrategyId ?? undefined,
+        difficultyLevel,
+        accessibilityMode,
+        ...(selectedLibraryVideoId ? { videoId: selectedLibraryVideoId } : {}),
       })
 
       const generatedQuiz: QuizPreview = {
@@ -391,6 +362,28 @@ const YouTubeQuizGenerator = () => {
                 <p className="mt-1 text-sm text-gray-600">
                   Paste a YouTube lesson, set your audience, and let our AI craft scaffolded question pathways.
                 </p>
+                {appliedStrategyTitle && (
+                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Strategy applied: {appliedStrategyTitle}
+                  </div>
+                )}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <Sparkles className="h-3.5 w-3.5" />
+                    Adaptive Difficulty: {difficultyOptions.find((item) => item.value === difficultyLevel)?.label}
+                  </div>
+                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    Accessibility Assistant: {accessibilityMode ? 'Enabled' : 'Disabled'}
+                  </div>
+                  {hasGenerated && (
+                    <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
+                      <ListChecks className="h-3.5 w-3.5" />
+                      Worksheet Ready
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2">
                 <button
@@ -421,6 +414,7 @@ const YouTubeQuizGenerator = () => {
                     onChange={(event) => {
                       const nextUrl = event.target.value
                       setVideoUrl(nextUrl)
+                      setSelectedLibraryVideoId(null)
                       setUrlError(nextUrl.trim() ? getVideoUrlValidationError(nextUrl) : null)
                       setApiError(null)
                       setHasGenerated(false)
@@ -538,6 +532,48 @@ const YouTubeQuizGenerator = () => {
                   <p className="mt-1 text-xs text-gray-500">Slider adjusts pacing recommendations & differentiations.</p>
                 </div>
               </div>
+
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/70 p-4">
+                <p className="text-sm font-semibold text-gray-700">Quiz Intelligence controls</p>
+                <div className="mt-3 grid gap-4 md:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Adaptive difficulty</p>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {difficultyOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => handleDifficultyChange(option.value)}
+                          className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                            difficultyLevel === option.value
+                              ? 'border-red-400 bg-red-50 text-red-600'
+                              : 'border-gray-200 text-gray-600 hover:border-red-200 hover:text-red-600'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Accessibility assistant</p>
+                    <button
+                      type="button"
+                      onClick={handleAccessibilityToggle}
+                      className={`mt-2 inline-flex rounded-full border px-3 py-1.5 text-xs font-semibold transition ${
+                        accessibilityMode
+                          ? 'border-red-400 bg-red-50 text-red-600'
+                          : 'border-gray-200 text-gray-600 hover:border-red-200 hover:text-red-600'
+                      }`}
+                    >
+                      Accessibility Mode: {accessibilityMode ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-gray-500">
+                  Worksheet from Quiz becomes available after generation and uses your generated quiz result.
+                </p>
+              </div>
             </div>
 
             {/* Reference Videos Section */}
@@ -606,22 +642,12 @@ const YouTubeQuizGenerator = () => {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
-                <ListChecks className="h-5 w-5 text-red-500" /> Playlist strategy builder
-              </h3>
-              <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Designed for blended learning</span>
-            </div>
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
-              {playlistIdeas.map((idea) => (
-                <div key={idea.title} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="font-semibold text-gray-900">{idea.title}</p>
-                  <p className="mt-2 text-sm text-gray-600">{idea.description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LessonFlowBuilder
+            onStrategyApplied={(strategyId, strategyTitle) => {
+              setAppliedStrategyId(strategyId)
+              setAppliedStrategyTitle(strategyTitle)
+            }}
+          />
         </div>
 
         <aside className="space-y-6">
@@ -674,73 +700,18 @@ const YouTubeQuizGenerator = () => {
             </ul>
           </div>
 
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600">
-              <Youtube className="h-4 w-4 text-red-500" /> Educator-ready channels
-            </h3>
-            <div className="mt-4 space-y-4 text-sm text-gray-700">
-              {recommendedChannels.map((channel) => (
-                <div key={channel.name} className="rounded-2xl border border-gray-100 bg-gray-50 p-4">
-                  <p className="font-semibold text-gray-900">{channel.name}</p>
-                  <p className="text-xs uppercase tracking-wide text-gray-500">{channel.gradeBand}</p>
-                  <p className="mt-2 text-sm text-gray-600">{channel.focus}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <QuickStartVideoSources
+            onVideoPicked={({ youtubeUrl, videoId }) => {
+              setVideoUrl(youtubeUrl)
+              setSelectedLibraryVideoId(videoId)
+            }}
+          />
 
-          <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 text-white shadow-md">
-            <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-              <Clock className="h-4 w-4 text-amber-300" /> Upcoming features
-            </h3>
-            <ul className="mt-4 space-y-4 text-sm">
-              <li className="flex gap-3">
-                <Sparkles className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Adaptive watch checkpoints</p>
-                  <p className="text-white/70">Auto-pause videos and surface live polls when attention dips.</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <BookOpen className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Curriculum tagging engine</p>
-                  <p className="text-white/70">Map each question to district standards, NGSS, TEKS, and more.</p>
-                </div>
-              </li>
-              <li className="flex gap-3">
-                <GraduationCap className="mt-1 h-4 w-4 text-amber-300" />
-                <div>
-                  <p className="font-semibold">Student playlist analytics</p>
-                  <p className="text-white/70">Track mastery by clip, regroup learners, and export insight dashboards.</p>
-                </div>
-              </li>
-            </ul>
-          </div>
+          <AICapabilityPreview />
         </aside>
       </section>
 
-      <section>
-        <div className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 p-6 text-white shadow-md">
-          <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-            <Target className="h-4 w-4 text-amber-300" /> Implementation roadmap
-          </h3>
-          <ul className="mt-4 space-y-4 text-sm text-white/80">
-            {roadmapSteps.map((step) => {
-              const Icon = step.icon
-              return (
-                <li key={step.title} className="flex gap-3">
-                  <Icon className="mt-1 h-4 w-4 text-amber-300" />
-                  <div>
-                    <p className="font-semibold text-white">{step.title}</p>
-                    <p className="text-sm text-white/70">{step.copy}</p>
-                  </div>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      </section>
+      <ClassroomUseFlow />
     </div>
   )
 }

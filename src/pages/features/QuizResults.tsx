@@ -25,6 +25,7 @@ const QuizResults = () => {
   const location = useLocation()
   const navigate = useNavigate()
   const [showAnswers, setShowAnswers] = useState(false)
+  const [isWorksheetExporting, setIsWorksheetExporting] = useState(false)
   const quizData = location.state?.quizData as QuizPreview | null
 
   if (!quizData) {
@@ -111,6 +112,44 @@ const QuizResults = () => {
     }
   }
 
+  const getAnswerText = (question: YouTubeQuizQuestion) => {
+    if (question.style === 'multiple_choice') {
+      if (
+        !question.options ||
+        typeof question.correct_option_index !== 'number' ||
+        !question.options[question.correct_option_index]
+      ) {
+        return 'Answer unavailable'
+      }
+      return question.options[question.correct_option_index]
+    }
+    if (question.style === 'quick_check') {
+      return question.answer !== undefined ? String(question.answer) : 'Answer unavailable'
+    }
+    const longAnswerParts: string[] = []
+    if (question.sample_answer) {
+      longAnswerParts.push(`Sample answer: ${question.sample_answer}`)
+    }
+    if (question.rubric_points && question.rubric_points.length > 0) {
+      longAnswerParts.push(`Rubric points: ${question.rubric_points.join('; ')}`)
+    }
+    return longAnswerParts.join(' | ') || 'Answer guidance unavailable'
+  }
+
+  const handleExportWorksheet = () => {
+    try {
+      setIsWorksheetExporting(true)
+      setTimeout(() => {
+        window.print()
+        toast.success('Worksheet print layout opened.')
+        setTimeout(() => setIsWorksheetExporting(false), 100)
+      }, 50)
+    } catch {
+      setIsWorksheetExporting(false)
+      toast.error('Unable to open worksheet export.')
+    }
+  }
+
   const renderQuestion = (question: YouTubeQuizQuestion) => {
     if (question.style === 'multiple_choice') {
       return (
@@ -169,8 +208,17 @@ const QuizResults = () => {
   }
 
   return (
-    <div className="space-y-8 print:space-y-4">
-      <style>{'@media print { .print-hide { display: none !important; } .print-page-break { page-break-inside: avoid; } }'}</style>
+    <div className={`space-y-8 print:space-y-4 ${isWorksheetExporting ? 'worksheet-export' : ''}`}>
+      <style>
+        {`@media print {
+          .print-hide { display: none !important; }
+          .print-page-break { page-break-inside: avoid; }
+          .print-only { display: none !important; }
+          .worksheet-export .print-standard { display: none !important; }
+          .worksheet-export .print-only { display: block !important; }
+          .worksheet-page-break { page-break-before: always; }
+        }`}
+      </style>
       {/* Header */}
       <div className="flex items-center justify-between print-hide">
         <div className="flex items-center gap-4">
@@ -208,11 +256,18 @@ const QuizResults = () => {
             <Download className="h-4 w-4" />
             Export PDF
           </button>
+          <button
+            onClick={handleExportWorksheet}
+            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+          >
+            <Download className="h-4 w-4" />
+            Generate Worksheet
+          </button>
         </div>
       </div>
 
       {/* Quiz Sections */}
-      <div className="space-y-6">
+      <div className="space-y-6 print-standard">
         {quizData.sections.map((section, sectionIdx) => {
           const Icon = sectionIcons[section.heading as keyof typeof sectionIcons] || BookOpen
           return (
@@ -252,8 +307,43 @@ const QuizResults = () => {
         })}
       </div>
 
+      <div className="print-only rounded-3xl border border-gray-200 bg-white p-6">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold text-gray-900">{quizData.title}</h2>
+          <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-gray-700">
+            <p>Name: ________________________</p>
+            <p>Date: ________________________</p>
+          </div>
+        </div>
+        <ol className="space-y-4 text-sm text-gray-800">
+          {quizData.sections.flatMap((section) => section.questions).map((question, idx) => (
+            <li key={`worksheet-student-${question.id}-${idx}`}>
+              <p className="font-medium">{question.prompt}</p>
+              {question.style === 'multiple_choice' && question.options && (
+                <ul className="mt-2 list-disc pl-5">
+                  {question.options.map((option, optionIdx) => (
+                    <li key={`worksheet-option-${question.id}-${optionIdx}`}>{option}</li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="print-only worksheet-page-break rounded-3xl border border-gray-200 bg-white p-6">
+        <h2 className="text-2xl font-semibold text-gray-900">{quizData.title} - Teacher answer key</h2>
+        <ol className="mt-4 space-y-3 text-sm text-gray-800">
+          {quizData.sections.flatMap((section) => section.questions).map((question, idx) => (
+            <li key={`worksheet-answer-${question.id}-${idx}`}>
+              <p className="font-semibold">{idx + 1}. {getAnswerText(question)}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+
       {/* Action Footer */}
-      <div className="rounded-3xl border border-gray-200 bg-gradient-to-r from-red-50 to-orange-50 p-6 print-hide">
+      <div className="rounded-3xl border border-gray-200 bg-gradient-to-r from-red-50 to-orange-50 p-6 print-hide print-standard">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Ready to use this quiz?</h3>

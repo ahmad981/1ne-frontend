@@ -8,6 +8,28 @@ export interface YouTubeQuizGenerateRequest {
   quiz_language: string
   question_styles: string[]
   question_count: number
+  lesson_strategy_id?: string
+  difficultyLevel?: 'easy' | 'medium' | 'challenging'
+  accessibilityMode?: boolean
+  /** When set, backend resolves URL, subject lens, grade band, learning focus, and question styles from the library. */
+  videoId?: string
+}
+
+export interface LessonStrategySummary {
+  id: string
+  title: string
+  teaching_mode: string
+  description: string
+  instruction: string
+  learning_objectives: string[]
+  base_question_mix: Record<string, number>
+  generation_rules: string[]
+  recommended_quiz_type: string
+  estimated_classroom_time: string
+  recommended_export_format: string
+  best_use_case: string
+  teacher_prompt: string
+  differentiation_note: string
 }
 
 export interface YouTubeQuizSection {
@@ -41,6 +63,12 @@ export const generateYouTubeQuiz = (payload: YouTubeQuizGenerateRequest) => {
   return apiRequest<YouTubeQuizGenerateResponse>('/v1/youtube-quiz/generate', {
     method: 'POST',
     body: payload,
+  })
+}
+
+export const getLessonStrategies = () => {
+  return apiRequest<LessonStrategySummary[]>('/v1/youtube-quiz/lesson-strategies', {
+    method: 'GET',
   })
 }
 
