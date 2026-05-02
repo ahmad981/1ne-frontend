@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Lightbulb,
   CheckCircle2,
+  FileText,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useSnackbar } from '../../hooks/useSnackbar'
@@ -219,52 +220,65 @@ const QuizResults = () => {
           .worksheet-page-break { page-break-before: always; }
         }`}
       </style>
-      {/* Header */}
-      <div className="flex items-center justify-between print-hide">
-        <div className="flex items-center gap-4">
+      {/* Toolbar: actions separated from title so layout reads left→right clearly */}
+      <header className="print-hide space-y-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <button
+            type="button"
             onClick={() => navigate('/youtube-quiz')}
-            className="flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+            className="inline-flex w-fit items-center gap-2 rounded-full border border-gray-200 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-800 transition hover:border-gray-300 hover:bg-white"
           >
-            <ArrowLeft className="h-4 w-4" />
+            <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
             Back to Generator
           </button>
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">{quizData.title}</h1>
-            <p className="mt-1 text-sm text-gray-600">{quizData.summary}</p>
+
+          <div
+            className="flex flex-wrap items-center gap-2 sm:justify-end"
+            role="toolbar"
+            aria-label="Quiz actions"
+          >
+            <button
+              type="button"
+              onClick={() => setShowAnswers((prev) => !prev)}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50"
+            >
+              {showAnswers ? <EyeOff className="h-4 w-4 shrink-0" aria-hidden /> : <Eye className="h-4 w-4 shrink-0" aria-hidden />}
+              {showAnswers ? 'Hide answers' : 'Show answers'}
+            </button>
+            <button
+              type="button"
+              onClick={handleShare}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50"
+            >
+              <Share2 className="h-4 w-4 shrink-0" aria-hidden />
+              Share
+            </button>
+            <button
+              type="button"
+              onClick={handleExportPdf}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm transition hover:border-red-200 hover:bg-red-50"
+            >
+              <Download className="h-4 w-4 shrink-0" aria-hidden />
+              Export PDF
+            </button>
+            <button
+              type="button"
+              onClick={handleExportWorksheet}
+              className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-800 shadow-sm transition hover:bg-gray-50"
+            >
+              <FileText className="h-4 w-4 shrink-0" aria-hidden />
+              Generate worksheet
+            </button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={() => setShowAnswers((prev) => !prev)}
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            {showAnswers ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            {showAnswers ? 'Hide answers' : 'Show answers'}
-          </button>
-          <button
-            onClick={handleShare}
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <Share2 className="h-4 w-4" />
-            Share
-          </button>
-          <button
-            onClick={handleExportPdf}
-            className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white hover:bg-red-400"
-          >
-            <Download className="h-4 w-4" />
-            Export PDF
-          </button>
-          <button
-            onClick={handleExportWorksheet}
-            className="inline-flex items-center gap-2 rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-          >
-            <Download className="h-4 w-4" />
-            Generate Worksheet
-          </button>
+
+        <div className="border-t border-gray-100 pt-4">
+          <h1 className="text-xl font-semibold leading-snug text-gray-900 sm:text-2xl">{quizData.title}</h1>
+          <p className="mt-2 max-w-4xl text-sm leading-relaxed text-gray-600 line-clamp-3 sm:line-clamp-2">
+            {quizData.summary}
+          </p>
         </div>
-      </div>
+      </header>
 
       {/* Quiz Sections */}
       <div className="space-y-6 print-standard">
@@ -346,9 +360,10 @@ const QuizResults = () => {
       <div className="rounded-3xl border border-gray-200 bg-gradient-to-r from-red-50 to-orange-50 p-6 print-hide print-standard">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Ready to use this quiz?</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Next steps</h3>
             <p className="mt-1 text-sm text-gray-600">
-              Export as PDF, share with colleagues, or customize questions before assigning to students.
+              Start a new quiz or save this one to your library. Use the toolbar above anytime for print, share, or answer
+              key.
             </p>
           </div>
           <div className="flex gap-2">

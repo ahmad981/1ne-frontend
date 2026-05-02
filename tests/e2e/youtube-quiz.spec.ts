@@ -69,7 +69,7 @@ test.describe('YouTube Quiz Generator (E2E)', () => {
     await page.getByRole('button', { name: /apply strategy to quiz/i }).click()
     await expect(page.getByText(/strategy applied:/i)).toBeVisible()
 
-    // Trigger generation via reference video (auto-fills + auto-generates).
+    // Reference video fills the form; user must click Generate (no auto-run).
     await page.getByText('Try with example videos').scrollIntoViewIfNeeded()
     const generateCalls: string[] = []
     page.on('request', (req) => {
@@ -117,10 +117,13 @@ test.describe('YouTube Quiz Generator (E2E)', () => {
     const examplesSection = page.locator('div.rounded-2xl', { hasText: 'Try with example videos' })
     await expect(examplesSection).toBeVisible()
     // Example video cards use the `group` class; target those buttons specifically.
+    await examplesSection.locator('button.group').first().click()
+    await expect(page.getByPlaceholder('https://www.youtube.com/watch?v=...')).not.toHaveValue('')
+
     const generateRequestPromise = page.waitForRequest((req) => {
       return req.method() === 'POST' && req.url().includes('/api/v1/youtube-quiz/generate')
     }, { timeout: 60_000 })
-    await examplesSection.locator('button.group').first().click()
+    await page.getByRole('button', { name: 'Generate quiz', exact: true }).click()
     const generateRequest = await generateRequestPromise
 
     await page.waitForResponse((res) => res.request() === generateRequest && res.status() === 200, {

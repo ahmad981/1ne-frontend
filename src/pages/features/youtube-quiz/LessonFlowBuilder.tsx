@@ -92,9 +92,11 @@ const formatQuestionMix = (mix: Record<string, number>): string => {
 
 interface Props {
   onStrategyApplied?: (strategyId: string, strategyTitle: string) => void
+  /** Called when the user selects a strategy card or applies one — use to scroll to the main quiz form. */
+  onUserInteract?: () => void
 }
 
-export function LessonFlowBuilder({ onStrategyApplied }: Props) {
+export function LessonFlowBuilder({ onStrategyApplied, onUserInteract }: Props) {
   const { toast } = useSnackbar()
   const [strategies, setStrategies] = useState<LessonStrategySummary[]>([])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -135,10 +137,14 @@ export function LessonFlowBuilder({ onStrategyApplied }: Props) {
     setAppliedId(active.id)
     toast.success(`Strategy "${active.title}" applied to your quiz configuration.`)
     onStrategyApplied?.(active.id, active.title)
+    onUserInteract?.()
   }
 
   return (
-    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div
+      className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm scroll-mt-24"
+      id="youtube-quiz-lesson-flow"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
@@ -146,7 +152,7 @@ export function LessonFlowBuilder({ onStrategyApplied }: Props) {
             Interactive Lesson Flow Builder
           </h3>
           <p className="mt-1 text-sm text-gray-500">
-            Select a strategy to preview its classroom configuration.
+            Tap a card to preview, then apply — your choice updates the quiz blueprint above (we scroll you there).
           </p>
         </div>
         {appliedId && (
@@ -165,7 +171,10 @@ export function LessonFlowBuilder({ onStrategyApplied }: Props) {
             <button
               key={s.id}
               data-testid={`lesson-strategy-card-${s.id}`}
-              onClick={() => setActiveId(isActive ? null : s.id)}
+              onClick={() => {
+                setActiveId(isActive ? null : s.id)
+                onUserInteract?.()
+              }}
               className={`rounded-2xl border-2 p-4 text-left transition-all ${
                 isActive ? s.activeCls : s.cardCls
               }`}

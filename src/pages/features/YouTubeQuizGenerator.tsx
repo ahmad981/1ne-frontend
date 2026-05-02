@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Youtube,
@@ -7,7 +7,6 @@ import {
   GraduationCap,
   BookOpen,
   CheckCircle2,
-  Video,
   ListChecks,
   MessageSquare,
   Lightbulb,
@@ -16,6 +15,7 @@ import {
   Target,
   Link as LinkIcon,
   Eye,
+  X,
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { generateYouTubeQuiz, YouTubeQuizSection } from '../../api/youtubeQuiz'
@@ -129,8 +129,18 @@ const workflowSteps = [
   },
 ]
 
+const HERO_COLLAPSE_KEY = 'yt_quiz_hero_collapsed_v1'
+
 const YouTubeQuizGenerator = () => {
   const { toast } = useSnackbar()
+  const urlInputRef = useRef<HTMLInputElement>(null)
+  const [isHeroCollapsed, setIsHeroCollapsed] = useState<boolean>(() => {
+    try {
+      return window.localStorage.getItem(HERO_COLLAPSE_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
   const [videoUrl, setVideoUrl] = useState('')
   const [gradeBand, setGradeBand] = useState('Grades 6-8')
   const [subjectArea, setSubjectArea] = useState('Science & STEM')
@@ -149,6 +159,20 @@ const YouTubeQuizGenerator = () => {
   const [appliedStrategyTitle, setAppliedStrategyTitle] = useState<string | null>(null)
   const [selectedLibraryVideoId, setSelectedLibraryVideoId] = useState<string | null>(null)
   const navigate = useNavigate()
+
+  const scrollToBlueprint = useCallback(() => {
+    // URL input is the primary "source of truth" — always bring focus there.
+    urlInputRef.current?.focus({ preventScroll: false })
+  }, [])
+
+  useEffect(() => {
+    if (!isHeroCollapsed) return
+    try {
+      window.localStorage.setItem(HERO_COLLAPSE_KEY, '1')
+    } catch {
+      // ignore
+    }
+  }, [isHeroCollapsed])
 
   const getVideoUrlValidationError = (url: string): string | null => {
     const trimmed = url.trim()
@@ -183,16 +207,15 @@ const YouTubeQuizGenerator = () => {
   }
 
   const handleUseReference = (video: typeof referenceVideos[0]) => {
+    scrollToBlueprint()
     setSelectedLibraryVideoId(null)
     setVideoUrl(video.url)
     setGradeBand(video.gradeBand)
     setSubjectArea(video.subjectArea)
     setLearningFocus(video.learningFocus)
-    
-    // Auto-generate after a brief delay to allow state updates
-    setTimeout(() => {
-      handleGenerateQuizWithData(video)
-    }, 100)
+    setUrlError(null)
+    setApiError(null)
+    toast.info('Example loaded — review settings in the sticky bar, then click Generate quiz.')
   }
 
   const handleDifficultyChange = (nextDifficulty: 'easy' | 'medium' | 'challenging') => {
@@ -312,130 +335,164 @@ const YouTubeQuizGenerator = () => {
 
   return (
     <div className="space-y-10">
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-[#ff4d4f] via-[#ff7756] to-[#ffb347] px-6 py-8 text-white shadow-xl">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-2xl space-y-5">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
-              <Sparkles className="h-4 w-4" /> Learning with video
+      {!isHeroCollapsed ? (
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#ff4d4f] via-[#ff7756] to-[#ffb347] px-6 py-6 text-white shadow-xl">
+          <button
+            type="button"
+            onClick={() => setIsHeroCollapsed(true)}
+            className="absolute right-4 top-4 inline-flex items-center gap-1 rounded-full bg-white/15 px-3 py-1.5 text-xs font-semibold text-white/90 backdrop-blur transition hover:bg-white/20"
+            aria-label="Dismiss banner"
+          >
+            <X className="h-4 w-4" />
+            Dismiss
+          </button>
+          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div className="max-w-2xl space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-white">
+                <Sparkles className="h-4 w-4" /> YouTube Quiz Generator
+              </div>
+              <h1 className="text-[22px] font-semibold leading-tight sm:text-[26px]">
+                Turn a YouTube lesson into a classroom-ready quiz.
+              </h1>
+              <p className="text-sm text-white/85">
+                Paste a link, choose your audience, and generate scaffolded questions in seconds.
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
+                  <GraduationCap className="h-4 w-4" /> Standards-aligned prompts
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
+                  <Languages className="h-4 w-4" /> Multilingual support
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
+                  <CheckCircle2 className="h-4 w-4" /> Differentiation-ready
+                </div>
+              </div>
             </div>
-            <h1 className="text-[28px] font-semibold leading-tight sm:text-[32px]">
-              Build classroom-ready quizzes from any YouTube lesson in minutes.
-            </h1>
-            <p className="text-base text-white/80">
-              We layer pedagogy-first question design, transcript analysis, and accessibility tools so video-based
-              learning is purposeful for every student.
-            </p>
-            <div className="flex flex-wrap gap-3 text-sm">
-              <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
-                <GraduationCap className="h-5 w-5" /> Standards-aligned item templates
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
-                <Languages className="h-5 w-5" /> Multilingual subtitles support
-              </div>
-              <div className="flex items-center gap-2 rounded-2xl bg-white/15 px-3 py-2">
-                <CheckCircle2 className="h-5 w-5" /> Auto differentiation pathways
-              </div>
+
+            <div className="hidden w-full max-w-sm gap-3 rounded-2xl bg-white/10 p-4 text-white backdrop-blur xl:grid">
+              {progressHighlights.map((item) => (
+                <div key={item.label} className="rounded-xl border border-white/20 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-white/70">{item.label}</p>
+                  <p className="mt-1 text-2xl font-semibold">{item.value}</p>
+                  <p className="mt-1 text-xs text-white/70">{item.caption}</p>
+                </div>
+              ))}
             </div>
           </div>
+        </section>
+      ) : (
+        <section className="rounded-2xl border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-gray-800">
+              <Sparkles className="h-4 w-4 text-red-500" />
+              <span className="font-semibold">YouTube Quiz Generator</span>
+              <span className="text-gray-500">Paste a link → tune settings → generate.</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsHeroCollapsed(false)}
+              className="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+            >
+              Expand
+            </button>
+          </div>
+        </section>
+      )}
 
-          <div className="grid w-full max-w-sm gap-3 rounded-2xl bg-white/10 p-4 text-white backdrop-blur">
-            {progressHighlights.map((item) => (
-              <div key={item.label} className="rounded-xl border border-white/20 p-3">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/70">{item.label}</p>
-                <p className="mt-1 text-2xl font-semibold">{item.value}</p>
-                <p className="mt-1 text-xs text-white/70">{item.caption}</p>
+      <section className="sticky top-0 z-30 -mx-1 rounded-2xl border border-gray-200 bg-white/90 p-4 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-gray-900">
+                <Youtube className="h-5 w-5 text-red-500" />
+                Generate your quiz blueprint
+              </h2>
+              {appliedStrategyTitle && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Strategy: {appliedStrategyTitle}
+                </span>
+              )}
+            </div>
+            <div className="mt-3">
+              <label
+                htmlFor="youtube-quiz-url-input"
+                className="block text-xs font-semibold uppercase tracking-wide text-gray-600"
+              >
+                YouTube video link
+              </label>
+              {/* One row: input + actions share the same height so alignment matches the field, not the label */}
+              <div className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+                <input
+                  id="youtube-quiz-url-input"
+                  ref={urlInputRef}
+                  value={videoUrl}
+                  onChange={(event) => {
+                    const nextUrl = event.target.value
+                    setVideoUrl(nextUrl)
+                    setSelectedLibraryVideoId(null)
+                    setUrlError(nextUrl.trim() ? getVideoUrlValidationError(nextUrl) : null)
+                    setApiError(null)
+                    setHasGenerated(false)
+                    setQuizPreview(null)
+                  }}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  autoComplete="off"
+                  className={`h-11 min-h-[2.75rem] w-full min-w-0 flex-1 rounded-xl border bg-white px-4 text-sm text-gray-700 shadow-sm focus:outline-none focus:ring-2 ${
+                    urlError
+                      ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
+                      : 'border-gray-200 focus:border-red-300 focus:ring-red-100'
+                  }`}
+                />
+                <div className="flex w-full shrink-0 gap-2 sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={handlePreview}
+                    disabled={!hasGenerated || isGenerating}
+                    className="inline-flex h-11 min-h-[2.75rem] flex-1 items-center justify-center gap-2 rounded-full border-2 border-red-500 bg-white px-4 text-sm font-semibold text-red-500 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-300 disabled:text-red-300 sm:flex-initial"
+                  >
+                    <Eye className="h-4 w-4 shrink-0" aria-hidden />
+                    Preview
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateQuiz}
+                    disabled={isGenerating || !videoUrl.trim() || !isVideoUrlValid}
+                    className="inline-flex h-11 min-h-[2.75rem] flex-1 items-center justify-center gap-2 rounded-full bg-red-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300 sm:flex-initial sm:px-5"
+                  >
+                    <Play className={`h-4 w-4 shrink-0 ${isGenerating ? 'animate-pulse' : ''}`} aria-hidden />
+                    {isGenerating ? 'Analysing…' : 'Generate quiz'}
+                  </button>
+                </div>
               </div>
-            ))}
+              {(urlError || apiError) && (
+                <p className="mt-1.5 text-xs text-red-600" role="alert">
+                  {urlError || apiError}
+                </p>
+              )}
+            </div>
           </div>
         </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-3">
         <div className="space-y-6 xl:col-span-2">
-          <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <div
+            id="youtube-quiz-blueprint"
+            data-testid="youtube-quiz-blueprint"
+            className="scroll-mt-24 rounded-3xl border border-gray-200 bg-white p-6 shadow-sm"
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="flex items-center gap-2 text-xl font-semibold text-gray-900">
-                  <Youtube className="h-6 w-6 text-red-500" />
-                  Generate your quiz blueprint
-                </h2>
+                <h3 className="text-lg font-semibold text-gray-900">Blueprint details</h3>
                 <p className="mt-1 text-sm text-gray-600">
-                  Paste a YouTube lesson, set your audience, and let our AI craft scaffolded question pathways.
+                  Set your audience and preferences. The link and Generate button are always available in the sticky bar above.
                 </p>
-                {appliedStrategyTitle && (
-                  <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Strategy applied: {appliedStrategyTitle}
-                  </div>
-                )}
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
-                    <Sparkles className="h-3.5 w-3.5" />
-                    Adaptive Difficulty: {difficultyOptions.find((item) => item.value === difficultyLevel)?.label}
-                  </div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
-                    <CheckCircle2 className="h-3.5 w-3.5" />
-                    Accessibility Assistant: {accessibilityMode ? 'Enabled' : 'Disabled'}
-                  </div>
-                  {hasGenerated && (
-                    <div className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50 px-3 py-1 text-xs font-semibold text-gray-700">
-                      <ListChecks className="h-3.5 w-3.5" />
-                      Worksheet Ready
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={handlePreview}
-                  disabled={!hasGenerated || isGenerating}
-                  className="inline-flex items-center gap-2 rounded-full border-2 border-red-500 bg-white px-4 py-2 text-sm font-semibold text-red-500 shadow-sm transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-red-300 disabled:text-red-300"
-                >
-                  <Eye className="h-4 w-4" />
-                  Preview
-                </button>
-                <button
-                  onClick={handleGenerateQuiz}
-                  disabled={isGenerating || !videoUrl.trim() || !isVideoUrlValid}
-                  className="inline-flex items-center gap-2 rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-red-400 disabled:cursor-not-allowed disabled:bg-red-300"
-                >
-                  <Play className={`h-4 w-4 ${isGenerating ? 'animate-pulse' : ''}`} />
-                  {isGenerating ? 'Analysing…' : 'Generate quiz'}
-                </button>
               </div>
             </div>
 
             <div className="mt-6 space-y-6">
-              <div>
-                <label className="text-sm font-semibold text-gray-700">YouTube video link</label>
-                <div className="mt-2 flex flex-col gap-3 md:flex-row">
-                  <input
-                    value={videoUrl}
-                    onChange={(event) => {
-                      const nextUrl = event.target.value
-                      setVideoUrl(nextUrl)
-                      setSelectedLibraryVideoId(null)
-                      setUrlError(nextUrl.trim() ? getVideoUrlValidationError(nextUrl) : null)
-                      setApiError(null)
-                      setHasGenerated(false)
-                      setQuizPreview(null)
-                    }}
-                    placeholder="https://www.youtube.com/watch?v=..."
-                    className={`w-full rounded-xl bg-white px-4 py-3 text-sm text-gray-700 focus:outline-none focus:ring-2 ${
-                      urlError
-                        ? 'border border-red-300 focus:border-red-400 focus:ring-red-100'
-                        : 'border border-gray-200 focus:border-red-300 focus:ring-red-100'
-                    }`}
-                  />
-                  <div className="flex items-center gap-2 rounded-xl bg-red-50 px-3 py-3 text-xs text-red-500">
-                    <Video className="h-4 w-4" /> Transcript & keywords extracted automatically
-                  </div>
-                </div>
-                {(urlError || apiError) && (
-                  <p className="mt-2 text-xs text-red-600">{urlError || apiError}</p>
-                )}
-              </div>
-
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <label className="text-sm font-semibold text-gray-700">Grade band</label>
@@ -577,13 +634,17 @@ const YouTubeQuizGenerator = () => {
             </div>
 
             {/* Reference Videos Section */}
-            <div className="mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-5">
+            <div
+              id="youtube-quiz-examples"
+              className="scroll-mt-24 mt-8 rounded-2xl border border-gray-200 bg-gray-50 p-5"
+            >
               <div className="flex items-center gap-2 mb-4">
                 <LinkIcon className="h-5 w-5 text-red-500" />
                 <h3 className="text-sm font-semibold text-gray-900">Try with example videos</h3>
               </div>
               <p className="text-xs text-gray-600 mb-4">
-                Click any video below to automatically fill the form and generate a quiz instantly.
+                Click a card to fill the link and suggested grade/subject above — then press Generate quiz when you are
+                ready.
               </p>
               <div className="grid gap-3 md:grid-cols-2">
                 {referenceVideos.map((video, idx) => (
@@ -643,6 +704,7 @@ const YouTubeQuizGenerator = () => {
           </div>
 
           <LessonFlowBuilder
+            onUserInteract={scrollToBlueprint}
             onStrategyApplied={(strategyId, strategyTitle) => {
               setAppliedStrategyId(strategyId)
               setAppliedStrategyTitle(strategyTitle)
@@ -705,6 +767,7 @@ const YouTubeQuizGenerator = () => {
               setVideoUrl(youtubeUrl)
               setSelectedLibraryVideoId(videoId)
             }}
+            onAfterVideoSelect={scrollToBlueprint}
           />
 
           <AICapabilityPreview />

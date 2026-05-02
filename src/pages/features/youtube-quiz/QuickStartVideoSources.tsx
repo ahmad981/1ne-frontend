@@ -38,9 +38,11 @@ const CHANNEL_CARD_PRESETS: { cardCls: string; activeCls: string }[] = [
 
 interface Props {
   onVideoPicked?: (p: { videoId: string; youtubeUrl: string; title: string }) => void
+  /** After a video is chosen — e.g. scroll the main form into view so users see the filled link field. */
+  onAfterVideoSelect?: () => void
 }
 
-export function QuickStartVideoSources({ onVideoPicked }: Props) {
+export function QuickStartVideoSources({ onVideoPicked, onAfterVideoSelect }: Props) {
   const { toast } = useSnackbar()
   const [channels, setChannels] = useState<VideoLibraryChannel[]>([])
   const [loadState, setLoadState] = useState<'idle' | 'loading' | 'error'>('idle')
@@ -80,18 +82,22 @@ export function QuickStartVideoSources({ onVideoPicked }: Props) {
   const handleSelectVideo = (video: VideoLibraryVideo) => {
     setSelectedVideoId(video.id)
     setSelectedTitle(video.title)
-    toast.success(`"${video.title}" selected for quiz generation.`)
+    toast.success(`"${video.title}" added — link field updated above.`)
     onVideoPicked?.({ videoId: video.id, youtubeUrl: video.youtubeUrl, title: video.title })
+    onAfterVideoSelect?.()
   }
 
   return (
-    <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+    <div
+      className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm scroll-mt-24"
+      id="youtube-quiz-quick-library"
+    >
       <h3 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-gray-600">
         <Youtube className="h-4 w-4 text-red-500" />
         Quick Start Video Sources
       </h3>
       <p className="mt-1 text-xs text-gray-500">
-        Select a channel to browse recommended videos.
+        Pick a video — we paste it into the YouTube link at the top of the page and jump you there to review.
       </p>
       {loadState === 'loading' && (
         <p className="mt-1 text-xs text-gray-500">Loading recommendations…</p>
