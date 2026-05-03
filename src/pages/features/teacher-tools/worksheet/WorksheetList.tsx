@@ -70,8 +70,8 @@ export default function WorksheetList() {
       if (filters.grade && w.grade !== filters.grade) return false
       if (filters.classKey && !w.classes?.includes(filters.classKey)) return false
       if (tab === 'All' && filters.status && w.status !== filters.status) return false
-      if (tab === 'Printable' && w.format !== 'printable_pdf') return false
-      if (tab === 'Digital' && w.format !== 'interactive_digital') return false
+      if (tab === 'Printable' && w.format !== 'printable_pdf' && w.format !== 'both') return false
+      if (tab === 'Digital' && w.format !== 'interactive_digital' && w.format !== 'both') return false
       if (tab === 'Draft' && w.status !== 'draft') return false
       if (tab === 'Published' && w.status !== 'published') return false
       if (tab === 'Archived' && w.status !== 'archived') return false
@@ -310,7 +310,9 @@ export default function WorksheetList() {
                     {w.sourceSummary && <p className="mt-0.5 text-xs font-normal text-gray-500 line-clamp-1">{w.sourceSummary}</p>}
                   </td>
                   <td className="px-3 py-3 text-gray-600">{w.topic}</td>
-                  <td className="px-3 py-3 text-gray-600">{w.format === 'printable_pdf' ? 'Printable' : 'Digital'}</td>
+                  <td className="px-3 py-3 text-gray-600">
+                    {w.format === 'printable_pdf' ? 'Printable' : w.format === 'both' ? 'Both' : 'Digital'}
+                  </td>
                   <td className="px-3 py-3">
                     <TeacherToolsStatusBadge kind="content" value={w.status} />
                   </td>

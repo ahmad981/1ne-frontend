@@ -53,7 +53,12 @@ export default function WorksheetDetail() {
 
   const bp = getTopicBlueprint(w.subject, w.topic)
   const an = analyticsForTopic(bp)
-  const formatLabel = w.format === 'printable_pdf' ? 'Printable PDF' : 'Interactive digital'
+  const formatLabel =
+    w.format === 'printable_pdf'
+      ? 'Print-ready PDF'
+      : w.format === 'both'
+        ? 'Both (print + digital)'
+        : 'Interactive digital'
 
   return (
     <div className="space-y-6">
@@ -117,7 +122,11 @@ export default function WorksheetDetail() {
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Format</p>
               <p className="mt-2 text-lg font-semibold text-gray-900">{formatLabel}</p>
               <p className="mt-1 text-xs text-gray-500">
-                {w.format === 'printable_pdf' ? 'PDF download' : 'In-browser interaction'}
+                {w.format === 'printable_pdf'
+                  ? 'PDF download'
+                  : w.format === 'both'
+                    ? 'PDF + in-browser'
+                    : 'In-browser interaction'}
               </p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">

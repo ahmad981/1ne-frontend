@@ -34,7 +34,9 @@ export default function WorksheetResponses() {
       <p className="text-sm text-gray-600">
         {w.format === 'printable_pdf'
           ? 'Printable worksheet: distribution history and download counts (preview).'
-          : 'Digital worksheet: per-student completion and scoring (preview).'}
+          : w.format === 'both'
+            ? 'Hybrid worksheet: printable distribution plus digital completion (preview).'
+            : 'Digital worksheet: per-student completion and scoring (preview).'}
       </p>
       <Phase2Section title="Worksheet responses" footnote="Device sync and auto-grading connectors launch in Phase 2.">
         <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
@@ -55,7 +57,9 @@ export default function WorksheetResponses() {
                   <TeacherToolsStatusBadge kind="submission" value={i % 2 === 0 ? 'graded' : 'submitted'} />
                 </td>
                 <td className="px-3 py-3">{12 + i} min</td>
-                <td className="px-3 py-3">{w.format === 'interactive_digital' ? `${80 + i}%` : '—'}</td>
+                <td className="px-3 py-3">
+                  {w.format === 'interactive_digital' || w.format === 'both' ? `${80 + i}%` : '—'}
+                </td>
               </tr>
             ))}
           </tbody>

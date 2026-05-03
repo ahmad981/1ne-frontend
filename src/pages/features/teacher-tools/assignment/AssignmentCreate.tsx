@@ -1,52 +1,46 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
-import { TeacherToolsPageHeader, TeacherToolsWizardStepper, ContentSourcesPanel, Phase2Section } from '../components'
-import { useContentSourcesForm } from '../hooks/useContentSourcesForm'
+import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
-import { formatSourceSummary, generateAssignmentBrief } from '../demo/generationFromSources'
+import {
+  buildAssignmentTopicsFromScope,
+  formatSourceSummary,
+  type AssignmentBriefLineStub,
+  type AssignmentBriefTopicStub,
+  type QuizDifficultyId,
+} from '../demo/generationFromSources'
+import { downloadAssignmentBriefPdf } from '../utils/generateAssignmentPdf'
 import { GRADES, SUBJECTS } from '../types'
 import { newDemoId } from '../demo/newDemoId'
 import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
-import type { DemoQuiz } from '../demo/teacherToolsDemoData'
-import { downloadQuizPdf } from '../utils/generateQuizPdf'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
-import { AlertCircle, ArrowDown, ArrowUp, CheckSquare, Download, Eye, FileJson, FileText, Pencil, PlusCircle, RefreshCw, Sparkles, Trash2, Users } from 'lucide-react'
-import { QuizGeneratingOverlay } from '../quiz/components/QuizGeneratingOverlay'
 import {
-  DEFAULT_HANDOUT_LAYOUT,
-  LINE_HEIGHT_PRESETS,
-  QUESTION_GAP_PRESETS,
-  RULED_LINE_SPACING_PRESETS,
-  type HandoutLayoutOpts,
-} from '../quiz/config/handoutLayoutConfig'
-
-const BUILD_STEPS = ['Configure & generate', 'Review & publish']
-
-const ASSIGNMENT_TYPES = [
-  'Essay', 'Lab report', 'Problem set', 'Short essay', 'Structured response',
-  'Narrative', 'Field journal', 'Comparative essay', 'Brief', 'Reflection',
-  'Summary', 'Worksheet upload', 'Research report',
-]
-
-const LATE_POLICIES = [
-  { value: 'none', label: 'No late submissions' },
-  { value: '24h', label: 'Accept up to 24 hours late (no penalty)' },
-  { value: '24h_penalty', label: 'Accept up to 24 hours late (10% deduction)' },
-  { value: '1week', label: 'Accept up to 1 week late (20% deduction)' },
-  { value: 'always', label: 'Always accept late (teacher discretion)' },
-]
-
-const RUBRIC_CRITERIA = [
-  'Content accuracy',
-  'Depth of analysis',
-  'Structure & organisation',
-  'Evidence & citations',
-  'Language & expression',
-  'Original thinking',
-]
+  ArrowDown,
+  ArrowUp,
+  Download,
+  Eye,
+  FileJson,
+  Pencil,
+  PlusCircle,
+  Printer,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
+import { QuizGeneratingOverlay } from '../quiz/components/QuizGeneratingOverlay'
+import { AssignmentPrintPreviewModal, type AssignmentPrintMeta } from './components/AssignmentPrintPreviewModal'
+import { DEFAULT_HANDOUT_LAYOUT, type HandoutLayoutOpts } from '../quiz/config/handoutLayoutConfig'
+import { QUIZ_CREATION_STEPS } from '../quiz/config/quizCreationConfig'
+import { useQuizRagScope } from '../quiz/hooks/useQuizRagScope'
+import {
+  ASSIGNMENT_TOPIC_COUNT,
+  randomGenerationDelay,
+  validateRagAssignmentBuild,
+} from './config/assignmentCreationConfig'
+import { AssignmentRagBuildSection, type TopicVolumeMode } from './components/AssignmentRagBuildSection'
 
 function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
@@ -58,21 +52,14 @@ function dueDateIso(daysAhead: number) {
   return d.toISOString().slice(0, 10)
 }
 
-function StepHeader({ step, kicker, title, subtitle }: {
-  step: number; kicker: string; title: string; subtitle: string
-}) {
-  return (
-    <div className="flex gap-4 border-b border-gray-100 pb-4">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-sm font-bold text-white shadow-md shadow-indigo-600/25">
-        {step}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-600">{kicker}</p>
-        <h2 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-gray-600">{subtitle}</p>
-      </div>
-    </div>
-  )
+type LastAssignmentGen = {
+  topicCount: number
+  difficulty: QuizDifficultyId
+  assignmentType: string
+  rigorProfile: string
+  generatorInstructions: string
+  topicMixMode: TopicVolumeMode
+  seedKey: string
 }
 
 export default function AssignmentCreate() {
@@ -85,15 +72,16 @@ export default function AssignmentCreate() {
   const { toast } = useSnackbar()
   const { api } = useTeacherToolsDemo()
 
-  const [phase, setPhase] = useState<'build' | 'review'>(isEdit ? 'review' : 'build')
+  const [phase, setPhase] = useState<'build' | 'review'>('build')
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
-  const [generatedBrief, setGeneratedBrief] = useState<string[]>([])
-  const [previewOpen, setPreviewOpen] = useState(false)
+  const [topicBlocks, setTopicBlocks] = useState<AssignmentBriefTopicStub[]>([])
+  const [lastGen, setLastGen] = useState<LastAssignmentGen | null>(null)
+  const [printOpen, setPrintOpen] = useState(false)
   const [handoutLayout, setHandoutLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
-  const [draftLayout, setDraftLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
+  const handoutLayoutRef = useRef<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
 
   const [title, setTitle] = useState('Research brief')
   const [subject, setSubject] = useState<string>(SUBJECTS[1])
@@ -103,43 +91,30 @@ export default function AssignmentCreate() {
   const [studentInstructions, setStudentInstructions] = useState(
     'Submit your work as a single document. Cite all sources using the format shown in class.'
   )
-  const [academicRigor, setAcademicRigor] = useState<'Foundation' | 'Standard' | 'Advanced' | 'International Honors'>('Standard')
-  const [briefLineTarget, setBriefLineTarget] = useState(8)
+  const [rigorProfile, setRigorProfile] = useState('Standard')
+  const [topicMixMode, setTopicMixMode] = useState<TopicVolumeMode>('balanced')
+  const [topicCount, setTopicCount] = useState(ASSIGNMENT_TOPIC_COUNT.default)
+  const [difficulty, setDifficulty] = useState<QuizDifficultyId>('standard')
+  const [generatorInstructions, setGeneratorInstructions] = useState('')
 
-  const [maxFileSizeMb, setMaxFileSizeMb] = useState(10)
-  const [latePolicy, setLatePolicy] = useState('24h')
-  const [allowPdf, setAllowPdf] = useState(true)
-  const [allowDoc, setAllowDoc] = useState(true)
-  const [allowImage, setAllowImage] = useState(false)
-  const [allowText, setAllowText] = useState(true)
-
-  const [activeCriteria, setActiveCriteria] = useState<Set<string>>(new Set(RUBRIC_CRITERIA))
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
-  const [counts, setCounts] = useState({ assignedCount: 0, submitted: 0, pending: 0, graded: 0 })
   const [discardOpen, setDiscardOpen] = useState(false)
   const [loadedTopic, setLoadedTopic] = useState<string | undefined>(undefined)
   const [hydrateReady, setHydrateReady] = useState(!isEdit)
   const [publishPending, setPublishPending] = useState(false)
   const [saveDraftPending, setSaveDraftPending] = useState(false)
-  const [editingLineIndex, setEditingLineIndex] = useState<number | null>(null)
+  const [editingLine, setEditingLine] = useState<{ topicId: string; lineId: string } | null>(null)
   const [editingLineValue, setEditingLineValue] = useState('')
-  const [addingLineOpen, setAddingLineOpen] = useState(false)
+  const [addingLineTopicId, setAddingLineTopicId] = useState<string | null>(null)
   const [addingLineValue, setAddingLineValue] = useState('')
 
-  const sources = useContentSourcesForm({ subject, grade, initialTopic: loadedTopic })
+  const rag = useQuizRagScope({
+    subject,
+    grade,
+    bookSelectionMode: 'single',
+    initialScopeRefinement: loadedTopic,
+  })
 
-  const briefSeed = useMemo(
-    () => generateAssignmentBrief(sources.getGenerationContext()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sources.generationSignature, sources.getGenerationContext]
-  )
-
-  useEffect(() => {
-    const match = demoClasses.find((c) => c.grade === grade)
-    if (match && !selectedClasses.includes(match.key)) {
-      setSelectedClasses([match.key])
-    }
-  }, [grade]) // eslint-disable-line react-hooks/exhaustive-deps
+  const totalBriefLines = topicBlocks.reduce((n, t) => n + t.lines.length, 0)
 
   useEffect(() => {
     if (isEdit) return
@@ -179,170 +154,302 @@ export default function AssignmentCreate() {
       setGrade(a.grade)
       setAssignmentType(a.type)
       setDueAt(a.dueAt)
-      setLoadedTopic(a.topic)
-      setSelectedClasses(a.classes ?? [])
-      setCounts({ assignedCount: a.assignedCount, submitted: a.submitted, pending: a.pending, graded: a.graded })
+      if (a.topic) setLoadedTopic(a.topic)
       setHydrateReady(true)
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [api, assignmentId, isEdit, navigate, toast])
 
-  const toggleClass = (key: string) => {
-    setSelectedClasses((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    )
-  }
+  const runBuild = useCallback(
+    (ctx: ReturnType<typeof rag.getGenerationContext>, gen: LastAssignmentGen) => {
+      return buildAssignmentTopicsFromScope(ctx, {
+        topicCount: gen.topicCount,
+        assignmentType: gen.assignmentType,
+        rigorProfile: gen.rigorProfile,
+        difficulty: gen.difficulty,
+        generatorNotes: gen.generatorInstructions.trim() || undefined,
+        seedKey: gen.seedKey,
+      })
+    },
+    [],
+  )
 
-  const toggleCriterion = (c: string) => {
-    setActiveCriteria((prev) => {
-      const next = new Set(prev)
-      if (next.has(c)) next.delete(c)
-      else next.add(c)
-      return next
+  const snapshotGen = useCallback((): LastAssignmentGen => {
+    return {
+      topicCount,
+      difficulty,
+      assignmentType,
+      rigorProfile,
+      generatorInstructions,
+      topicMixMode,
+      seedKey: newDemoId('asg-seed'),
+    }
+  }, [topicCount, difficulty, assignmentType, rigorProfile, generatorInstructions, topicMixMode])
+
+  const runGeneration = useCallback(async () => {
+    const v = validateRagAssignmentBuild({
+      title,
+      generateWithoutSources: rag.generateWithoutSources,
+      selectedBookIds: rag.selectedBookIds,
+      selectedTopics: rag.selectedTopics,
+      scopeRefinement: rag.scopeRefinement,
     })
-  }
-
-  const runGeneration = () => {
-    const errs: string[] = []
-    if (!title.trim()) errs.push('Assignment title is required.')
-    if (buildErrors.length > 0 && !title.trim()) errs.push('Select at least one topic or enter a scope refinement.')
-    if (errs.length > 0) {
-      setBuildErrors(errs)
+    if (!v.ok) {
+      setBuildErrors(v.errors)
       toast.error('Fix the highlighted fields to generate.')
       return
     }
     setBuildErrors([])
     setGenerationError(null)
-    setGenProgress(0.15)
     setGenerating(true)
+    setGenProgress(0.12)
     const steps = window.setInterval(() => {
       setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.12))
     }, 450)
+    const gen = snapshotGen()
+    try {
+      await new Promise((r) => setTimeout(r, randomGenerationDelay()))
+      const ctx = rag.getGenerationContext()
+      const next = runBuild(ctx, gen)
+      setTopicBlocks(next)
+      setLastGen(gen)
+      setPhase('review')
+      toast.success('Assignment brief generated — review below.')
+    } catch {
+      setGenerationError('Generation failed (demo). Adjust sources and try again.')
+      toast.error('Could not generate assignment brief.')
+    } finally {
+      window.clearInterval(steps)
+      setGenerating(false)
+      setGenProgress(1)
+    }
+  }, [title, rag, snapshotGen, runBuild, toast])
+
+  const regenerateAll = useCallback(() => {
+    const gen = { ...(lastGen ?? snapshotGen()), seedKey: newDemoId('asg-seed') }
+    setGenerating(true)
+    setGenProgress(0.2)
+    const interval = window.setInterval(() => {
+      setGenProgress((p) => Math.min(0.9, p + 0.1))
+    }, 400)
     window.setTimeout(() => {
+      window.clearInterval(interval)
       try {
-        const generated = generateAssignmentBrief(sources.getGenerationContext())
-        const enriched = [...generated]
-        while (enriched.length < briefLineTarget) {
-          enriched.push(
-            academicRigor === 'International Honors'
-              ? 'Add international benchmark comparison, academic integrity notes, and explicit evaluation descriptors.'
-              : academicRigor === 'Advanced'
-              ? 'Require analytical evidence, comparative reasoning, and structured reflection checkpoints.'
-              : 'Include clear success criteria, examples, and scaffolded guidance for student completion.'
-          )
-        }
-        setGeneratedBrief(enriched.slice(0, briefLineTarget))
-        setPhase('review')
-        toast.success('Brief generated — review below.')
-      } catch {
-        setGenerationError('Generation failed (demo). Please retry with updated inputs.')
-        toast.error('Could not generate assignment brief.')
+        const ctx = rag.getGenerationContext()
+        setTopicBlocks(runBuild(ctx, gen))
+        setLastGen(gen)
+        toast.success('Brief regenerated.')
       } finally {
-        window.clearInterval(steps)
         setGenerating(false)
         setGenProgress(1)
       }
-    }, 1200 + Math.random() * 800)
-  }
+    }, randomGenerationDelay())
+  }, [lastGen, snapshotGen, rag, runBuild, toast])
 
-  const editBriefLine = (index: number) => {
-    const current = (generatedBrief.length > 0 ? generatedBrief : briefSeed)[index] ?? ''
-    setEditingLineIndex(index)
-    setEditingLineValue(current)
-  }
+  const regenerateTopic = useCallback(
+    (topicId: string) => {
+      const gen = lastGen ?? snapshotGen()
+      const t = topicBlocks.find((x) => x.id === topicId)
+      if (!t) return
+      const ctx = rag.getGenerationContext()
+      const one = buildAssignmentTopicsFromScope(ctx, {
+        topicCount: 1,
+        assignmentType: gen.assignmentType,
+        rigorProfile: gen.rigorProfile,
+        difficulty: gen.difficulty,
+        generatorNotes: gen.generatorInstructions.trim() || undefined,
+        seedKey: `${newDemoId('reg-topic')}|${t.title}`,
+        topicTitleOverride: t.title,
+      })[0]
+      if (!one) return
+      setTopicBlocks((prev) => prev.map((b) => (b.id === topicId ? { ...one, id: topicId } : b)))
+      toast.success('Topic section regenerated.')
+    },
+    [lastGen, snapshotGen, rag, topicBlocks, toast],
+  )
 
-  const addBriefLine = () => {
-    setAddingLineOpen(true)
-    setAddingLineValue('')
-  }
-
-  const regenerateBrief = () => {
-    const regenerated = generateAssignmentBrief(sources.getGenerationContext())
-    setGeneratedBrief(regenerated.slice(0, briefLineTarget))
-    toast.success('Brief regenerated from current sources')
-  }
-
-  const regenerateBriefLine = (index: number) => {
-    const regenerated = generateAssignmentBrief(sources.getGenerationContext())
-    const nextLine = regenerated[index] ?? regenerated[0]
-    if (!nextLine) return
-    setGeneratedBrief((prev) => prev.map((line, i) => (i === index ? nextLine : line)))
-    toast.success('Line regenerated')
-  }
-
-  const deleteBriefLine = (index: number) => {
-    setGeneratedBrief((prev) => {
-      if (prev.length <= 1) return prev
-      return prev.filter((_, i) => i !== index)
-    })
-    toast.success('Line removed')
-  }
-
-  const moveBriefLine = (index: number, direction: -1 | 1) => {
-    setGeneratedBrief((prev) => {
-      const target = index + direction
-      if (target < 0 || target >= prev.length) return prev
+  const moveTopic = useCallback((index: number, dir: -1 | 1) => {
+    const j = index + dir
+    setTopicBlocks((prev) => {
+      if (j < 0 || j >= prev.length) return prev
       const next = [...prev]
-      const [line] = next.splice(index, 1)
-      next.splice(target, 0, line)
+      const [row] = next.splice(index, 1)
+      next.splice(j, 0, row)
       return next
     })
+  }, [])
+
+  const moveLineInTopic = useCallback((topicId: string, lineIndex: number, dir: -1 | 1) => {
+    setTopicBlocks((prev) =>
+      prev.map((t) => {
+        if (t.id !== topicId) return t
+        const j = lineIndex + dir
+        if (j < 0 || j >= t.lines.length) return t
+        const lines = [...t.lines]
+        const [row] = lines.splice(lineIndex, 1)
+        lines.splice(j, 0, row)
+        return { ...t, lines }
+      }),
+    )
+  }, [])
+
+  const deleteLine = useCallback(
+    (topicId: string, lineIndex: number) => {
+      const t = topicBlocks.find((x) => x.id === topicId)
+      if (!t || t.lines.length <= 1) {
+        toast.error('Keep at least one line in each topic, or remove the whole topic from build.')
+        return
+      }
+      setTopicBlocks((prev) =>
+        prev.map((b) => (b.id === topicId ? { ...b, lines: b.lines.filter((_, i) => i !== lineIndex) } : b)),
+      )
+      toast.success('Line removed')
+    },
+    [topicBlocks, toast],
+  )
+
+  const regenerateLine = useCallback(
+    (topicId: string, lineIndex: number) => {
+      const gen = lastGen ?? snapshotGen()
+      const t = topicBlocks.find((x) => x.id === topicId)
+      if (!t) return
+      const ctx = rag.getGenerationContext()
+      const fresh = buildAssignmentTopicsFromScope(ctx, {
+        topicCount: 1,
+        assignmentType: gen.assignmentType,
+        rigorProfile: gen.rigorProfile,
+        difficulty: gen.difficulty,
+        generatorNotes: gen.generatorInstructions.trim() || undefined,
+        seedKey: `${newDemoId('reg-line')}|${t.title}|${lineIndex}`,
+        topicTitleOverride: t.title,
+      })[0]
+      const replacement = fresh?.lines[lineIndex % (fresh.lines.length || 3)]
+      if (!replacement) return
+      setTopicBlocks((prev) =>
+        prev.map((b) => {
+          if (b.id !== topicId) return b
+          const lines = b.lines.map((ln, i) => (i === lineIndex ? { ...ln, text: replacement.text } : ln))
+          return { ...b, lines }
+        }),
+      )
+      toast.success('Line regenerated.')
+    },
+    [lastGen, snapshotGen, rag, topicBlocks, toast],
+  )
+
+  const updateLineText = useCallback((topicId: string, lineId: string, text: string) => {
+    setTopicBlocks((prev) =>
+      prev.map((t) =>
+        t.id !== topicId
+          ? t
+          : { ...t, lines: t.lines.map((ln) => (ln.id === lineId ? { ...ln, text } : ln)) },
+      ),
+    )
+  }, [])
+
+  const addLineToTopic = useCallback((topicId: string, text: string) => {
+    const line: AssignmentBriefLineStub = { id: newDemoId('asg-line'), text }
+    setTopicBlocks((prev) =>
+      prev.map((t) => (t.id === topicId ? { ...t, lines: [...t.lines, line] } : t)),
+    )
+    toast.success('Line added.')
+  }, [toast])
+
+  const addTopicManual = useCallback(() => {
+    setTopicBlocks((prev) => {
+      const n = prev.length + 1
+      const topic: AssignmentBriefTopicStub = {
+        id: newDemoId('asg-topic'),
+        title: `Topic ${n}`,
+        lines: [
+          {
+            id: newDemoId('asg-line'),
+            text: 'Edit this line — add objectives, tasks, or evidence expectations for this topic.',
+          },
+        ],
+      }
+      return [...prev, topic]
+    })
+    toast.success('Topic section added.')
+  }, [toast])
+
+  const deleteTopic = useCallback(
+    (topicId: string) => {
+      setEditingLine((cur) => (cur?.topicId === topicId ? null : cur))
+      setAddingLineTopicId((cur) => (cur === topicId ? null : cur))
+      setTopicBlocks((prev) => prev.filter((t) => t.id !== topicId))
+      toast.success('Topic section removed')
+    },
+    [toast],
+  )
+
+  const goList = () => navigate('/teacher-tools/assignment')
+
+  const handleHandoutLayoutSave = useCallback(
+    (layout: HandoutLayoutOpts) => {
+      const next = { ...DEFAULT_HANDOUT_LAYOUT, ...layout }
+      handoutLayoutRef.current = next
+      setHandoutLayout(next)
+      toast.success('Handout spacing saved. PDF export and print use these settings.')
+    },
+    [toast],
+  )
+
+  const assignmentPrintMeta: AssignmentPrintMeta = {
+    title: title.trim() || 'Assignment',
+    subject,
+    grade,
+    dueAt,
+    assignmentType,
+    studentInstructions,
+    topic: rag.combinedTopicLabel,
+    sourceSummaryLine: formatSourceSummary(rag.getGenerationContext()),
   }
 
-  const exportPdf = () => {
-    const lines = generatedBrief.length > 0 ? generatedBrief : briefSeed
-    const stubs = lines.map((line, i) => ({
-      id: `asg-${i + 1}`,
-      type: 'short' as const,
-      prompt: line,
-      points: 2,
-      responseLines: 3,
-    }))
-    const payload: DemoQuiz = {
-      id: isEdit && assignmentId ? assignmentId : newDemoId('asg-preview'),
-      title: `${title || 'Assignment'} — Brief`,
-      subject,
-      grade,
-      classes: selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)],
-      questions: stubs.length,
-      totalMarks: stubs.length * 2,
-      timeLimitMinutes: 30,
-      status: 'draft',
-      submissionCount: 0,
-      avgScore: 0,
-      topic: sources.combinedTopicLabel,
-      sourceSummary: formatSourceSummary(sources.getGenerationContext()),
-      questionStubs: stubs,
-      studentInstructions,
-      handoutLayout,
+  const exportPdf = useCallback(() => {
+    try {
+      downloadAssignmentBriefPdf(
+        {
+          title: title.trim() || 'Assignment',
+          subject,
+          grade,
+          dueAt,
+          assignmentType,
+          studentInstructions,
+          topic: rag.combinedTopicLabel,
+          sourceSummary: formatSourceSummary(rag.getGenerationContext()),
+        },
+        topicBlocks,
+        handoutLayoutRef.current,
+        `${(title || 'assignment').replace(/\s+/g, '-').slice(0, 32)}-assignment-brief.pdf`,
+      )
+      toast.success('PDF downloaded')
+    } catch {
+      toast.error('Could not generate PDF')
     }
-    downloadQuizPdf(payload, `${(title || 'assignment').replace(/\s+/g, '-').slice(0, 32)}-assignment-brief.pdf`)
-    toast.success('PDF downloaded')
-  }
+  }, [rag, title, subject, grade, dueAt, assignmentType, studentInstructions, topicBlocks, toast])
 
-  const buildPayload = (status: 'draft' | 'active') => {
-    const ctx = sources.getGenerationContext()
-    const classes = selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)]
-    return {
-      title: title.trim() || 'Untitled assignment',
-      subject,
-      grade,
-      classes,
-      type: assignmentType,
-      dueAt,
-      assignedCount: isEdit ? counts.assignedCount : 0,
-      submitted: isEdit ? counts.submitted : 0,
-      pending: isEdit ? counts.pending : 0,
-      graded: isEdit ? counts.graded : 0,
-      status,
-      topic: sources.combinedTopicLabel,
-      sourceSummary: formatSourceSummary(ctx),
-    }
-  }
+  const buildPayload = (status: 'draft' | 'active') => ({
+    title: title.trim() || 'Untitled assignment',
+    subject,
+    grade,
+    classes: [classKeyForGrade(grade)],
+    type: assignmentType,
+    dueAt,
+    assignedCount: 0,
+    submitted: 0,
+    pending: 0,
+    graded: 0,
+    status,
+    topic: rag.combinedTopicLabel,
+    sourceSummary: formatSourceSummary(rag.getGenerationContext()),
+  })
 
-  const handleSaveDraft = async () => {
-    if ((generatedBrief.length > 0 ? generatedBrief : briefSeed).length === 0) {
-      toast.error('Generate at least one brief line before saving a draft.')
+  const handleSaveDraft = useCallback(async () => {
+    if (topicBlocks.length === 0) {
+      toast.error('Generate a brief before saving a draft.')
       return
     }
     setSaveDraftPending(true)
@@ -366,11 +473,11 @@ export default function AssignmentCreate() {
     } finally {
       setSaveDraftPending(false)
     }
-  }
+  }, [api, assignmentId, isEdit, navigate, rag, topicBlocks.length, toast, title, subject, grade, assignmentType, dueAt])
 
-  const handlePublish = async () => {
-    if ((generatedBrief.length > 0 ? generatedBrief : briefSeed).length === 0) {
-      toast.error('Generate at least one brief line before publishing.')
+  const handlePublish = useCallback(async () => {
+    if (topicBlocks.length === 0) {
+      toast.error('Generate a brief before publishing.')
       return
     }
     setPublishPending(true)
@@ -392,9 +499,7 @@ export default function AssignmentCreate() {
     } finally {
       setPublishPending(false)
     }
-  }
-
-  const goList = () => navigate('/teacher-tools/assignment')
+  }, [api, assignmentId, isEdit, navigate, rag, topicBlocks.length, toast, title, subject, grade, assignmentType, dueAt])
 
   if (isEdit && !hydrateReady) {
     return (
@@ -407,18 +512,12 @@ export default function AssignmentCreate() {
   }
 
   const wizardStep = phase === 'build' ? 0 : 1
-  const acceptedTypes = [allowPdf && 'PDF', allowDoc && 'Word', allowImage && 'Images', allowText && 'Plain text']
-    .filter(Boolean).join(', ') || 'None selected'
-  const latePolicyLabel = LATE_POLICIES.find((p) => p.value === latePolicy)?.label ?? latePolicy
-  const assignedClasses = demoClasses.filter((c) =>
-    selectedClasses.length > 0 ? selectedClasses.includes(c.key) : c.grade === grade
-  )
 
   return (
     <div className="space-y-6 pb-10">
       <TeacherToolsPageHeader
         title={isEdit ? 'Edit assignment' : 'Create assignment'}
-        subtitle="Configure the brief and submission rules, generate, then review and publish."
+        subtitle="Choose catalog sources, define retrieval scope, run generation, then review and publish."
         breadcrumbs={[
           { label: 'Teacher Tools', to: '/teacher-tools' },
           { label: 'Assignment', to: '/teacher-tools/assignment' },
@@ -427,10 +526,10 @@ export default function AssignmentCreate() {
       />
 
       <TeacherToolsWizardStepper
-        steps={BUILD_STEPS}
+        steps={[...QUIZ_CREATION_STEPS]}
         current={wizardStep}
         onStepClick={(i) => {
-          if (i === 1 && phase === 'build') {
+          if (i === 1 && topicBlocks.length === 0) {
             toast.error('Generate the brief first to open review.')
             return
           }
@@ -438,257 +537,57 @@ export default function AssignmentCreate() {
         }}
       />
 
-      <QuizGeneratingOverlay open={generating} progress={genProgress} />
       {generationError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           {generationError}
-          <button
-            type="button"
-            className="ml-3 font-semibold underline"
-            onClick={() => setGenerationError(null)}
-          >
+          <button type="button" className="ml-3 font-semibold underline" onClick={() => setGenerationError(null)}>
             Dismiss
           </button>
         </div>
       )}
 
+      <QuizGeneratingOverlay open={generating} progress={genProgress} />
+
       {phase === 'build' && (
         <>
-          {/* Step 1 — Basics */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-white px-6 py-5">
-              <StepHeader
-                step={1}
-                kicker="Assignment identity"
-                title="Basics"
-                subtitle="Name the assignment, set the type, grade, and due date. Subject and grade tune content generation."
-              />
-            </div>
-            <div className="grid gap-4 p-6 md:grid-cols-2">
-              <label className="md:col-span-2 block text-sm font-medium text-gray-800">
-                Title <span className="text-red-500">*</span>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Comparative essay — Enlightenment thinkers (Grade 9)"
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Assignment type
-                <select
-                  value={assignmentType}
-                  onChange={(e) => setAssignmentType(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  {ASSIGNMENT_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Due date
-                <input
-                  type="date"
-                  value={dueAt.length >= 10 ? dueAt.slice(0, 10) : dueAt}
-                  onChange={(e) => setDueAt(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Subject
-                <select
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Grade / cohort
-                <select
-                  value={grade}
-                  onChange={(e) => setGrade(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                International rigor profile
-                <select
-                  value={academicRigor}
-                  onChange={(e) => setAcademicRigor(e.target.value as typeof academicRigor)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  <option value="Foundation">Foundation</option>
-                  <option value="Standard">Standard</option>
-                  <option value="Advanced">Advanced</option>
-                  <option value="International Honors">International Honors</option>
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Generated brief depth (lines)
-                <input
-                  type="number"
-                  min={5}
-                  max={20}
-                  value={briefLineTarget}
-                  onChange={(e) => setBriefLineTarget(Math.min(20, Math.max(5, Number(e.target.value) || 8)))}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <label className="md:col-span-2 block text-sm font-medium text-gray-800">
-                Student-facing instructions
-                <textarea
-                  rows={2}
-                  value={studentInstructions}
-                  onChange={(e) => setStudentInstructions(e.target.value)}
-                  placeholder="Submit your work as a single document..."
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-                <span className="mt-1 block text-xs text-gray-500">Shown to students after you publish.</span>
-              </label>
-            </div>
-          </section>
-
-          {/* Step 2 — Source materials */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/70 to-white px-6 py-5">
-              <StepHeader
-                step={2}
-                kicker="Content scope"
-                title="Source materials"
-                subtitle="Select the catalog books and topic strands the brief should draw from."
-              />
-            </div>
-            <div className="p-6">
-              <ContentSourcesPanel subject={subject} grade={grade} model={sources} />
-            </div>
-          </section>
-
-          {/* Step 3 — Submission rules */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50/60 to-white px-6 py-5">
-              <StepHeader
-                step={3}
-                kicker="Submission rules"
-                title="File types & late policy"
-                subtitle="Control which formats students can submit and how late submissions are handled."
-              />
-            </div>
-            <div className="space-y-5 p-6">
-              <div>
-                <p className="text-sm font-medium text-gray-800">Accepted file types</p>
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {[
-                    { label: 'PDF', checked: allowPdf, toggle: () => setAllowPdf((v) => !v) },
-                    { label: 'Word (.doc/.docx)', checked: allowDoc, toggle: () => setAllowDoc((v) => !v) },
-                    { label: 'Images (PNG/JPG)', checked: allowImage, toggle: () => setAllowImage((v) => !v) },
-                    { label: 'Plain text', checked: allowText, toggle: () => setAllowText((v) => !v) },
-                  ].map(({ label, checked, toggle }) => (
-                    <label key={label} className="flex cursor-pointer items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 hover:bg-gray-100">
-                      <input type="checkbox" checked={checked} onChange={toggle} className="rounded" />
-                      <span className="text-xs font-medium text-gray-700">{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              <label className="block text-sm font-medium text-gray-800">
-                Max file size (MB)
-                <input
-                  type="number"
-                  value={maxFileSizeMb}
-                  min={1}
-                  max={500}
-                  onChange={(e) => setMaxFileSizeMb(Number(e.target.value) || 10)}
-                  className="mt-1.5 w-32 rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <div>
-                <p className="text-sm font-medium text-gray-800">Late submission policy</p>
-                <div className="mt-2 space-y-2">
-                  {LATE_POLICIES.map(({ value, label }) => (
-                    <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2.5 hover:bg-gray-100">
-                      <input
-                        type="radio"
-                        name="late_policy"
-                        value={value}
-                        checked={latePolicy === value}
-                        onChange={() => setLatePolicy(value)}
-                        className="text-indigo-600"
-                      />
-                      <span className="text-sm text-gray-700">{label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Step 4 — Assign to classes */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-amber-100 bg-gradient-to-r from-amber-50/60 to-white px-6 py-5">
-              <StepHeader
-                step={4}
-                kicker="Student cohort"
-                title="Assign to classes"
-                subtitle="Select which classes receive this assignment. Enrolled students are notified on publish."
-              />
-            </div>
-            <div className="space-y-4 p-6">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {demoClasses.map((c) => (
-                  <label
-                    key={c.key}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
-                      selectedClasses.includes(c.key)
-                        ? 'border-indigo-300 bg-indigo-50'
-                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedClasses.includes(c.key)}
-                      onChange={() => toggleClass(c.key)}
-                      className="rounded"
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900">{c.label}</p>
-                      <p className="text-xs text-gray-500">{c.grade} · {c.subject}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              <Phase2Section title="Per-student controls">
-                <p className="text-sm text-gray-700">
-                  Differentiated release dates, individual extensions, and group-based access unlock in Phase 2.
-                </p>
-              </Phase2Section>
-            </div>
-          </section>
-
-          {buildErrors.length > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <ul className="space-y-1 text-sm text-amber-900">
-                {buildErrors.map((e) => <li key={e}>{e}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {/* Sticky generate CTA */}
+          <AssignmentRagBuildSection
+            rag={rag}
+            title={title}
+            onTitleChange={setTitle}
+            assignmentType={assignmentType}
+            onAssignmentTypeChange={setAssignmentType}
+            dueAt={dueAt}
+            onDueAtChange={setDueAt}
+            subject={subject}
+            onSubjectChange={setSubject}
+            grade={grade}
+            onGradeChange={setGrade}
+            rigorProfile={rigorProfile}
+            onRigorProfileChange={setRigorProfile}
+            studentInstructions={studentInstructions}
+            onStudentInstructionsChange={setStudentInstructions}
+            topicMixMode={topicMixMode}
+            onTopicMixModeChange={setTopicMixMode}
+            topicCount={topicCount}
+            onTopicCountChange={setTopicCount}
+            difficulty={difficulty}
+            onDifficultyChange={setDifficulty}
+            generatorInstructions={generatorInstructions}
+            onGeneratorInstructionsChange={setGeneratorInstructions}
+            validationErrors={buildErrors}
+          />
           <div className="sticky bottom-4 z-10 mt-8 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="text-sm font-semibold text-gray-900">Ready to generate the assignment brief</p>
+              <p className="text-sm font-semibold text-gray-900">Ready to generate from your scope</p>
               <p className="mt-0.5 text-xs text-gray-600">
-                Produces a structured brief and rubric criteria from the selected topic and sources above.
+                Primary action runs a retrieval + generation pass using the selected titles and topic strands above.
               </p>
             </div>
             <button
               type="button"
-              onClick={runGeneration}
+              onClick={() => void runGeneration()}
               disabled={generating}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-indigo-500 disabled:opacity-60"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-emerald-500 disabled:opacity-60"
             >
               {generating ? (
                 <>
@@ -696,7 +595,7 @@ export default function AssignmentCreate() {
                   Generating…
                 </>
               ) : (
-                'Generate brief'
+                'Generate from selected materials'
               )}
             </button>
           </div>
@@ -705,92 +604,205 @@ export default function AssignmentCreate() {
 
       {phase === 'review' && (
         <div className="space-y-6">
-          {/* Review header */}
           <div className="flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Review</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">REVIEW</p>
               <h2 className="mt-1 text-lg font-semibold text-gray-900">Generated assignment brief</h2>
               <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                Edit prompts, reorder, or regenerate items. When you publish, this snapshot is stored for students and exports.
+                Edit lines, reorder topics, or regenerate sections. When you publish, this snapshot is stored for students and exports.
               </p>
-              <p className="mt-2 text-xs text-gray-500">{formatSourceSummary(sources.getGenerationContext())}</p>
+              <p className="mt-2 text-xs text-gray-500">{formatSourceSummary(rag.getGenerationContext())}</p>
             </div>
             <div className="flex flex-col items-stretch gap-3 sm:items-end">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-gray-100">
-                  <p className="text-2xl font-semibold text-gray-900">{(generatedBrief.length > 0 ? generatedBrief : briefSeed).length}</p>
-                  <p className="text-xs text-gray-500">Brief lines</p>
+                  <p className="text-2xl font-semibold text-gray-900">{topicBlocks.length}</p>
+                  <p className="text-xs text-gray-500">Topics</p>
                 </div>
                 <div className="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-gray-100">
-                  <p className="text-2xl font-semibold text-gray-900">{activeCriteria.size}</p>
-                  <p className="text-xs text-gray-500">Rubric criteria</p>
+                  <p className="text-2xl font-semibold text-gray-900">{totalBriefLines}</p>
+                  <p className="text-xs text-gray-500">Brief lines</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setDraftLayout(handoutLayout)
-                    setPreviewOpen(true)
-                  }}
-                  className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-semibold text-indigo-900 shadow-sm hover:bg-indigo-50"
+                  onClick={() => setPrintOpen(true)}
+                  disabled={topicBlocks.length === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-semibold text-indigo-900 shadow-sm hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Eye className="h-3.5 w-3.5" />
                   Print preview
                 </button>
                 <button
                   type="button"
-                  onClick={addBriefLine}
+                  onClick={addTopicManual}
                   className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-50"
                 >
                   <PlusCircle className="h-3.5 w-3.5" />
-                  Add line manually
+                  Add topic
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Generated brief */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50/60 to-white px-6 py-4">
-              <FileText className="h-4 w-4 text-indigo-500" />
-              <h3 className="font-semibold text-gray-900">Assignment brief</h3>
-              <span className="ml-auto text-xs text-gray-400">
-                {formatSourceSummary(sources.getGenerationContext())}
-              </span>
-              <button
-                type="button"
-                onClick={regenerateBrief}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Regenerate
-              </button>
-              <button
-                type="button"
-                onClick={addBriefLine}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Add line
-              </button>
+          {topicBlocks.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-300 bg-gray-50 p-12 text-center">
+              <p className="text-sm font-medium text-gray-800">No brief sections yet.</p>
+              <p className="mt-1 text-sm text-gray-600">Generate from build, or start by adding a topic section.</p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPhase('build')}
+                  className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                >
+                  Back to build
+                </button>
+                <button
+                  type="button"
+                  onClick={addTopicManual}
+                  className="inline-flex items-center gap-2 rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500"
+                >
+                  <PlusCircle className="h-4 w-4" />
+                  Add topic
+                </button>
+              </div>
             </div>
-            <ul className="space-y-2 p-6">
-              {(generatedBrief.length > 0 ? generatedBrief : briefSeed).map((line, i) => (
-                <li key={i} className="flex gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700">
-                  <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-bold text-white">
-                    {i + 1}
-                  </span>
-                  <span className="flex-1">{line}</span>
-                  <div className="ml-auto flex shrink-0 items-center gap-1">
-                    <button type="button" title="Move up" onClick={() => moveBriefLine(i, -1)} className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30" disabled={i === 0}><ArrowUp className="h-4 w-4" /></button>
-                    <button type="button" title="Move down" onClick={() => moveBriefLine(i, 1)} className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30" disabled={i === (generatedBrief.length > 0 ? generatedBrief : briefSeed).length - 1}><ArrowDown className="h-4 w-4" /></button>
-                    <button type="button" title="Edit" onClick={() => editBriefLine(i)} className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"><Pencil className="h-4 w-4" /></button>
-                    <button type="button" title="Regenerate line" onClick={() => regenerateBriefLine(i)} className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"><RefreshCw className="h-4 w-4" /></button>
-                    <button type="button" title="Remove" onClick={() => deleteBriefLine(i)} className="rounded-lg p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-30" disabled={(generatedBrief.length > 0 ? generatedBrief : briefSeed).length <= 1}><Trash2 className="h-4 w-4" /></button>
+          ) : (
+            <section className="overflow-hidden rounded-2xl border-[0.5px] border-gray-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50/60 to-white px-6 py-4">
+                <h3 className="font-semibold text-gray-900">Assignment brief</h3>
+                <span className="ml-auto max-w-[min(100%,14rem)] truncate text-xs text-gray-500" title={formatSourceSummary(rag.getGenerationContext())}>
+                  {formatSourceSummary(rag.getGenerationContext())}
+                </span>
+                <button
+                  type="button"
+                  onClick={regenerateAll}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                >
+                  Regenerate all
+                </button>
+                <button
+                  type="button"
+                  onClick={addTopicManual}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                >
+                  Add topic
+                </button>
+              </div>
+              <div className="space-y-4 p-6">
+                {topicBlocks.map((topic, ti) => (
+                  <div key={topic.id} className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+                    <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-emerald-50/50 px-4 py-3">
+                      <p className="min-w-0 flex-1 text-sm font-semibold text-gray-900">{topic.title}</p>
+                      <div className="ml-auto flex flex-wrap gap-1">
+                        <button
+                          type="button"
+                          title="Move topic up"
+                          disabled={ti === 0}
+                          onClick={() => moveTopic(ti, -1)}
+                          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                        >
+                          <ArrowUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Move topic down"
+                          disabled={ti === topicBlocks.length - 1}
+                          onClick={() => moveTopic(ti, 1)}
+                          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                        >
+                          <ArrowDown className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Regenerate topic"
+                          onClick={() => regenerateTopic(topic.id)}
+                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                        >
+                          <RefreshCw className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          title="Add line to this topic"
+                          onClick={() => setAddingLineTopicId(topic.id)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Add line
+                        </button>
+                        <button
+                          type="button"
+                          title="Delete entire topic section"
+                          onClick={() => deleteTopic(topic.id)}
+                          className="rounded-lg p-1.5 text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                    <ul className="divide-y divide-gray-100">
+                      {topic.lines.map((line, li) => (
+                        <li key={line.id} className="flex gap-3 px-4 py-3 text-sm text-gray-800">
+                          <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-[11px] font-bold text-white">
+                            {li + 1}
+                          </span>
+                          <span className="min-w-0 flex-1 leading-relaxed">{line.text}</span>
+                          <div className="flex shrink-0 gap-1">
+                            <button
+                              type="button"
+                              title="Move up"
+                              disabled={li === 0}
+                              onClick={() => moveLineInTopic(topic.id, li, -1)}
+                              className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                            >
+                              <ArrowUp className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Move down"
+                              disabled={li === topic.lines.length - 1}
+                              onClick={() => moveLineInTopic(topic.id, li, 1)}
+                              className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                            >
+                              <ArrowDown className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Edit"
+                              onClick={() => {
+                                setEditingLine({ topicId: topic.id, lineId: line.id })
+                                setEditingLineValue(line.text)
+                              }}
+                              className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Regenerate line"
+                              onClick={() => regenerateLine(topic.id, li)}
+                              className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                            >
+                              <RefreshCw className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Remove"
+                              onClick={() => deleteLine(topic.id, li)}
+                              className="rounded-lg p-1.5 text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-6">
             <button
@@ -802,7 +814,7 @@ export default function AssignmentCreate() {
             </button>
             <button
               type="button"
-              onClick={regenerateBrief}
+              onClick={regenerateAll}
               className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"
             >
               <Sparkles className="h-4 w-4" />
@@ -810,124 +822,31 @@ export default function AssignmentCreate() {
             </button>
           </div>
 
-          {/* Rubric criteria */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-violet-50/60 to-white px-6 py-4">
-              <CheckSquare className="h-4 w-4 text-violet-500" />
-              <h3 className="font-semibold text-gray-900">Rubric criteria</h3>
-              <span className="ml-auto text-xs text-gray-500">
-                {activeCriteria.size} of {RUBRIC_CRITERIA.length} active
-              </span>
-            </div>
-            <div className="space-y-2 p-6">
-              {RUBRIC_CRITERIA.map((c) => (
-                <label
-                  key={c}
-                  className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
-                    activeCriteria.has(c)
-                      ? 'border-violet-200 bg-violet-50'
-                      : 'border-gray-100 bg-gray-50 opacity-60'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={activeCriteria.has(c)}
-                    onChange={() => toggleCriterion(c)}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-800">{c}</span>
-                </label>
-              ))}
-              <p className="pt-1 text-xs text-gray-400">Phase 2 adds custom weighting per criterion.</p>
-            </div>
-          </section>
-
-          {/* Submission rules summary */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-amber-50/60 to-white px-6 py-4">
-              <FileText className="h-4 w-4 text-amber-500" />
-              <h3 className="font-semibold text-gray-900">Submission rules</h3>
-              <button
-                type="button"
-                onClick={() => setPhase('build')}
-                className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Edit
-              </button>
-            </div>
-            <dl className="divide-y divide-gray-100 px-6 py-1 text-sm">
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">File types</dt>
-                <dd className="text-gray-800">{acceptedTypes}</dd>
-              </div>
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">Max size</dt>
-                <dd className="text-gray-800">{maxFileSizeMb} MB</dd>
-              </div>
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">Late policy</dt>
-                <dd className="text-right text-gray-800">{latePolicyLabel}</dd>
-              </div>
-              <div className="flex items-start justify-between gap-4 py-2.5">
-                <dt className="shrink-0 text-gray-500">Student instructions</dt>
-                <dd className="text-right text-gray-800">{studentInstructions}</dd>
-              </div>
-            </dl>
-          </section>
-
-          {/* Classes summary */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/60 to-white px-6 py-4">
-              <Users className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-gray-900">Assigned to</h3>
-              <button
-                type="button"
-                onClick={() => setPhase('build')}
-                className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Edit
-              </button>
-            </div>
-            <div className="grid gap-2 p-6 sm:grid-cols-2">
-              {assignedClasses.map((c) => (
-                <div key={c.key} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900">{c.label}</p>
-                    <p className="text-xs text-gray-500">{c.grade} · {c.subject}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {/* Publish panel */}
-          <div className="sticky bottom-4 z-10 rounded-2xl border border-gray-200 bg-gray-50/95 p-5 shadow-lg backdrop-blur-sm">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Publish & export</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={saveDraftPending}
+                disabled={saveDraftPending || topicBlocks.length === 0}
                 onClick={() => void handleSaveDraft()}
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                {saveDraftPending ? 'Saving draft…' : 'Save draft'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setPrintOpen(true)}
+                disabled={topicBlocks.length === 0}
                 className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
-                {saveDraftPending ? 'Saving…' : 'Save draft'}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setDraftLayout(handoutLayout)
-                  setPreviewOpen(true)
-                }}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
-              >
-                <Eye className="h-4 w-4" />
+                <Printer className="h-4 w-4" />
                 Print preview
               </button>
               <button
                 type="button"
                 onClick={exportPdf}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                disabled={topicBlocks.length === 0}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
                 Export PDF
@@ -943,7 +862,7 @@ export default function AssignmentCreate() {
               </button>
               <button
                 type="button"
-                disabled={publishPending}
+                disabled={publishPending || topicBlocks.length === 0}
                 onClick={() => void handlePublish()}
                 className="ml-auto rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50"
               >
@@ -954,96 +873,41 @@ export default function AssignmentCreate() {
         </div>
       )}
 
+      <AssignmentPrintPreviewModal
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        meta={assignmentPrintMeta}
+        topics={topicBlocks}
+        savedLayout={handoutLayout}
+        onSaveLayout={handleHandoutLayoutSave}
+      />
+
       <CustomModal
         open={discardOpen}
         close={() => setDiscardOpen(false)}
-        title="Discard source selections?"
-        primaryButtonText="Discard and leave"
+        title="Discard changes?"
+        primaryButtonText="Leave"
         isDelete
         handleSave={() => {
-          sources.resetSources()
+          rag.resetSources()
           setDiscardOpen(false)
           goList()
         }}
       >
-        <p className="py-3 text-sm text-gray-600">You changed content sources. Leave without publishing?</p>
+        <p className="py-3 text-sm text-gray-600">
+          Unsaved catalog scope (titles, topics, refinement) will be cleared. Continue?
+        </p>
       </CustomModal>
 
       <CustomModal
-        open={previewOpen}
-        close={() => setPreviewOpen(false)}
-        title="Assignment preview"
-        primaryButtonText="Save layout and close"
-        handleSave={() => {
-          setHandoutLayout(draftLayout)
-          setPreviewOpen(false)
-        }}
-      >
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-100 bg-indigo-50/50 px-3 py-2.5">
-            <span className="text-xs font-semibold uppercase tracking-wide text-indigo-900">Handout spacing</span>
-            <label className="flex items-center gap-1.5 text-xs text-gray-800">
-              <span className="text-gray-600">Line height</span>
-              <select
-                value={draftLayout.bodyLineHeight}
-                onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, bodyLineHeight: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.bodyLineHeight }))
-                }
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
-              >
-                {LINE_HEIGHT_PRESETS.map((lh) => <option key={lh} value={lh}>{lh}</option>)}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-gray-800">
-              <span className="text-gray-600">Question gap</span>
-              <select
-                value={draftLayout.questionGapPx}
-                onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, questionGapPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.questionGapPx }))
-                }
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
-              >
-                {QUESTION_GAP_PRESETS.map((px) => <option key={px} value={px}>{px}px</option>)}
-              </select>
-            </label>
-            <label className="flex items-center gap-1.5 text-xs text-gray-800">
-              <span className="text-gray-600">Response line height</span>
-              <select
-                value={draftLayout.ruledLineSpacingPx}
-                onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, ruledLineSpacingPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx }))
-                }
-                className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
-              >
-                {RULED_LINE_SPACING_PRESETS.map((px) => <option key={px} value={px}>{px}px</option>)}
-              </select>
-            </label>
-          </div>
-        <div className="max-h-[60vh] overflow-y-auto py-3 text-sm text-gray-700" style={{ lineHeight: draftLayout.bodyLineHeight }}>
-          <p className="font-semibold text-gray-900">{title || 'Untitled assignment'}</p>
-          <p className="mt-1 text-xs text-gray-500">{subject} · {grade} · Due {dueAt}</p>
-          <ul className="mt-4 list-decimal pl-5">
-            {(generatedBrief.length > 0 ? generatedBrief : briefSeed).map((line, i) => (
-              <li key={i} style={{ marginBottom: draftLayout.questionGapPx }}>{line}</li>
-            ))}
-          </ul>
-        </div>
-        </div>
-      </CustomModal>
-
-      <CustomModal
-        open={editingLineIndex !== null}
-        close={() => setEditingLineIndex(null)}
+        open={editingLine !== null}
+        close={() => setEditingLine(null)}
         title="Edit brief line"
         primaryButtonText="Save"
         handleSave={() => {
-          if (editingLineIndex === null) return
-          setGeneratedBrief((prev) => {
-            const base = prev.length > 0 ? [...prev] : [...briefSeed]
-            base[editingLineIndex] = editingLineValue
-            return base
-          })
-          setEditingLineIndex(null)
+          if (!editingLine) return
+          updateLineText(editingLine.topicId, editingLine.lineId, editingLineValue)
+          setEditingLine(null)
         }}
       >
         <textarea
@@ -1055,14 +919,22 @@ export default function AssignmentCreate() {
       </CustomModal>
 
       <CustomModal
-        open={addingLineOpen}
-        close={() => setAddingLineOpen(false)}
-        title="Add brief line"
+        open={addingLineTopicId !== null}
+        close={() => {
+          setAddingLineTopicId(null)
+          setAddingLineValue('')
+        }}
+        title={
+          addingLineTopicId
+            ? `Add line — ${topicBlocks.find((t) => t.id === addingLineTopicId)?.title ?? 'Topic'}`
+            : 'Add brief line'
+        }
         primaryButtonText="Add line"
         handleSave={() => {
-          if (!addingLineValue.trim()) return
-          setGeneratedBrief((prev) => [...(prev.length > 0 ? prev : briefSeed), addingLineValue.trim()])
-          setAddingLineOpen(false)
+          if (!addingLineTopicId || !addingLineValue.trim()) return
+          addLineToTopic(addingLineTopicId, addingLineValue.trim())
+          setAddingLineTopicId(null)
+          setAddingLineValue('')
         }}
       >
         <textarea
@@ -1070,7 +942,7 @@ export default function AssignmentCreate() {
           value={addingLineValue}
           onChange={(e) => setAddingLineValue(e.target.value)}
           className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-          placeholder="Write a new generated brief line..."
+          placeholder="Write a new brief line for this topic section…"
         />
       </CustomModal>
 
@@ -1078,7 +950,7 @@ export default function AssignmentCreate() {
         <button
           type="button"
           onClick={() => {
-            if (sources.isDirty) setDiscardOpen(true)
+            if (rag.isDirty) setDiscardOpen(true)
             else goList()
           }}
           className="text-sm font-semibold text-primary-600 hover:text-primary-500"

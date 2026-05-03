@@ -9,6 +9,7 @@ import {
   RULED_LINE_SPACING_PRESETS,
   type HandoutLayoutOpts,
 } from '../config/handoutLayoutConfig'
+import { ShortAnswerHandoutLines } from './ShortAnswerHandoutLines'
 
 export type QuizPrintMeta = {
   title: string
@@ -306,18 +307,11 @@ export function QuizPrintPreviewModal({ open, onClose, meta, stubs, savedLayout,
                           </p>
                         ) : null}
                         {item.type === 'short' ? (
-                          <div className="mt-3 flex flex-col">
-                            {Array.from({ length: clampResponseLines(item.responseLines) }, (_, i) => (
-                              <div
-                                key={i}
-                                className="border-b border-gray-500"
-                                style={{
-                                  minHeight: draftLayout.ruledLineSpacingPx,
-                                  marginTop: i === 0 ? 4 : 10,
-                                }}
-                              />
-                            ))}
-                          </div>
+                          <ShortAnswerHandoutLines
+                            responseLines={item.responseLines}
+                            ruledLineSpacingPx={draftLayout.ruledLineSpacingPx}
+                            lineStyle="print"
+                          />
                         ) : null}
                       </li>
                     )

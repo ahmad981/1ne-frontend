@@ -1,7 +1,7 @@
 export type WorksheetBlock =
   | { type: 'mcq'; prompt: string; options: string[]; answer: string }
   | { type: 'fill_blank'; prompt: string; answer: string }
-  | { type: 'short'; prompt: string; sampleAnswer: string }
+  | { type: 'short'; prompt: string; sampleAnswer: string; responseLines?: number }
   | { type: 'match'; left: string[]; right: string[] }
 
 export interface TopicBlueprint {

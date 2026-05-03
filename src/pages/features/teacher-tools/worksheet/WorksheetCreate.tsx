@@ -1,9 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
-import { TeacherToolsPageHeader, TeacherToolsWizardStepper, ContentSourcesPanel, Phase2Section } from '../components'
-import { useContentSourcesForm } from '../hooks/useContentSourcesForm'
+import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
-import { formatSourceSummary, generateWorksheetBlocks } from '../demo/generationFromSources'
+import {
+  SHORT_RESPONSE_LINES,
+  clampResponseLines,
+  formatSourceSummary,
+  generateOneWorksheetBlock,
+  generateWorksheetBlocks,
+} from '../demo/generationFromSources'
+import type { WorksheetGenerationOpts, QuestionMixMode, QuizDifficultyId } from '../demo/generationFromSources'
 import type { WorksheetBlock } from '../demo/topicAwareGenerators'
 import { GRADES, SUBJECTS } from '../types'
 import { newDemoId } from '../demo/newDemoId'
@@ -14,8 +20,24 @@ import { downloadQuizPdf } from '../utils/generateQuizPdf'
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
-import { AlertCircle, ArrowDown, ArrowUp, Download, Eye, FileJson, LayoutGrid, Pencil, PlusCircle, RefreshCw, Settings2, Sparkles, Trash2, Users } from 'lucide-react'
+import {
+  ArrowDown,
+  ArrowUp,
+  Download,
+  Eye,
+  FileJson,
+  FolderPlus,
+  Minus,
+  Pencil,
+  Plus,
+  PlusCircle,
+  Printer,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+} from 'lucide-react'
 import { QuizGeneratingOverlay } from '../quiz/components/QuizGeneratingOverlay'
+import { ShortAnswerHandoutLines, ShortAnswerStudentResponsePreview } from '../quiz/components/ShortAnswerHandoutLines'
 import {
   DEFAULT_HANDOUT_LAYOUT,
   LINE_HEIGHT_PRESETS,
@@ -23,39 +45,250 @@ import {
   RULED_LINE_SPACING_PRESETS,
   type HandoutLayoutOpts,
 } from '../quiz/config/handoutLayoutConfig'
+import { QUIZ_CREATION_STEPS } from '../quiz/config/quizCreationConfig'
+import { useQuizRagScope } from '../quiz/hooks/useQuizRagScope'
+import type { DemoWorksheet } from '../demo/teacherToolsDemoData'
+import { randomGenerationDelay, validateRagWorksheetBuild } from './config/worksheetCreationConfig'
+import { WorksheetRagIdentitySection, type WorksheetOutputFormat } from './components/WorksheetRagIdentitySection'
+import { WorksheetGenerationParametersSection } from './components/WorksheetGenerationParametersSection'
 
-const BUILD_STEPS = ['Configure & generate', 'Review & publish']
-
-const BLOCK_LABELS: Record<string, string> = {
-  mcq: 'Multiple choice',
-  fill_blank: 'Fill in the blank',
-  short: 'Short answer',
-  match: 'Matching',
+const TYPE_ORDER = ['mcq', 'fill_blank', 'short', 'match'] as const
+const TYPE_HEADING: Record<(typeof TYPE_ORDER)[number], string> = {
+  mcq: 'MULTIPLE CHOICE',
+  fill_blank: 'FILL IN THE BLANK',
+  short: 'SHORT ANSWER',
+  match: 'MATCHING',
 }
 
-const LINE_SPACING_OPTIONS = [
-  { value: 'compact', label: 'Compact (1.2×)' },
-  { value: 'normal', label: 'Normal (1.5×)' },
-  { value: 'wide', label: 'Wide (2×) — for student writing' },
-]
+type WorksheetSession = { id: string; title: string; blocks: WorksheetBlock[] }
+
+function totalQuestionsInSessions(sessionList: WorksheetSession[]): number {
+  return sessionList.reduce((sum, s) => sum + s.blocks.length, 0)
+}
+
+function distinctBlockTypesInSessions(sessionList: WorksheetSession[]): number {
+  return new Set(sessionList.flatMap((s) => s.blocks.map((b) => b.type))).size
+}
 
 function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
 }
 
-function StepHeader({ step, kicker, title, subtitle }: {
-  step: number; kicker: string; title: string; subtitle: string
+function toPersistedFormat(f: WorksheetOutputFormat): DemoWorksheet['format'] {
+  return f
+}
+
+type WorksheetBlockEditForm =
+  | { t: 'mcq'; prompt: string; optionsLines: string; answer: string }
+  | { t: 'fill_blank'; prompt: string; answer: string }
+  | { t: 'short'; prompt: string; sampleAnswer: string; responseLines: number }
+  | { t: 'match'; leftLines: string; rightLines: string }
+
+function blockToEditForm(block: WorksheetBlock): WorksheetBlockEditForm {
+  if (block.type === 'mcq') {
+    return { t: 'mcq', prompt: block.prompt, optionsLines: block.options.join('\n'), answer: block.answer }
+  }
+  if (block.type === 'fill_blank') {
+    return { t: 'fill_blank', prompt: block.prompt, answer: block.answer }
+  }
+  if (block.type === 'short') {
+    return {
+      t: 'short',
+      prompt: block.prompt,
+      sampleAnswer: block.sampleAnswer,
+      responseLines: clampResponseLines(block.responseLines),
+    }
+  }
+  return { t: 'match', leftLines: block.left.join('\n'), rightLines: block.right.join('\n') }
+}
+
+function parseNonEmptyLines(s: string): string[] {
+  return s
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
+function buildBlockFromEditForm(
+  form: WorksheetBlockEditForm,
+  toast: { error: (msg: string) => void },
+): WorksheetBlock | null {
+  if (form.t === 'mcq') {
+    const prompt = form.prompt.trim()
+    const options = parseNonEmptyLines(form.optionsLines)
+    const answer = form.answer.trim()
+    if (!prompt) {
+      toast.error('Add a question prompt.')
+      return null
+    }
+    if (options.length < 2) {
+      toast.error('Add at least two answer choices (one per line).')
+      return null
+    }
+    if (!answer || !options.includes(answer)) {
+      toast.error('Correct answer must exactly match one of the choice lines.')
+      return null
+    }
+    return { type: 'mcq', prompt, options, answer }
+  }
+  if (form.t === 'fill_blank') {
+    const prompt = form.prompt.trim()
+    const answer = form.answer.trim()
+    if (!prompt || !answer) {
+      toast.error('Prompt and model answer are required.')
+      return null
+    }
+    return { type: 'fill_blank', prompt, answer }
+  }
+  if (form.t === 'short') {
+    const prompt = form.prompt.trim()
+    if (!prompt) {
+      toast.error('Prompt is required.')
+      return null
+    }
+    return {
+      type: 'short',
+      prompt,
+      sampleAnswer: form.sampleAnswer.trim(),
+      responseLines: clampResponseLines(form.responseLines),
+    }
+  }
+  const left = parseNonEmptyLines(form.leftLines)
+  const right = parseNonEmptyLines(form.rightLines)
+  if (left.length === 0 || right.length === 0) {
+    toast.error('Add at least one row in each matching column.')
+    return null
+  }
+  if (left.length !== right.length) {
+    toast.error('Left and right columns must have the same number of lines (one pair per row).')
+    return null
+  }
+  return { type: 'match', left, right }
+}
+
+type AddQuestionDraft = {
+  kind: 'short' | 'mcq' | 'fill_blank' | 'match'
+  prompt: string
+  mcqOptions: string
+  mcqAnswer: string
+  fillAnswer: string
+  matchLeft: string
+  matchRight: string
+}
+
+function emptyAddQuestionDraft(): AddQuestionDraft {
+  return {
+    kind: 'short',
+    prompt: '',
+    mcqOptions: 'Option A\nOption B\nOption C\nOption D',
+    mcqAnswer: 'Option B',
+    fillAnswer: '',
+    matchLeft: 'Term 1\nTerm 2',
+    matchRight: 'Definition 1\nDefinition 2',
+  }
+}
+
+function buildBlockFromAddDraft(
+  draft: AddQuestionDraft,
+  toast: { error: (msg: string) => void },
+): WorksheetBlock | null {
+  if (draft.kind === 'short') {
+    const prompt = draft.prompt.trim()
+    if (!prompt) {
+      toast.error('Enter a question prompt.')
+      return null
+    }
+    return { type: 'short', prompt, sampleAnswer: '', responseLines: SHORT_RESPONSE_LINES.default }
+  }
+  if (draft.kind === 'fill_blank') {
+    return buildBlockFromEditForm(
+      { t: 'fill_blank', prompt: draft.prompt, answer: draft.fillAnswer },
+      toast,
+    )
+  }
+  if (draft.kind === 'mcq') {
+    return buildBlockFromEditForm(
+      { t: 'mcq', prompt: draft.prompt, optionsLines: draft.mcqOptions, answer: draft.mcqAnswer },
+      toast,
+    )
+  }
+  return buildBlockFromEditForm(
+    { t: 'match', leftLines: draft.matchLeft, rightLines: draft.matchRight },
+    toast,
+  )
+}
+
+function worksheetPreviewTypeLabel(block: WorksheetBlock): string {
+  return TYPE_HEADING[block.type]
+}
+
+function WorksheetPreviewBlockContent({
+  block,
+  ruledLineSpacingPx,
+}: {
+  block: WorksheetBlock
+  ruledLineSpacingPx: number
 }) {
-  return (
-    <div className="flex gap-4 border-b border-gray-100 pb-4">
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-600 text-sm font-bold text-white shadow-md shadow-indigo-600/25">
-        {step}
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-600">{kicker}</p>
-        <h2 className="mt-1 text-lg font-semibold tracking-tight text-gray-900">{title}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-gray-600">{subtitle}</p>
+  if (block.type === 'mcq') {
+    return (
+      <div>
+        <p className="whitespace-pre-wrap text-[15px] font-medium leading-snug text-gray-900">{block.prompt}</p>
+        <ol className="mt-3 list-[lower-alpha] space-y-2 pl-6 text-[14px] leading-snug text-gray-800 marker:font-medium">
+          {block.options.map((o, i) => (
+            <li key={i} className="whitespace-pre-wrap pl-1">
+              {o}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 border-t border-gray-100 pt-2 text-xs text-gray-500">
+          Answer key: <span className="font-medium text-gray-700">{block.answer}</span>
+        </p>
       </div>
+    )
+  }
+  if (block.type === 'fill_blank') {
+    return <p className="whitespace-pre-wrap text-[15px] font-medium leading-snug text-gray-900">{block.prompt}</p>
+  }
+  if (block.type === 'short') {
+    return (
+      <div>
+        <p className="whitespace-pre-wrap text-[15px] font-medium leading-snug text-gray-900">{block.prompt}</p>
+        <ShortAnswerHandoutLines
+          responseLines={block.responseLines}
+          ruledLineSpacingPx={ruledLineSpacingPx}
+          lineStyle="print"
+        />
+      </div>
+    )
+  }
+  const rowCount = Math.max(block.left.length, block.right.length)
+  return (
+    <div className="mt-1 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="grid grid-cols-2 divide-x divide-gray-200 bg-gray-50/90 text-[11px] font-semibold uppercase tracking-wide text-gray-600">
+        <div className="px-3 py-2">Terms / concepts</div>
+        <div className="px-3 py-2">Definitions / roles</div>
+      </div>
+      <div className="grid grid-cols-2 divide-x divide-gray-200 text-[14px]">
+        <div className="divide-y divide-gray-100">
+          {Array.from({ length: rowCount }, (_, i) => (
+            <div key={`l-${i}`} className="min-h-[2.75rem] px-3 py-2.5 leading-snug">
+              <span className="font-semibold tabular-nums text-gray-500">{i + 1}.</span>{' '}
+              <span className="text-gray-900">{block.left[i] ?? '—'}</span>
+            </div>
+          ))}
+        </div>
+        <div className="divide-y divide-gray-100">
+          {Array.from({ length: rowCount }, (_, i) => (
+            <div key={`r-${i}`} className="min-h-[2.75rem] px-3 py-2.5 leading-snug text-gray-800">
+              <span className="font-semibold tabular-nums text-gray-400">{String.fromCharCode(65 + i)}.</span>{' '}
+              <span>{block.right[i] ?? '—'}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <p className="border-t border-gray-100 bg-gray-50/50 px-3 py-2 text-[11px] text-gray-500">
+        Students draw lines or write letters to match each numbered term to a definition.
+      </p>
     </div>
   )
 }
@@ -65,17 +298,19 @@ export default function WorksheetCreate() {
   const location = useLocation()
   const [searchParams] = useSearchParams()
   const templateToastRef = useRef(false)
+  /** Stable target for “add question” save — avoids stale session id if state batches oddly. */
+  const addQuestionTargetSessionRef = useRef<string | null>(null)
   const { worksheetId } = useParams<{ worksheetId?: string }>()
   const isEdit = location.pathname.endsWith('/edit')
   const { toast } = useSnackbar()
   const { api } = useTeacherToolsDemo()
 
-  const [phase, setPhase] = useState<'build' | 'review'>(isEdit ? 'review' : 'build')
+  const [phase, setPhase] = useState<'build' | 'review'>('build')
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
-  const [blocks, setBlocks] = useState<WorksheetBlock[]>([])
+  const [sessions, setSessions] = useState<WorksheetSession[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [handoutLayout, setHandoutLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
   const [draftLayout, setDraftLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
@@ -83,35 +318,76 @@ export default function WorksheetCreate() {
   const [title, setTitle] = useState('Practice worksheet')
   const [subject, setSubject] = useState<string>(SUBJECTS[3])
   const [grade, setGrade] = useState<string>(GRADES[3])
-  const [format, setFormat] = useState<'printable_pdf' | 'interactive_digital'>('interactive_digital')
-  const [difficultyProfile, setDifficultyProfile] = useState<'Foundational' | 'Balanced' | 'Advanced' | 'Olympiad Prep'>('Balanced')
-  const [targetQuestionCount, setTargetQuestionCount] = useState(10)
+  const [outputFormat, setOutputFormat] = useState<WorksheetOutputFormat>('interactive_digital')
+  const [mixMode, setMixMode] = useState<QuestionMixMode>('balanced')
+  const [questionCount, setQuestionCount] = useState(10)
+  const [countMcq, setCountMcq] = useState(3)
+  const [countFillBlank, setCountFillBlank] = useState(2)
+  const [countShort, setCountShort] = useState(3)
+  const [countMatch, setCountMatch] = useState(2)
+  const [difficulty, setDifficulty] = useState<QuizDifficultyId>('standard')
+  const [includeMcq, setIncludeMcq] = useState(true)
+  const [includeFillBlank, setIncludeFillBlank] = useState(true)
+  const [includeShort, setIncludeShort] = useState(true)
+  const [includeMatch, setIncludeMatch] = useState(true)
+  const [teacherNotes, setTeacherNotes] = useState('')
 
-  const [showAnswerKey, setShowAnswerKey] = useState(false)
-  const [lineSpacing, setLineSpacing] = useState('normal')
-  const [includeInstructions, setIncludeInstructions] = useState(true)
-  const [randomiseOrder, setRandomiseOrder] = useState(false)
-
-  const [selectedClasses, setSelectedClasses] = useState<string[]>([])
   const [discardOpen, setDiscardOpen] = useState(false)
   const [loadedTopic, setLoadedTopic] = useState<string | undefined>(undefined)
   const [hydrateReady, setHydrateReady] = useState(!isEdit)
   const [publishPending, setPublishPending] = useState(false)
   const [saveDraftPending, setSaveDraftPending] = useState(false)
   const [usageMeta, setUsageMeta] = useState({ createdAt: '', usageCount: 0 })
-  const [editingBlockIndex, setEditingBlockIndex] = useState<number | null>(null)
-  const [editingBlockValue, setEditingBlockValue] = useState('')
+  const [editingRef, setEditingRef] = useState<{ sessionId: string; blockIndex: number } | null>(null)
+  const [editForm, setEditForm] = useState<WorksheetBlockEditForm | null>(null)
   const [addingBlockOpen, setAddingBlockOpen] = useState(false)
-  const [addingBlockValue, setAddingBlockValue] = useState('')
+  const [addingBlockSessionId, setAddingBlockSessionId] = useState<string | null>(null)
+  const [addQuestionDraft, setAddQuestionDraft] = useState<AddQuestionDraft>(() => emptyAddQuestionDraft())
 
-  const sources = useContentSourcesForm({ subject, grade, initialTopic: loadedTopic })
+  const rag = useQuizRagScope({
+    subject,
+    grade,
+    initialScopeRefinement: loadedTopic,
+  })
 
-  useEffect(() => {
-    const match = demoClasses.find((c) => c.grade === grade)
-    if (match && !selectedClasses.includes(match.key)) {
-      setSelectedClasses([match.key])
-    }
-  }, [grade]) // eslint-disable-line react-hooks/exhaustive-deps
+  const worksheetGenOpts: WorksheetGenerationOpts = useMemo(
+    () => ({
+      mixMode,
+      questionCount,
+      includeMcq,
+      includeFillBlank,
+      includeShort,
+      includeMatch,
+      countsByType: { mcq: countMcq, fill_blank: countFillBlank, short: countShort, match: countMatch },
+      difficulty,
+      generatorNotes: teacherNotes.trim() || undefined,
+    }),
+    [
+      mixMode,
+      questionCount,
+      includeMcq,
+      includeFillBlank,
+      includeShort,
+      includeMatch,
+      countMcq,
+      countFillBlank,
+      countShort,
+      countMatch,
+      difficulty,
+      teacherNotes,
+    ],
+  )
+
+  const previewSections = useMemo(() => {
+    let n = 0
+    return sessions.map((session) => ({
+      session,
+      items: session.blocks.map((block) => {
+        n += 1
+        return { block, number: n }
+      }),
+    }))
+  }, [sessions])
 
   useEffect(() => {
     if (isEdit) return
@@ -126,7 +402,9 @@ export default function WorksheetCreate() {
     const topic = searchParams.get('topic')
     if (topic) setLoadedTopic(topic)
     const fmt = searchParams.get('format')
-    if (fmt === 'printable_pdf' || fmt === 'interactive_digital') setFormat(fmt)
+    if (fmt === 'printable_pdf' || fmt === 'interactive_digital' || fmt === 'both') {
+      setOutputFormat(fmt as WorksheetOutputFormat)
+    }
     if (searchParams.get('fromTemplate') && !templateToastRef.current) {
       templateToastRef.current = true
       toast.success('Prefilled from template')
@@ -151,117 +429,186 @@ export default function WorksheetCreate() {
       setTitle(w.title)
       setSubject(w.subject)
       setGrade(w.grade)
-      setFormat(w.format)
+      setOutputFormat(w.format === 'both' || w.format === 'printable_pdf' || w.format === 'interactive_digital' ? w.format : 'interactive_digital')
       setLoadedTopic(w.topic)
-      setSelectedClasses(w.classes ?? [])
       setUsageMeta({ createdAt: w.createdAt, usageCount: w.usageCount })
       setHydrateReady(true)
     })()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [api, isEdit, navigate, toast, worksheetId])
 
   const regenerate = useCallback(() => {
-    const generated = generateWorksheetBlocks(sources.getGenerationContext())
-    const seeded = generated.slice(0, targetQuestionCount)
-    while (seeded.length < targetQuestionCount) {
-      seeded.push({ type: 'short', prompt: `${difficultyProfile} extension item ${seeded.length + 1}: justify your reasoning using curriculum vocabulary.`, answer: '' })
-    }
-    setBlocks(seeded)
+    const gen = generateWorksheetBlocks(rag.getGenerationContext(), worksheetGenOpts)
+    setSessions((prev) => {
+      if (prev.length === 0) {
+        return [{ id: newDemoId('ws-session'), title: 'Session 1', blocks: gen }]
+      }
+      const [first, ...rest] = prev
+      return [{ ...first, blocks: gen }, ...rest]
+    })
     toast.success('Content regenerated from sources')
-  }, [sources.getGenerationContext, toast, targetQuestionCount, difficultyProfile]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [rag, toast, worksheetGenOpts])
 
-  const editBlock = (index: number) => {
-    const block = blocks[index]
+  const addSession = () => {
+    setSessions((prev) => [
+      ...prev,
+      { id: newDemoId('ws-session'), title: `Session ${prev.length + 1}`, blocks: [] },
+    ])
+    toast.success('Session added')
+  }
+
+  const removeSession = (sessionId: string) => {
+    if (sessions.length <= 1) {
+      toast.error('Keep at least one session.')
+      return
+    }
+    const idx = sessions.findIndex((s) => s.id === sessionId)
+    if (idx < 0) return
+    const victim = sessions[idx]!
+    const rest = sessions.filter((s) => s.id !== sessionId)
+    if (victim.blocks.length === 0) {
+      setSessions(rest)
+      toast.success('Session removed')
+      return
+    }
+    const targetIdx = Math.max(0, idx - 1)
+    const merged = rest.map((s, i) =>
+      i === targetIdx ? { ...s, blocks: [...s.blocks, ...victim.blocks] } : s,
+    )
+    setSessions(merged)
+    toast.success('Session removed — its questions were merged into the session above.')
+  }
+
+  const updateSessionTitle = (sessionId: string, title: string) => {
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)))
+  }
+
+  const closeBlockEditor = () => {
+    setEditingRef(null)
+    setEditForm(null)
+  }
+
+  const editBlock = (sessionId: string, blockIndex: number) => {
+    const session = sessions.find((s) => s.id === sessionId)
+    const block = session?.blocks[blockIndex]
     if (!block) return
-    const current = 'prompt' in block ? block.prompt : `${block.left.join(' | ')} -> ${block.right.join(' | ')}`
-    setEditingBlockIndex(index)
-    setEditingBlockValue(current)
+    setEditingRef({ sessionId, blockIndex })
+    setEditForm(blockToEditForm(block))
   }
 
-  const addManualBlock = () => {
+  const openAddQuestion = (sessionId: string) => {
+    addQuestionTargetSessionRef.current = sessionId
+    setAddingBlockSessionId(sessionId)
+    setAddQuestionDraft(emptyAddQuestionDraft())
     setAddingBlockOpen(true)
-    setAddingBlockValue('')
   }
 
-  const regenerateBlock = (index: number) => {
-    const regenerated = generateWorksheetBlocks(sources.getGenerationContext())
-    const next = regenerated[index] ?? regenerated[0]
-    if (!next) return
-    setBlocks((prev) => prev.map((b, i) => (i === index ? next : b)))
+  const closeAddQuestion = () => {
+    addQuestionTargetSessionRef.current = null
+    setAddingBlockOpen(false)
+    setAddingBlockSessionId(null)
+    setAddQuestionDraft(emptyAddQuestionDraft())
+  }
+
+  const regenerateBlock = (sessionId: string, blockIndex: number) => {
+    const session = sessions.find((s) => s.id === sessionId)
+    const t = session?.blocks[blockIndex]?.type
+    if (!t) return
+    const next = generateOneWorksheetBlock(rag.getGenerationContext(), worksheetGenOpts, t, blockIndex + 3)
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? { ...s, blocks: s.blocks.map((b, i) => (i === blockIndex ? next : b)) }
+          : s,
+      ),
+    )
     toast.success('Block regenerated')
   }
 
-  const deleteBlock = (index: number) => {
-    setBlocks((prev) => {
-      if (prev.length <= 1) return prev
-      return prev.filter((_, i) => i !== index)
-    })
+  const deleteBlock = (sessionId: string, blockIndex: number) => {
+    const total = totalQuestionsInSessions(sessions)
+    if (total <= 1) {
+      toast.error('Keep at least one question block, or go back to edit requirements.')
+      return
+    }
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId ? { ...s, blocks: s.blocks.filter((_, i) => i !== blockIndex) } : s,
+      ),
+    )
     toast.success('Block removed')
   }
 
-  const moveBlock = (index: number, direction: -1 | 1) => {
-    setBlocks((prev) => {
-      const target = index + direction
-      if (target < 0 || target >= prev.length) return prev
-      const next = [...prev]
-      const [row] = next.splice(index, 1)
-      next.splice(target, 0, row)
-      return next
-    })
+  const moveBlockInSession = (sessionId: string, blockIndex: number, direction: -1 | 1) => {
+    setSessions((prev) =>
+      prev.map((s) => {
+        if (s.id !== sessionId) return s
+        const target = blockIndex + direction
+        if (target < 0 || target >= s.blocks.length) return s
+        const nextBlocks = [...s.blocks]
+        const [row] = nextBlocks.splice(blockIndex, 1)
+        nextBlocks.splice(target, 0, row)
+        return { ...s, blocks: nextBlocks }
+      }),
+    )
   }
 
-  const runGeneration = () => {
-    const errs: string[] = []
-    if (!title.trim()) errs.push('Worksheet title is required.')
-    if (errs.length > 0) {
-      setBuildErrors(errs)
+  const runGeneration = useCallback(async () => {
+    const v = validateRagWorksheetBuild({
+      title,
+      generateWithoutSources: rag.generateWithoutSources,
+      selectedBookIds: rag.selectedBookIds,
+      selectedTopics: rag.selectedTopics,
+      scopeRefinement: rag.scopeRefinement,
+      mixMode,
+      questionCount,
+      includeMcq,
+      includeFillBlank,
+      includeShort,
+      includeMatch,
+      countsByType: { mcq: countMcq, fill_blank: countFillBlank, short: countShort, match: countMatch },
+    })
+    if (!v.ok) {
+      setBuildErrors(v.errors)
       toast.error('Fix the highlighted fields to generate.')
       return
     }
     setBuildErrors([])
     setGenerationError(null)
-    setGenProgress(0.15)
     setGenerating(true)
+    setGenProgress(0.12)
     const steps = window.setInterval(() => {
       setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.12))
     }, 450)
-    window.setTimeout(() => {
-      try {
-        const generated = generateWorksheetBlocks(sources.getGenerationContext())
-        const seeded = generated.slice(0, targetQuestionCount)
-        while (seeded.length < targetQuestionCount) {
-          seeded.push({ type: 'short', prompt: `${difficultyProfile} extension item ${seeded.length + 1}: justify your reasoning using curriculum vocabulary.`, answer: '' })
-        }
-        setBlocks(seeded)
-        setPhase('review')
-        toast.success('Worksheet generated — review below.')
-      } catch {
-        setGenerationError('Generation failed (demo). Please retry with updated inputs.')
-        toast.error('Could not generate worksheet content.')
-      } finally {
-        window.clearInterval(steps)
-        setGenerating(false)
-        setGenProgress(1)
-      }
-    }, 1200 + Math.random() * 800)
-  }
-
-  const toggleClass = (key: string) => {
-    setSelectedClasses((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
-    )
-  }
+    try {
+      await new Promise((r) => setTimeout(r, randomGenerationDelay()))
+      setSessions([
+        { id: newDemoId('ws-session'), title: 'Session 1', blocks: generateWorksheetBlocks(rag.getGenerationContext(), worksheetGenOpts) },
+      ])
+      setPhase('review')
+      toast.success('Worksheet generated — review below.')
+    } catch {
+      setGenerationError('Generation failed (demo). Please retry with updated inputs.')
+      toast.error('Could not generate worksheet content.')
+    } finally {
+      window.clearInterval(steps)
+      setGenerating(false)
+      setGenProgress(1)
+    }
+  }, [title, rag, toast, worksheetGenOpts])
 
   const buildPayload = (status: 'draft' | 'published') => {
-    const ctx = sources.getGenerationContext()
-    const classes = selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)]
+    const ctx = rag.getGenerationContext()
+    const classes = [classKeyForGrade(grade)]
     const createdAt = isEdit && usageMeta.createdAt ? usageMeta.createdAt : new Date().toISOString().slice(0, 10)
     return {
       title: title.trim() || 'Untitled worksheet',
-      topic: sources.combinedTopicLabel,
+      topic: rag.combinedTopicLabel,
       subject,
       grade,
-      format,
+      format: toPersistedFormat(outputFormat),
       status,
       classes,
       createdAt,
@@ -271,7 +618,7 @@ export default function WorksheetCreate() {
   }
 
   const handleSaveDraft = async () => {
-    if (blocks.length === 0) {
+    if (totalQuestionsInSessions(sessions) === 0) {
       toast.error('Generate at least one block before saving a draft.')
       return
     }
@@ -299,7 +646,7 @@ export default function WorksheetCreate() {
   }
 
   const handlePublish = async () => {
-    if (blocks.length === 0) {
+    if (totalQuestionsInSessions(sessions) === 0) {
       toast.error('Generate at least one block before publishing.')
       return
     }
@@ -309,7 +656,8 @@ export default function WorksheetCreate() {
       if (isEdit && worksheetId) {
         const res = await api.updateWorksheet(worksheetId, payload)
         if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited. Duplicate from the list first.')
+          if (res.error === 'READ_ONLY')
+            toast.error('Sample library items cannot be edited. Duplicate from the list first.')
           else toast.error('Could not save worksheet')
           return
         }
@@ -327,34 +675,47 @@ export default function WorksheetCreate() {
   const goList = () => navigate('/teacher-tools/worksheet')
 
   const exportPdf = () => {
-    const stubs = blocks.map((b, i) => ({
-      id: `ws-${i + 1}`,
-      type: b.type === 'mcq' ? 'mcq' as const : b.type === 'match' ? 'tf' as const : 'short' as const,
-      prompt: 'prompt' in b ? b.prompt : `${b.left.join(', ')} match ${b.right.join(', ')}`,
-      points: 2,
-      options: b.type === 'mcq' && 'options' in b ? b.options : undefined,
-      responseLines: 3,
-    }))
+    let ordinal = 0
+    const stubs = sessions.flatMap((session) =>
+      session.blocks.map((b, bi) => {
+        ordinal += 1
+        const base =
+          'prompt' in b ? b.prompt : `${(b as { left: string[] }).left.join(', ')} → ${(b as { right: string[] }).right.join(', ')}`
+        const prompt = bi === 0 ? `【${session.title}】\n\n${base}` : base
+        return {
+          id: `ws-${ordinal}`,
+          type: b.type === 'mcq' ? ('mcq' as const) : b.type === 'match' ? ('tf' as const) : ('short' as const),
+          prompt,
+          points: 2,
+          options: b.type === 'mcq' && 'options' in b ? b.options : undefined,
+          responseLines: b.type === 'short' ? clampResponseLines(b.responseLines) : 3,
+        }
+      }),
+    )
     const payload: DemoQuiz = {
       id: isEdit && worksheetId ? worksheetId : newDemoId('ws-preview'),
       title: `${title || 'Worksheet'} — Handout`,
       subject,
       grade,
-      classes: selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)],
+      classes: [classKeyForGrade(grade)],
       questions: stubs.length,
       totalMarks: stubs.length * 2,
       timeLimitMinutes: 30,
       status: 'draft',
       submissionCount: 0,
       avgScore: 0,
-      topic: sources.combinedTopicLabel,
-      sourceSummary: formatSourceSummary(sources.getGenerationContext()),
+      topic: rag.combinedTopicLabel,
+      sourceSummary: formatSourceSummary(rag.getGenerationContext()),
       questionStubs: stubs,
-      studentInstructions: includeInstructions ? 'Complete all worksheet items.' : '',
+      studentInstructions: 'Complete all worksheet items.',
       handoutLayout,
     }
-    downloadQuizPdf(payload, `${(title || 'worksheet').replace(/\s+/g, '-').slice(0, 32)}-worksheet.pdf`)
-    toast.success('PDF downloaded')
+    try {
+      downloadQuizPdf(payload, `${(title || 'worksheet').replace(/\s+/g, '-').slice(0, 32)}-worksheet.pdf`)
+      toast.success('PDF downloaded')
+    } catch {
+      toast.error('Could not generate PDF')
+    }
   }
 
   if (isEdit && !hydrateReady) {
@@ -368,15 +729,17 @@ export default function WorksheetCreate() {
   }
 
   const wizardStep = phase === 'build' ? 0 : 1
-  const assignedClasses = demoClasses.filter((c) =>
-    selectedClasses.length > 0 ? selectedClasses.includes(c.key) : c.grade === grade
-  )
+
+  const reviewSourceTag = rag.generateWithoutSources ? 'Topic-only' : 'Sources selected'
+
+  const totalQs = totalQuestionsInSessions(sessions)
+  const typeCount = distinctBlockTypesInSessions(sessions)
 
   return (
     <div className="space-y-6 pb-10">
       <TeacherToolsPageHeader
         title={isEdit ? 'Edit worksheet' : 'Create worksheet'}
-        subtitle="Choose sources and settings, generate the content blocks, then review and publish."
+        subtitle="Configure scope and settings, generate the worksheet, then review and publish."
         breadcrumbs={[
           { label: 'Teacher Tools', to: '/teacher-tools' },
           { label: 'Worksheet', to: '/teacher-tools/worksheet' },
@@ -385,10 +748,10 @@ export default function WorksheetCreate() {
       />
 
       <TeacherToolsWizardStepper
-        steps={BUILD_STEPS}
+        steps={[...QUIZ_CREATION_STEPS]}
         current={wizardStep}
         onStepClick={(i) => {
-          if (i === 1 && phase === 'build') {
+          if (i === 1 && totalQuestionsInSessions(sessions) === 0) {
             toast.error('Generate the worksheet first to open review.')
             return
           }
@@ -400,209 +763,66 @@ export default function WorksheetCreate() {
       {generationError && (
         <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
           {generationError}
-          <button
-            type="button"
-            className="ml-3 font-semibold underline"
-            onClick={() => setGenerationError(null)}
-          >
+          <button type="button" className="ml-3 font-semibold underline" onClick={() => setGenerationError(null)}>
             Dismiss
           </button>
         </div>
       )}
 
       {phase === 'build' && (
-        <>
-          {/* Step 1 — Basics & sources */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-indigo-100 bg-gradient-to-r from-indigo-50/80 to-white px-6 py-5">
-              <StepHeader
-                step={1}
-                kicker="Worksheet identity"
-                title="Basics & sources"
-                subtitle="Name the worksheet, choose the output format, and pick the catalog scope to draw from."
-              />
-            </div>
-            <div className="grid gap-4 p-6 md:grid-cols-2">
-              <label className="md:col-span-2 block text-sm font-medium text-gray-800">
-                Title <span className="text-red-500">*</span>
-                <input
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Photosynthesis — retrieval practice (Grade 8)"
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Output format
-                <select
-                  value={format}
-                  onChange={(e) => setFormat(e.target.value as typeof format)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  <option value="interactive_digital">Interactive digital</option>
-                  <option value="printable_pdf">Printable PDF</option>
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Subject
-                <select
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Grade / cohort
-                <select
-                  value={grade}
-                  onChange={(e) => setGrade(e.target.value)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  {GRADES.map((g) => <option key={g} value={g}>{g}</option>)}
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                International difficulty profile
-                <select
-                  value={difficultyProfile}
-                  onChange={(e) => setDifficultyProfile(e.target.value as typeof difficultyProfile)}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                >
-                  <option value="Foundational">Foundational</option>
-                  <option value="Balanced">Balanced</option>
-                  <option value="Advanced">Advanced</option>
-                  <option value="Olympiad Prep">Olympiad Prep</option>
-                </select>
-              </label>
-              <label className="block text-sm font-medium text-gray-800">
-                Target question count
-                <input
-                  type="number"
-                  min={6}
-                  max={24}
-                  value={targetQuestionCount}
-                  onChange={(e) => setTargetQuestionCount(Math.min(24, Math.max(6, Number(e.target.value) || 10)))}
-                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-primary-400 focus:outline-none focus:ring-4 focus:ring-primary-100"
-                />
-              </label>
-              <div className="md:col-span-2">
-                <ContentSourcesPanel subject={subject} grade={grade} model={sources} />
-              </div>
-            </div>
-          </section>
+        <div className="space-y-10">
+          <WorksheetRagIdentitySection
+            rag={rag}
+            title={title}
+            onTitleChange={setTitle}
+            outputFormat={outputFormat}
+            onOutputFormatChange={setOutputFormat}
+            subject={subject}
+            onSubjectChange={setSubject}
+            grade={grade}
+            onGradeChange={setGrade}
+          />
 
-          {/* Step 2 — Settings */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-violet-100 bg-gradient-to-r from-violet-50/60 to-white px-6 py-5">
-              <StepHeader
-                step={2}
-                kicker="Layout & display"
-                title="Worksheet settings"
-                subtitle="Control how the worksheet looks when distributed to students."
-              />
-            </div>
-            <div className="space-y-5 p-6">
-              <div className="space-y-2">
-                {[
-                  { label: 'Show answer key (teacher copy)', checked: showAnswerKey, onChange: (v: boolean) => setShowAnswerKey(v) },
-                  { label: 'Include instructions header', checked: includeInstructions, onChange: (v: boolean) => setIncludeInstructions(v) },
-                  { label: 'Randomise question order on delivery', checked: randomiseOrder, onChange: (v: boolean) => setRandomiseOrder(v) },
-                ].map(({ label, checked, onChange }) => (
-                  <label key={label} className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 hover:bg-gray-100">
-                    <span className="text-sm text-gray-700">{label}</span>
-                    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="rounded" />
-                  </label>
-                ))}
-              </div>
-              {format === 'printable_pdf' && (
-                <div>
-                  <p className="mb-2 text-sm font-medium text-gray-800">Line spacing (printable)</p>
-                  <div className="space-y-2">
-                    {LINE_SPACING_OPTIONS.map(({ value, label }) => (
-                      <label key={value} className="flex cursor-pointer items-center gap-3 rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 hover:bg-gray-100">
-                        <input
-                          type="radio"
-                          name="line_spacing"
-                          value={value}
-                          checked={lineSpacing === value}
-                          onChange={() => setLineSpacing(value)}
-                          className="text-indigo-600"
-                        />
-                        <span className="text-sm text-gray-700">{label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <Phase2Section title="Advanced print options">
-                <p className="text-sm text-gray-700">
-                  Grid paper backgrounds, custom margins, header/footer branding, and page numbering unlock in Phase 2.
-                </p>
-              </Phase2Section>
-            </div>
-          </section>
+          <WorksheetGenerationParametersSection
+            mixMode={mixMode}
+            onMixModeChange={setMixMode}
+            questionCount={questionCount}
+            onQuestionCountChange={setQuestionCount}
+            countMcq={countMcq}
+            countFillBlank={countFillBlank}
+            countShort={countShort}
+            countMatch={countMatch}
+            onCountMcq={setCountMcq}
+            onCountFillBlank={setCountFillBlank}
+            onCountShort={setCountShort}
+            onCountMatch={setCountMatch}
+            difficulty={difficulty}
+            onDifficultyChange={setDifficulty}
+            includeMcq={includeMcq}
+            includeFillBlank={includeFillBlank}
+            includeShort={includeShort}
+            includeMatch={includeMatch}
+            onToggleMcq={setIncludeMcq}
+            onToggleFillBlank={setIncludeFillBlank}
+            onToggleShort={setIncludeShort}
+            onToggleMatch={setIncludeMatch}
+            teacherNotes={teacherNotes}
+            onTeacherNotesChange={setTeacherNotes}
+            validationErrors={buildErrors}
+          />
 
-          {/* Step 3 — Assign to classes */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="border-b border-emerald-100 bg-gradient-to-r from-emerald-50/70 to-white px-6 py-5">
-              <StepHeader
-                step={3}
-                kicker="Student cohort"
-                title="Share with classes"
-                subtitle="Select which classes can access this worksheet after you publish."
-              />
-            </div>
-            <div className="p-6">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {demoClasses.map((c) => (
-                  <label
-                    key={c.key}
-                    className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 ${
-                      selectedClasses.includes(c.key)
-                        ? 'border-indigo-300 bg-indigo-50'
-                        : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedClasses.includes(c.key)}
-                      onChange={() => toggleClass(c.key)}
-                      className="rounded"
-                    />
-                    <div>
-                      <p className="text-xs font-semibold text-gray-900">{c.label}</p>
-                      <p className="text-xs text-gray-500">{c.grade} · {c.subject}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {buildErrors.length > 0 && (
-            <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-              <ul className="space-y-1 text-sm text-amber-900">
-                {buildErrors.map((e) => <li key={e}>{e}</li>)}
-              </ul>
-            </div>
-          )}
-
-          {/* Sticky generate CTA */}
           <div className="sticky bottom-4 z-10 mt-8 flex flex-col gap-3 rounded-2xl border border-indigo-200 bg-white/95 p-4 shadow-lg backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-sm font-semibold text-gray-900">Ready to generate worksheet content</p>
               <p className="mt-0.5 text-xs text-gray-600">
-                Produces a mix of question types from the selected topic strands and catalog books above.
+                Uses generation parameters together with basics and sources above.
               </p>
             </div>
             <button
               type="button"
-              onClick={runGeneration}
+              onClick={() => void runGeneration()}
               disabled={generating}
-              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-indigo-500 disabled:opacity-60"
+              className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md hover:bg-emerald-500 disabled:opacity-60"
             >
               {generating ? (
                 <>
@@ -614,196 +834,289 @@ export default function WorksheetCreate() {
               )}
             </button>
           </div>
-        </>
+        </div>
       )}
 
       {phase === 'review' && (
         <div className="space-y-6">
-          {/* Review header */}
           <div className="flex flex-col gap-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50/80 to-white p-6 shadow-sm lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">Review</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">REVIEW</p>
               <h2 className="mt-1 text-lg font-semibold text-gray-900">Generated question set</h2>
               <p className="mt-1 max-w-2xl text-sm text-gray-600">
-                Edit prompts, reorder, or regenerate items. When you publish, this snapshot is stored for students and exports.
+                Organise content into sessions, edit prompts per item, reorder within a session, then publish. Print preview and PDF include session titles.
               </p>
-              <p className="mt-2 text-xs text-gray-500">{formatSourceSummary(sources.getGenerationContext())}</p>
+              <p className="mt-2 text-xs text-gray-500">{reviewSourceTag}</p>
             </div>
             <div className="flex flex-col items-stretch gap-3 sm:items-end">
               <div className="flex flex-wrap items-center gap-2">
                 <div className="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-gray-100">
-                  <p className="text-2xl font-semibold text-gray-900">{blocks.length}</p>
+                  <p className="text-2xl font-semibold text-gray-900">{totalQs}</p>
                   <p className="text-xs text-gray-500">Questions</p>
                 </div>
                 <div className="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-gray-100">
-                  <p className="text-2xl font-semibold text-gray-900">{new Set(blocks.map((b) => b.type)).size}</p>
+                  <p className="text-2xl font-semibold text-gray-900">{sessions.length}</p>
+                  <p className="text-xs text-gray-500">Sessions</p>
+                </div>
+                <div className="rounded-xl bg-white px-4 py-2 text-center shadow-sm ring-1 ring-gray-100">
+                  <p className="text-2xl font-semibold text-gray-900">{typeCount}</p>
                   <p className="text-xs text-gray-500">Types</p>
                 </div>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => { setDraftLayout(handoutLayout); setPreviewOpen(true) }} disabled={blocks.length === 0} className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-semibold text-indigo-900 shadow-sm hover:bg-indigo-50 disabled:opacity-50"><Eye className="h-3.5 w-3.5" />Print preview</button>
-                <button type="button" onClick={addManualBlock} className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-50"><PlusCircle className="h-3.5 w-3.5" />Add question manually</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftLayout(handoutLayout)
+                    setPreviewOpen(true)
+                  }}
+                  disabled={totalQs === 0}
+                  className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-white px-4 py-2 text-xs font-semibold text-indigo-900 shadow-sm hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  <Eye className="h-3.5 w-3.5" />
+                  Print preview
+                </button>
+                <button
+                  type="button"
+                  onClick={addSession}
+                  className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-50"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" />
+                  Add session
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Generated content blocks */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50/60 to-white px-6 py-4">
-              <LayoutGrid className="h-4 w-4 text-indigo-500" />
+          <section className="overflow-hidden rounded-2xl border-[0.5px] border-gray-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-indigo-50/60 to-white px-6 py-4">
               <h3 className="font-semibold text-gray-900">Content blocks</h3>
-              <span className="ml-auto text-xs text-gray-400">
-                {formatSourceSummary(sources.getGenerationContext())}
-              </span>
-              <button type="button" onClick={regenerate} className="text-xs font-semibold text-indigo-600 hover:text-indigo-500">
+              <span className="ml-auto text-xs font-medium text-gray-500">{reviewSourceTag}</span>
+              <button
+                type="button"
+                onClick={addSession}
+                className="text-xs font-semibold text-emerald-700 hover:text-emerald-600"
+              >
+                Add session
+              </button>
+              <button
+                type="button"
+                onClick={regenerate}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+              >
                 Regenerate
               </button>
-              <button type="button" onClick={addManualBlock} className="text-xs font-semibold text-indigo-600 hover:text-indigo-500">
-                Add manual
-              </button>
             </div>
-            {blocks.length === 0 ? (
+            {sessions.length === 0 || totalQs === 0 ? (
               <div className="p-6 text-sm text-gray-500">
-                No blocks generated. Go back and select a topic or add a scope refinement.
+                No content yet — go back and generate, or add a session and use Add question on that session.
               </div>
             ) : (
-              <div className="space-y-4 p-6">
-                {(['mcq', 'fill_blank', 'short', 'match'] as const).map((kind) => {
-                  const group = blocks.filter((b) => b.type === kind)
-                  if (group.length === 0) return null
-                  return (
-                    <div key={kind}>
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
-                        {BLOCK_LABELS[kind]} ({group.length})
-                      </p>
-                      <ul className="space-y-2">
-                        {group.map((b, i) => {
-                          const absoluteIndex = blocks.indexOf(b)
-                          return (
-                          <li key={i} className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-700">
-                            {'prompt' in b && <p>{b.prompt}</p>}
-                            {'left' in b && (
-                              <div className="mt-2 grid grid-cols-2 gap-3 text-xs">
-                                <div className="space-y-1">
-                                  {b.left.map((l, j) => <p key={j} className="font-medium">{l}</p>)}
-                                </div>
-                                <div className="space-y-1 text-gray-500">
-                                  {b.right.map((r, j) => <p key={j}>{r}</p>)}
-                                </div>
-                              </div>
-                            )}
-                            <div className="mt-3 flex justify-end gap-1">
-                              <button type="button" title="Move up" onClick={() => moveBlock(absoluteIndex, -1)} className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30" disabled={absoluteIndex === 0}><ArrowUp className="h-4 w-4" /></button>
-                              <button type="button" title="Move down" onClick={() => moveBlock(absoluteIndex, 1)} className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30" disabled={absoluteIndex === blocks.length - 1}><ArrowDown className="h-4 w-4" /></button>
-                              <button type="button" title="Edit" onClick={() => editBlock(absoluteIndex)} className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"><Pencil className="h-4 w-4" /></button>
-                              <button type="button" title="Regenerate" onClick={() => regenerateBlock(absoluteIndex)} className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"><RefreshCw className="h-4 w-4" /></button>
-                              <button type="button" title="Remove" onClick={() => deleteBlock(absoluteIndex)} className="rounded-lg p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-30" disabled={blocks.length <= 1}><Trash2 className="h-4 w-4" /></button>
-                            </div>
-                          </li>
-                        )})}
-                      </ul>
+              <div className="space-y-8 p-6">
+                {sessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/50 shadow-sm"
+                  >
+                    <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 bg-white px-4 py-3">
+                      <label className="flex min-w-[10rem] flex-1 flex-col gap-1 text-[10px] font-bold uppercase tracking-wide text-gray-500 sm:flex-row sm:items-center sm:gap-2">
+                        <span className="shrink-0">Session</span>
+                        <input
+                          value={session.title}
+                          onChange={(e) => updateSessionTitle(session.id, e.target.value)}
+                          className="w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold normal-case text-gray-900"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => openAddQuestion(session.id)}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100"
+                      >
+                        <PlusCircle className="h-3.5 w-3.5" />
+                        Add question
+                      </button>
+                      {sessions.length > 1 ? (
+                        <button
+                          type="button"
+                          onClick={() => removeSession(session.id)}
+                          className="text-xs font-semibold text-red-700 hover:text-red-600"
+                        >
+                          Remove session
+                        </button>
+                      ) : null}
                     </div>
-                  )
-                })}
+                    <div className="p-4">
+                      {session.blocks.length === 0 ? (
+                        <p className="text-sm text-gray-600">No questions in this session yet.</p>
+                      ) : (
+                        <div className="space-y-6">
+                          {TYPE_ORDER.map((kind) => {
+                            const group = session.blocks
+                              .map((b, idx) => ({ b, idx }))
+                              .filter(({ b }) => b.type === kind)
+                            if (group.length === 0) return null
+                            return (
+                              <div key={`${session.id}-${kind}`}>
+                                <p className="mb-3 text-xs font-bold uppercase tracking-wide text-gray-900">
+                                  {TYPE_HEADING[kind]} ({group.length})
+                                </p>
+                                <ul className="space-y-3">
+                                  {group.map(({ b, idx: blockIndex }) => (
+                                    <li
+                                      key={`${session.id}-${kind}-${blockIndex}`}
+                                      className="rounded-xl border border-gray-100 bg-white p-4 text-sm text-gray-800"
+                                    >
+                                      {b.type === 'mcq' && 'prompt' in b ? (
+                                        <div>
+                                          <p className="whitespace-pre-wrap leading-relaxed">{b.prompt}</p>
+                                          <ol className="mt-2 list-[lower-alpha] space-y-1 pl-5 text-gray-700">
+                                            {b.options.map((o, j) => (
+                                              <li key={j} className="whitespace-pre-wrap">
+                                                {o}
+                                              </li>
+                                            ))}
+                                          </ol>
+                                        </div>
+                                      ) : null}
+                                      {b.type === 'fill_blank' && 'prompt' in b ? (
+                                        <p className="whitespace-pre-wrap leading-relaxed">{b.prompt}</p>
+                                      ) : null}
+                                      {b.type === 'short' && 'prompt' in b ? (
+                                        <div>
+                                          <p className="whitespace-pre-wrap leading-relaxed">{b.prompt}</p>
+                                          <p className="mt-1 text-xs text-gray-400">
+                                            {clampResponseLines(b.responseLines)} ruled lines
+                                          </p>
+                                          <ShortAnswerStudentResponsePreview
+                                            responseLines={b.responseLines}
+                                            ruledLineSpacingPx={handoutLayout.ruledLineSpacingPx}
+                                          />
+                                        </div>
+                                      ) : null}
+                                      {b.type === 'match' && 'left' in b ? (
+                                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50/80">
+                                          <div className="grid grid-cols-2 divide-x divide-gray-200 text-xs">
+                                            <div className="space-y-2 p-3">
+                                              {b.left.map((l, j) => (
+                                                <p key={j} className="font-semibold text-gray-900">
+                                                  {l}
+                                                </p>
+                                              ))}
+                                            </div>
+                                            <div className="space-y-2 p-3 text-gray-600">
+                                              {b.right.map((r, j) => (
+                                                <p key={j}>{r}</p>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ) : null}
+                                      <div className="mt-3 flex justify-end gap-1 border-t border-gray-100 pt-3">
+                                        <button
+                                          type="button"
+                                          title="Move up"
+                                          disabled={blockIndex === 0}
+                                          onClick={() => moveBlockInSession(session.id, blockIndex, -1)}
+                                          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                                        >
+                                          <ArrowUp className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Move down"
+                                          disabled={blockIndex === session.blocks.length - 1}
+                                          onClick={() => moveBlockInSession(session.id, blockIndex, 1)}
+                                          className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
+                                        >
+                                          <ArrowDown className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Edit"
+                                          onClick={() => editBlock(session.id, blockIndex)}
+                                          className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100"
+                                        >
+                                          <Pencil className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Regenerate"
+                                          onClick={() => regenerateBlock(session.id, blockIndex)}
+                                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                                        >
+                                          <RefreshCw className="h-4 w-4" />
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Remove"
+                                          disabled={totalQs <= 1}
+                                          onClick={() => deleteBlock(session.id, blockIndex)}
+                                          className="rounded-lg p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-30"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </button>
+                                      </div>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </section>
 
-          {/* Settings summary */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-violet-50/60 to-white px-6 py-4">
-              <Settings2 className="h-4 w-4 text-violet-500" />
-              <h3 className="font-semibold text-gray-900">Settings</h3>
-              <button
-                type="button"
-                onClick={() => setPhase('build')}
-                className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Edit
-              </button>
-            </div>
-            <dl className="divide-y divide-gray-100 px-6 py-1 text-sm">
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">Answer key</dt>
-                <dd className="text-gray-800">{showAnswerKey ? 'Included (teacher copy)' : 'Hidden'}</dd>
-              </div>
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">Instructions header</dt>
-                <dd className="text-gray-800">{includeInstructions ? 'Shown' : 'Hidden'}</dd>
-              </div>
-              <div className="flex items-center justify-between py-2.5">
-                <dt className="text-gray-500">Question order</dt>
-                <dd className="text-gray-800">{randomiseOrder ? 'Randomised' : 'Fixed'}</dd>
-              </div>
-              {format === 'printable_pdf' && (
-                <div className="flex items-center justify-between py-2.5">
-                  <dt className="text-gray-500">Line spacing</dt>
-                  <dd className="text-gray-800">
-                    {LINE_SPACING_OPTIONS.find((o) => o.value === lineSpacing)?.label ?? lineSpacing}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          </section>
-
-          {/* Classes summary */}
-          <section className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
-            <div className="flex items-center gap-3 border-b border-gray-100 bg-gradient-to-r from-emerald-50/60 to-white px-6 py-4">
-              <Users className="h-4 w-4 text-emerald-500" />
-              <h3 className="font-semibold text-gray-900">Shared with</h3>
-              <button
-                type="button"
-                onClick={() => setPhase('build')}
-                className="ml-auto text-xs font-semibold text-indigo-600 hover:text-indigo-500"
-              >
-                Edit
-              </button>
-            </div>
-            <div className="grid gap-2 p-6 sm:grid-cols-2">
-              {assignedClasses.map((c) => (
-                <div key={c.key} className="flex items-center gap-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <div>
-                    <p className="text-xs font-semibold text-gray-900">{c.label}</p>
-                    <p className="text-xs text-gray-500">{c.grade} · {c.subject}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-6">
-            <button type="button" onClick={() => setPhase('build')} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">← Edit requirements</button>
-            <button type="button" onClick={regenerate} className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"><Sparkles className="h-4 w-4" />Regenerate all</button>
+            <button
+              type="button"
+              onClick={() => setPhase('build')}
+              className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50"
+            >
+              ← Edit requirements
+            </button>
+            <button
+              type="button"
+              onClick={regenerate}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"
+            >
+              <Sparkles className="h-4 w-4" />
+              Regenerate all
+            </button>
           </div>
 
-          {/* Publish panel */}
-          <div className="sticky bottom-4 z-10 rounded-2xl border border-gray-200 bg-gray-50/95 p-5 shadow-lg backdrop-blur-sm">
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-5">
             <p className="text-xs font-semibold uppercase tracking-wide text-gray-600">Publish & export</p>
-            <div className="flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => {
                   setDraftLayout(handoutLayout)
                   setPreviewOpen(true)
                 }}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                disabled={totalQs === 0}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
-                <Eye className="h-4 w-4" />
+                <Printer className="h-4 w-4" />
                 Print preview
               </button>
               <button
                 type="button"
-                disabled={saveDraftPending}
+                disabled={saveDraftPending || totalQs === 0}
                 onClick={() => void handleSaveDraft()}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
-                {saveDraftPending ? 'Saving…' : 'Save draft'}
+                {saveDraftPending ? 'Saving draft…' : 'Save draft'}
               </button>
               <button
                 type="button"
                 onClick={exportPdf}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50"
+                disabled={totalQs === 0}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-800 shadow-sm hover:bg-gray-50 disabled:opacity-50"
               >
                 <Download className="h-4 w-4" />
                 Export PDF
@@ -819,7 +1132,7 @@ export default function WorksheetCreate() {
               </button>
               <button
                 type="button"
-                disabled={publishPending}
+                disabled={publishPending || totalQs === 0}
                 onClick={() => void handlePublish()}
                 className="ml-auto rounded-full bg-emerald-600 px-5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-500 disabled:opacity-50"
               >
@@ -833,16 +1146,16 @@ export default function WorksheetCreate() {
       <CustomModal
         open={discardOpen}
         close={() => setDiscardOpen(false)}
-        title="Discard source selections?"
-        primaryButtonText="Discard and leave"
+        title="Discard changes?"
+        primaryButtonText="Leave"
         isDelete
         handleSave={() => {
-          sources.resetSources()
+          rag.resetSources()
           setDiscardOpen(false)
           goList()
         }}
       >
-        <p className="py-3 text-sm text-gray-600">You changed content sources. Leave without publishing?</p>
+        <p className="py-3 text-sm text-gray-600">Unsaved catalog scope will be cleared. Continue?</p>
       </CustomModal>
 
       <CustomModal
@@ -863,11 +1176,18 @@ export default function WorksheetCreate() {
               <select
                 value={draftLayout.bodyLineHeight}
                 onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, bodyLineHeight: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.bodyLineHeight }))
+                  setDraftLayout((l) => ({
+                    ...l,
+                    bodyLineHeight: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.bodyLineHeight,
+                  }))
                 }
                 className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
               >
-                {LINE_HEIGHT_PRESETS.map((lh) => <option key={lh} value={lh}>{lh}</option>)}
+                {LINE_HEIGHT_PRESETS.map((lh) => (
+                  <option key={lh} value={lh}>
+                    {lh}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-xs text-gray-800">
@@ -875,11 +1195,18 @@ export default function WorksheetCreate() {
               <select
                 value={draftLayout.questionGapPx}
                 onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, questionGapPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.questionGapPx }))
+                  setDraftLayout((l) => ({
+                    ...l,
+                    questionGapPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.questionGapPx,
+                  }))
                 }
                 className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
               >
-                {QUESTION_GAP_PRESETS.map((px) => <option key={px} value={px}>{px}px</option>)}
+                {QUESTION_GAP_PRESETS.map((px) => (
+                  <option key={px} value={px}>
+                    {px}px
+                  </option>
+                ))}
               </select>
             </label>
             <label className="flex items-center gap-1.5 text-xs text-gray-800">
@@ -887,77 +1214,404 @@ export default function WorksheetCreate() {
               <select
                 value={draftLayout.ruledLineSpacingPx}
                 onChange={(e) =>
-                  setDraftLayout((l) => ({ ...l, ruledLineSpacingPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx }))
+                  setDraftLayout((l) => ({
+                    ...l,
+                    ruledLineSpacingPx: Number(e.target.value) || DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx,
+                  }))
                 }
                 className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium shadow-sm"
               >
-                {RULED_LINE_SPACING_PRESETS.map((px) => <option key={px} value={px}>{px}px</option>)}
+                {RULED_LINE_SPACING_PRESETS.map((px) => (
+                  <option key={px} value={px}>
+                    {px}px
+                  </option>
+                ))}
               </select>
             </label>
           </div>
-        <div className="max-h-[60vh] overflow-y-auto py-3 text-sm text-gray-700" style={{ lineHeight: draftLayout.bodyLineHeight }}>
-          <p className="font-semibold text-gray-900">{title || 'Untitled worksheet'}</p>
-          <p className="mt-1 text-xs text-gray-500">{subject} · {grade} · {format === 'printable_pdf' ? 'Printable PDF' : 'Interactive'}</p>
-          <ol className="mt-4 list-decimal pl-5">
-            {blocks.map((b, i) => (
-              <li key={i} style={{ marginBottom: draftLayout.questionGapPx }}>
-                {'prompt' in b ? b.prompt : `${b.left.join(', ')} -> ${b.right.join(', ')}`}
-              </li>
-            ))}
-          </ol>
-        </div>
+          <div className="max-h-[60vh] overflow-y-auto py-3">
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-inner">
+              <p className="text-lg font-semibold tracking-tight text-gray-900">{title || 'Untitled worksheet'}</p>
+              <p className="mt-1 text-xs text-gray-500">
+                {subject} · {grade} ·{' '}
+                {outputFormat === 'printable_pdf'
+                  ? 'Print-ready PDF'
+                  : outputFormat === 'both'
+                    ? 'Both'
+                    : 'Interactive digital'}
+              </p>
+              <div className="mt-6 space-y-8">
+                {previewSections.map(({ session, items }) => (
+                  <section key={session.id} className="border-t border-gray-200 pt-6 first:border-t-0 first:pt-0">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-indigo-800">{session.title}</h3>
+                    <div className="mt-4 flex flex-col" style={{ gap: draftLayout.questionGapPx }}>
+                      {items.map(({ block, number }) => (
+                        <article key={`preview-q-${number}`}>
+                          <div className="flex gap-3">
+                            <span
+                              className="shrink-0 pt-0.5 text-base font-semibold tabular-nums text-gray-900"
+                              style={{ lineHeight: draftLayout.bodyLineHeight }}
+                            >
+                              {number}.
+                            </span>
+                            <div className="min-w-0 flex-1 text-sm text-gray-800" style={{ lineHeight: draftLayout.bodyLineHeight }}>
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600/90">
+                                {worksheetPreviewTypeLabel(block)}
+                              </p>
+                              <div className="mt-1.5">
+                                <WorksheetPreviewBlockContent
+                                  block={block}
+                                  ruledLineSpacingPx={draftLayout.ruledLineSpacingPx}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
       </CustomModal>
 
       <CustomModal
-        open={editingBlockIndex !== null}
-        close={() => setEditingBlockIndex(null)}
-        title="Edit question content"
+        open={editingRef !== null && editForm !== null}
+        close={closeBlockEditor}
+        title={
+          editForm?.t === 'mcq'
+            ? 'Edit multiple choice'
+            : editForm?.t === 'fill_blank'
+              ? 'Edit fill in the blank'
+              : editForm?.t === 'short'
+                ? 'Edit short answer'
+                : 'Edit matching'
+        }
         primaryButtonText="Save"
         handleSave={() => {
-          if (editingBlockIndex === null) return
-          setBlocks((prev) =>
-            prev.map((b, i) => {
-              if (i !== editingBlockIndex) return b
-              if ('prompt' in b) return { ...b, prompt: editingBlockValue }
-              return { ...b, left: [editingBlockValue], right: ['Sample match'] }
-            })
+          if (editingRef === null || editForm === null) return
+          const next = buildBlockFromEditForm(editForm, toast)
+          if (!next) return
+          const { sessionId, blockIndex } = editingRef
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId
+                ? { ...s, blocks: s.blocks.map((b, i) => (i === blockIndex ? next : b)) }
+                : s,
+            ),
           )
-          setEditingBlockIndex(null)
+          toast.success('Question updated')
+          closeBlockEditor()
         }}
       >
-        <textarea
-          rows={4}
-          value={editingBlockValue}
-          onChange={(e) => setEditingBlockValue(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-        />
+        {editForm?.t === 'mcq' ? (
+          <div className="space-y-4 py-1">
+            <label className="block text-sm font-medium text-gray-800">
+              Question
+              <textarea
+                rows={3}
+                value={editForm.prompt}
+                onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-gray-800">
+              Choices <span className="font-normal text-gray-500">(one per line)</span>
+              <textarea
+                rows={5}
+                value={editForm.optionsLines}
+                onChange={(e) => setEditForm({ ...editForm, optionsLines: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-gray-800">
+              Correct answer <span className="font-normal text-gray-500">(must match a line exactly)</span>
+              <input
+                type="text"
+                value={editForm.answer}
+                onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+        ) : null}
+        {editForm?.t === 'fill_blank' ? (
+          <div className="space-y-4 py-1">
+            <label className="block text-sm font-medium text-gray-800">
+              Prompt <span className="font-normal text-gray-500">(use ______ for the blank)</span>
+              <textarea
+                rows={3}
+                value={editForm.prompt}
+                onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-gray-800">
+              Model answer
+              <input
+                type="text"
+                value={editForm.answer}
+                onChange={(e) => setEditForm({ ...editForm, answer: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+        ) : null}
+        {editForm?.t === 'short' ? (
+          <div className="space-y-4 py-1">
+            <label className="block text-sm font-medium text-gray-800">
+              Prompt
+              <textarea
+                rows={4}
+                value={editForm.prompt}
+                onChange={(e) => setEditForm({ ...editForm, prompt: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-gray-800">
+              Sample / exemplar answer <span className="font-normal text-gray-500">(optional)</span>
+              <textarea
+                rows={3}
+                value={editForm.sampleAnswer}
+                onChange={(e) => setEditForm({ ...editForm, sampleAnswer: e.target.value })}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <section className="rounded-xl border border-gray-200 bg-gray-50/40 p-3">
+              <div className="border-b border-gray-200/80 pb-2">
+                <h3 className="text-sm font-semibold text-gray-900">Response space (print and PDF)</h3>
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Ruled rows under this question on the handout — same rules as quiz short answers.
+                </p>
+              </div>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+                <div className="flex w-fit items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+                  <button
+                    type="button"
+                    aria-label="Fewer lines"
+                    disabled={clampResponseLines(editForm.responseLines) <= SHORT_RESPONSE_LINES.min}
+                    onClick={() =>
+                      setEditForm((f) =>
+                        f?.t === 'short'
+                          ? {
+                              ...f,
+                              responseLines: clampResponseLines(
+                                (f.responseLines ?? SHORT_RESPONSE_LINES.default) - 1,
+                              ),
+                            }
+                          : f,
+                      )
+                    }
+                    className="rounded-lg p-2 text-gray-700 hover:bg-white disabled:opacity-30"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                  <span className="min-w-[3rem] text-center font-mono text-sm font-semibold text-gray-900">
+                    {clampResponseLines(editForm.responseLines)}
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="More lines"
+                    disabled={clampResponseLines(editForm.responseLines) >= SHORT_RESPONSE_LINES.max}
+                    onClick={() =>
+                      setEditForm((f) =>
+                        f?.t === 'short'
+                          ? {
+                              ...f,
+                              responseLines: clampResponseLines(
+                                (f.responseLines ?? SHORT_RESPONSE_LINES.default) + 1,
+                              ),
+                            }
+                          : f,
+                      )
+                    }
+                    className="rounded-lg p-2 text-gray-700 hover:bg-white disabled:opacity-30"
+                  >
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <p className="min-w-0 text-xs text-gray-600 sm:max-w-[14rem] sm:text-right">
+                  {SHORT_RESPONSE_LINES.min}–{SHORT_RESPONSE_LINES.max} lines. Row height uses “Response line height” in
+                  print preview (saved layout).
+                </p>
+              </div>
+              <div className="mt-3 rounded-lg border border-dashed border-gray-300 bg-white px-3 py-2">
+                <p className="text-xs font-medium text-gray-600">Quick preview</p>
+                <ShortAnswerHandoutLines
+                  responseLines={editForm.responseLines}
+                  ruledLineSpacingPx={DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx}
+                  lineStyle="review"
+                  className="mt-2 flex flex-col"
+                />
+              </div>
+            </section>
+          </div>
+        ) : null}
+        {editForm?.t === 'match' ? (
+          <div className="space-y-4 py-1">
+            <p className="text-xs text-gray-600">Each line on the left pairs with the same line on the right.</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-gray-800">
+                Left column
+                <textarea
+                  rows={6}
+                  value={editForm.leftLines}
+                  onChange={(e) => setEditForm({ ...editForm, leftLines: e.target.value })}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-sm font-medium text-gray-800">
+                Right column
+                <textarea
+                  rows={6}
+                  value={editForm.rightLines}
+                  onChange={(e) => setEditForm({ ...editForm, rightLines: e.target.value })}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+          </div>
+        ) : null}
       </CustomModal>
 
       <CustomModal
+        key={addingBlockSessionId ?? 'add-question-closed'}
         open={addingBlockOpen}
-        close={() => setAddingBlockOpen(false)}
-        title="Add question"
-        primaryButtonText="Add question"
+        close={closeAddQuestion}
+        title={
+          addingBlockSessionId
+            ? `Add question · ${sessions.find((s) => s.id === addingBlockSessionId)?.title ?? 'Session'}`
+            : 'Add question'
+        }
+        primaryButtonText="Add to session"
         handleSave={() => {
-          if (!addingBlockValue.trim()) return
-          setBlocks((prev) => [...prev, { type: 'short', prompt: addingBlockValue.trim(), answer: '' }])
-          setAddingBlockOpen(false)
+          const sessionId = addQuestionTargetSessionRef.current ?? addingBlockSessionId
+          if (!sessionId) {
+            toast.error('No session selected. Close and use “Add question” on a session again.')
+            return
+          }
+          if (!sessions.some((s) => s.id === sessionId)) {
+            toast.error('That session no longer exists. Close this dialog.')
+            closeAddQuestion()
+            return
+          }
+          const block = buildBlockFromAddDraft(addQuestionDraft, toast)
+          if (!block) return
+          setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, blocks: [...s.blocks, block] } : s)),
+          )
+          toast.success('Question added to session')
+          closeAddQuestion()
         }}
       >
-        <textarea
-          rows={4}
-          value={addingBlockValue}
-          onChange={(e) => setAddingBlockValue(e.target.value)}
-          className="mt-2 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
-        />
+        <div className="space-y-4 py-1">
+          <label className="block text-sm font-medium text-gray-800">
+            Question type
+            <select
+              value={addQuestionDraft.kind}
+              onChange={(e) =>
+                setAddQuestionDraft((d) => ({
+                  ...emptyAddQuestionDraft(),
+                  kind: e.target.value as AddQuestionDraft['kind'],
+                  prompt: d.prompt,
+                }))
+              }
+              className="mt-1.5 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm"
+            >
+              <option value="short">Short answer</option>
+              <option value="mcq">Multiple choice</option>
+              <option value="fill_blank">Fill in the blank</option>
+              <option value="match">Matching</option>
+            </select>
+          </label>
+
+          {(addQuestionDraft.kind === 'short' ||
+            addQuestionDraft.kind === 'mcq' ||
+            addQuestionDraft.kind === 'fill_blank') && (
+            <label className="block text-sm font-medium text-gray-800">
+              {addQuestionDraft.kind === 'fill_blank' ? (
+                <span>
+                  Prompt <span className="font-normal text-gray-500">(include ______ for the blank)</span>
+                </span>
+              ) : (
+                'Question prompt'
+              )}
+              <textarea
+                rows={addQuestionDraft.kind === 'mcq' ? 3 : 4}
+                value={addQuestionDraft.prompt}
+                onChange={(e) => setAddQuestionDraft((d) => ({ ...d, prompt: e.target.value }))}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+          )}
+
+          {addQuestionDraft.kind === 'mcq' ? (
+            <>
+              <label className="block text-sm font-medium text-gray-800">
+                Choices <span className="font-normal text-gray-500">(one per line)</span>
+                <textarea
+                  rows={5}
+                  value={addQuestionDraft.mcqOptions}
+                  onChange={(e) => setAddQuestionDraft((d) => ({ ...d, mcqOptions: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 font-mono text-sm"
+                />
+              </label>
+              <label className="block text-sm font-medium text-gray-800">
+                Correct answer <span className="font-normal text-gray-500">(exact line match)</span>
+                <input
+                  type="text"
+                  value={addQuestionDraft.mcqAnswer}
+                  onChange={(e) => setAddQuestionDraft((d) => ({ ...d, mcqAnswer: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </label>
+            </>
+          ) : null}
+
+          {addQuestionDraft.kind === 'fill_blank' ? (
+            <label className="block text-sm font-medium text-gray-800">
+              Model answer
+              <input
+                type="text"
+                value={addQuestionDraft.fillAnswer}
+                onChange={(e) => setAddQuestionDraft((d) => ({ ...d, fillAnswer: e.target.value }))}
+                className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+          ) : null}
+
+          {addQuestionDraft.kind === 'match' ? (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-gray-800">
+                Left column <span className="font-normal text-gray-500">(one per line)</span>
+                <textarea
+                  rows={5}
+                  value={addQuestionDraft.matchLeft}
+                  onChange={(e) => setAddQuestionDraft((d) => ({ ...d, matchLeft: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </label>
+              <label className="block text-sm font-medium text-gray-800">
+                Right column <span className="font-normal text-gray-500">(same line count)</span>
+                <textarea
+                  rows={5}
+                  value={addQuestionDraft.matchRight}
+                  onChange={(e) => setAddQuestionDraft((d) => ({ ...d, matchRight: e.target.value }))}
+                  className="mt-1.5 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                />
+              </label>
+            </div>
+          ) : null}
+        </div>
       </CustomModal>
 
       <div className="flex flex-wrap gap-3 border-t border-gray-200 pt-6">
         <button
           type="button"
           onClick={() => {
-            if (sources.isDirty) setDiscardOpen(true)
+            if (rag.isDirty) setDiscardOpen(true)
             else goList()
           }}
           className="text-sm font-semibold text-primary-600 hover:text-primary-500"

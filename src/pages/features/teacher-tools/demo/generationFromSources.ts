@@ -1,5 +1,6 @@
 import type { DemoBook, MaterialSourceKind } from './demoContentLibrary'
 import { getBookById, getChapters } from './demoContentLibrary'
+import { newDemoId } from './newDemoId'
 import type { WorksheetBlock } from './topicAwareGenerators'
 import { getTopicBlueprint } from './topicAwareGenerators'
 
@@ -210,6 +211,33 @@ export interface QuizStubCriteria {
   ragSourceLabels?: string[]
 }
 
+/** Demo worksheet create — mirrors quiz volume / mix / difficulty wiring. */
+export interface WorksheetGenerationOpts {
+  mixMode: QuestionMixMode
+  questionCount: number
+  includeMcq: boolean
+  includeFillBlank: boolean
+  includeShort: boolean
+  includeMatch: boolean
+  countsByType: { mcq: number; fill_blank: number; short: number; match: number }
+  difficulty: QuizDifficultyId
+  generatorNotes?: string
+}
+
+export function defaultWorksheetGenerationOpts(): WorksheetGenerationOpts {
+  return {
+    mixMode: 'balanced',
+    questionCount: 10,
+    includeMcq: true,
+    includeFillBlank: true,
+    includeShort: true,
+    includeMatch: true,
+    countsByType: { mcq: 3, fill_blank: 2, short: 3, match: 2 },
+    difficulty: 'standard',
+    generatorNotes: undefined,
+  }
+}
+
 function shuffleDeterministic<T>(items: T[], seedKey: string): T[] {
   const out = [...items]
   let s = djb2(seedKey)
@@ -347,28 +375,262 @@ export function generateAssignmentBrief(ctx: GenerationSourceContext): string[] 
   ]
 }
 
-export function generateWorksheetBlocks(ctx: GenerationSourceContext): WorksheetBlock[] {
-  const bp = getTopicBlueprint(ctx.subject, ctx.topic)
+export interface AssignmentBriefLineStub {
+  id: string
+  text: string
+}
+
+export interface AssignmentBriefTopicStub {
+  id: string
+  title: string
+  lines: AssignmentBriefLineStub[]
+}
+
+function assignmentDifficultyTone(d: QuizDifficultyId): string {
+  if (d === 'foundation') return 'Scaffold with short prompts, guided checkpoints, and recall-level checks.'
+  if (d === 'challenge') return 'Push synthesis, cross-strand links, and evaluative reasoning suited to extension.'
+  return 'Balance grade-level rigor with clear checkpoints and structured tasks.'
+}
+
+function buildLinesForAssignmentTopic(
+  ctx: GenerationSourceContext,
+  topicTitle: string,
+  opts: {
+    assignmentType: string
+    rigorProfile: string
+    difficulty: QuizDifficultyId
+    generatorNotes?: string
+    seedKey: string
+  },
+): AssignmentBriefLineStub[] {
+  const notes = opts.generatorNotes?.trim()
+  const noteSuffix = notes ? ` Teacher note: ${notes.slice(0, 120)}` : ''
+  const grounding = ctx.groundingEnabled ? groundingLabel(ctx) : ''
+  const salt = djb2(`${opts.seedKey}|${topicTitle}`)
+  return [
+    {
+      id: newDemoId('asg-line'),
+      text: `Objective — ${topicTitle}: produce ${opts.assignmentType} work at ${opts.rigorProfile} expectations in ${ctx.subject} (${ctx.grade}).${noteSuffix}`,
+    },
+    {
+      id: newDemoId('asg-line'),
+      text: `Tasks — ${assignmentDifficultyTone(opts.difficulty)} Include ${(salt % 3) + 3} concrete deliverables tied to "${topicTitle}" with a short self-check against the success criteria.`,
+    },
+    {
+      id: newDemoId('asg-line'),
+      text: `Evidence — ${
+        grounding
+          ? `Prioritise catalog-aligned evidence (${grounding}).`
+          : 'Use defensible sources and topic-suitable reasoning when retrieval is off.'
+      } Cite materials explicitly when excerpts are available.`,
+    },
+  ]
+}
+
+export function distributeWorksheetBalanced(
+  total: number,
+  include: { mcq: boolean; fill_blank: boolean; short: boolean; match: boolean },
+): { mcq: number; fill_blank: number; short: number; match: number } {
+  const order: Array<'mcq' | 'fill_blank' | 'short' | 'match'> = []
+  if (include.mcq) order.push('mcq')
+  if (include.fill_blank) order.push('fill_blank')
+  if (include.short) order.push('short')
+  if (include.match) order.push('match')
+  if (order.length === 0) return { mcq: 3, fill_blank: 2, short: 3, match: 2 }
+  const n = order.length
+  const base = Math.floor(total / n)
+  const extra = total % n
+  const out = { mcq: 0, fill_blank: 0, short: 0, match: 0 }
+  for (let i = 0; i < n; i += 1) {
+    const k = order[i]!
+    out[k] = base + (i < extra ? 1 : 0)
+  }
+  return out
+}
+
+function cloneWorksheetBlock(b: WorksheetBlock): WorksheetBlock {
+  return JSON.parse(JSON.stringify(b)) as WorksheetBlock
+}
+
+function worksheetDifficultyLabel(d: QuizDifficultyId): string {
+  if (d === 'foundation') return 'Foundation'
+  if (d === 'challenge') return 'Challenge'
+  return 'Standard'
+}
+
+function worksheetSyntheticBlock(
+  type: WorksheetBlock['type'],
+  n: number,
+  ctx: GenerationSourceContext,
+  difficulty: QuizDifficultyId,
+  generatorNotes?: string,
+): WorksheetBlock {
+  const topic = (ctx.topic || 'this topic').slice(0, 120)
+  const tag = `${ctx.subject} · ${ctx.grade}`
+  const dLab = worksheetDifficultyLabel(difficulty)
+  const note = generatorNotes?.trim() ? ` Teacher focus: ${generatorNotes.trim().slice(0, 100)}.` : ''
+  const seed = djb2(`${topic}|${type}|${n}|${difficulty}`)
+  if (type === 'mcq') {
+    const options = mcqOptionsFromTopic(topic, seed)
+    return {
+      type: 'mcq',
+      prompt: `[${dLab}] ${n}. Select the best answer about “${topic}” (${tag}).${note}`,
+      options,
+      answer: options[0] ?? 'Option A',
+    }
+  }
+  if (type === 'fill_blank') {
+    return {
+      type: 'fill_blank',
+      prompt: `[${dLab}] ${n}. A core idea in “${topic}” can be summarised as ______. (${tag})${note}`,
+      answer: 'mastery',
+    }
+  }
+  if (type === 'short') {
+    return {
+      type: 'short',
+      prompt: `[${dLab}] ${n}. In 2–3 sentences, explain one application of “${topic}” for ${tag}.${note}`,
+      sampleAnswer: 'Clear explanation using unit vocabulary and one concrete example.',
+      responseLines: SHORT_RESPONSE_LINES.default,
+    }
+  }
+  return {
+    type: 'match',
+    left: [`Concept A · ${n}`, `Concept B · ${n}`, `Concept C · ${n}`],
+    right: ['Definition / role A', 'Definition / role B', 'Definition / role C'],
+  }
+}
+
+function applyWorksheetSourceTag(block: WorksheetBlock, ctx: GenerationSourceContext): WorksheetBlock {
+  const b = cloneWorksheetBlock(block)
   const label = ctx.book && ctx.groundingEnabled ? `${ctx.book.title}` : ''
   const ch = ctx.chapterTitles[0]
   const tag = label && ch ? ` (${label}: ${ch})` : label ? ` (${label})` : ''
-  return bp.blocks.map((b, i) => {
-    if (b.type === 'mcq' && 'prompt' in b) {
-      return { ...b, prompt: `${b.prompt}${tag}` }
-    }
-    if (b.type === 'fill_blank' && 'prompt' in b) {
-      return { ...b, prompt: `${b.prompt}${tag}` }
-    }
-    if (b.type === 'short' && 'prompt' in b) {
-      return { ...b, prompt: `${b.prompt}${tag}` }
-    }
-    if (b.type === 'match' && 'left' in b) {
-      return {
-        ...b,
-        left: b.left.map((x, j) => (i === 0 && j === 0 ? `${x}${tag}` : x)),
-      }
-    }
+  if (!tag) return b
+  if (b.type === 'mcq' && 'prompt' in b) {
+    b.prompt = `${b.prompt}${tag}`
     return b
+  }
+  if (b.type === 'fill_blank' && 'prompt' in b) {
+    b.prompt = `${b.prompt}${tag}`
+    return b
+  }
+  if (b.type === 'short' && 'prompt' in b) {
+    b.prompt = `${b.prompt}${tag}`
+    return b
+  }
+  if (b.type === 'match' && 'left' in b) {
+    b.left = b.left.map((x, j) => (j === 0 ? `${x}${tag}` : x))
+    return b
+  }
+  return b
+}
+
+function buildWorksheetTypeSequence(
+  ctx: GenerationSourceContext,
+  opts: WorksheetGenerationOpts,
+): Array<'mcq' | 'fill_blank' | 'short' | 'match'> {
+  if (opts.mixMode === 'custom') {
+    const seq: Array<'mcq' | 'fill_blank' | 'short' | 'match'> = []
+    const c = opts.countsByType
+    for (let i = 0; i < c.mcq; i += 1) seq.push('mcq')
+    for (let i = 0; i < c.fill_blank; i += 1) seq.push('fill_blank')
+    for (let i = 0; i < c.short; i += 1) seq.push('short')
+    for (let i = 0; i < c.match; i += 1) seq.push('match')
+    return shuffleDeterministic(seq, `${ctx.topic}|${ctx.subject}|ws-custom`)
+  }
+  const counts = distributeWorksheetBalanced(opts.questionCount, {
+    mcq: opts.includeMcq,
+    fill_blank: opts.includeFillBlank,
+    short: opts.includeShort,
+    match: opts.includeMatch,
+  })
+  const seq: Array<'mcq' | 'fill_blank' | 'short' | 'match'> = []
+  for (let i = 0; i < counts.mcq; i += 1) seq.push('mcq')
+  for (let i = 0; i < counts.fill_blank; i += 1) seq.push('fill_blank')
+  for (let i = 0; i < counts.short; i += 1) seq.push('short')
+  for (let i = 0; i < counts.match; i += 1) seq.push('match')
+  return shuffleDeterministic(seq, `${ctx.topic}|${ctx.subject}|ws-balanced`)
+}
+
+export function generateOneWorksheetBlock(
+  ctx: GenerationSourceContext,
+  opts: WorksheetGenerationOpts,
+  type: WorksheetBlock['type'],
+  regenSalt = 0,
+): WorksheetBlock {
+  const bp = getTopicBlueprint(ctx.subject, ctx.topic)
+  const pool = bp.blocks.filter((b) => b.type === type)
+  const seed = djb2(`${ctx.topic}|${type}|${opts.difficulty}|${regenSalt}`)
+  const base =
+    pool.length > 0
+      ? cloneWorksheetBlock(pool[seed % pool.length]!)
+      : worksheetSyntheticBlock(type, seed % 1000, ctx, opts.difficulty, opts.generatorNotes)
+  return applyWorksheetSourceTag(base, ctx)
+}
+
+/** Multi-topic assignment brief sections for the Create Assignment review step (demo generation). */
+export function buildAssignmentTopicsFromScope(
+  ctx: GenerationSourceContext,
+  opts: {
+    topicCount: number
+    assignmentType: string
+    rigorProfile: string
+    difficulty: QuizDifficultyId
+    generatorNotes?: string
+    seedKey: string
+    /** When set, returns a single topic block (used for per-topic / per-line regen). */
+    topicTitleOverride?: string
+  },
+): AssignmentBriefTopicStub[] {
+  if (opts.topicTitleOverride) {
+    const title = opts.topicTitleOverride
+    return [
+      {
+        id: newDemoId('asg-topic'),
+        title,
+        lines: buildLinesForAssignmentTopic(ctx, title, opts),
+      },
+    ]
+  }
+
+  const n = Math.min(10, Math.max(1, opts.topicCount))
+  const strands = ctx.scopeTopics?.length ? [...ctx.scopeTopics] : ['General scope focus']
+  const shuffled = shuffleDeterministic(strands, `${opts.seedKey}|${ctx.subject}|${ctx.grade}`)
+
+  return Array.from({ length: n }, (_, i) => {
+    const titleBase = shuffled[i % shuffled.length]!
+    const dup = Math.floor(i / shuffled.length)
+    const title = dup === 0 ? titleBase : `${titleBase} (continued ${dup + 1})`
+    const seedKey = `${opts.seedKey}|topic-${i}`
+    return {
+      id: newDemoId('asg-topic'),
+      title,
+      lines: buildLinesForAssignmentTopic(ctx, title, { ...opts, seedKey }),
+    }
+  })
+}
+
+export function generateWorksheetBlocks(
+  ctx: GenerationSourceContext,
+  opts: WorksheetGenerationOpts = defaultWorksheetGenerationOpts(),
+): WorksheetBlock[] {
+  const bp = getTopicBlueprint(ctx.subject, ctx.topic)
+  const seq = buildWorksheetTypeSequence(ctx, opts)
+  const counters: Record<'mcq' | 'fill_blank' | 'short' | 'match', number> = {
+    mcq: 0,
+    fill_blank: 0,
+    short: 0,
+    match: 0,
+  }
+  return seq.map((t, i) => {
+    const pool = bp.blocks.filter((b) => b.type === t)
+    const idx = counters[t]++
+    const base =
+      pool.length > 0
+        ? cloneWorksheetBlock(pool[idx % pool.length]!)
+        : worksheetSyntheticBlock(t, i + idx * 7, ctx, opts.difficulty, opts.generatorNotes)
+    return applyWorksheetSourceTag(base, ctx)
   })
 }
 
@@ -381,17 +643,34 @@ export interface ExamSectionStub {
 
 export function generateExamSectionStubs(ctx: GenerationSourceContext): ExamSectionStub[] {
   const seed = djb2(`${ctx.subject}|${ctx.grade}|${ctx.book?.id ?? 'x'}`)
-  const fallbacks = ['Section A: recall', 'Section B: application', 'Section C: extended response']
-  const titles: string[] = [...ctx.chapterTitles]
-  for (let i = titles.length; i < 3; i += 1) titles.push(fallbacks[i] ?? `Section ${i + 1}`)
-  const marks = [30, 40, 30]
-  return titles.slice(0, 3).map((title, i) => ({
+  const topicLine =
+    ctx.scopeTopics?.length && ctx.scopeTopics.join(' · ').trim()
+      ? ctx.scopeTopics.join(' · ')
+      : ctx.topic
+  const strand = topicLine.length > 72 ? `${topicLine.slice(0, 69)}…` : topicLine
+  const catalog =
+    ctx.books?.length && ctx.groundingEnabled
+      ? ctx.books.map((b) => b.title).join('; ')
+      : ctx.book && ctx.groundingEnabled
+        ? ctx.book.title
+        : ''
+  const baseLabels = ['Recall & foundations', 'Application & problem solving', 'Extended reasoning']
+  const titles: string[] = []
+  for (let i = 0; i < 3; i += 1) {
+    const ch = ctx.chapterTitles[i]
+    titles.push(
+      ch
+        ? `Section ${String.fromCharCode(65 + i)}: ${baseLabels[i]} — ${ch}`
+        : `Section ${String.fromCharCode(65 + i)}: ${baseLabels[i]} (${ctx.subject})`,
+    )
+  }
+  const marks = [22, 28, 25]
+  return titles.map((title, i) => ({
     id: `sec-${seed}-${i}`,
     title,
-    marks: marks[i] ?? 33,
-    description:
-      ctx.book && ctx.groundingEnabled
-        ? `Items reference themes from ${ctx.book.title} — ${title} (${ctx.topic}).`
-        : `Items aligned to ${ctx.topic} using topic focus only.`,
+    marks: marks[i] ?? 25,
+    description: catalog
+      ? `Grounded in ${catalog}. Focus: ${strand}. Questions emphasise ${baseLabels[i]?.toLowerCase() ?? 'this strand'}.`
+      : `Topic scope: ${strand}. Items are illustrative for ${ctx.grade} ${ctx.subject}; adjust wording after export if needed.`,
   }))
 }

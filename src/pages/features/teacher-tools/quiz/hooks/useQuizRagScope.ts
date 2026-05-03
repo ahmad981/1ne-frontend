@@ -31,6 +31,8 @@ export interface UseQuizRagScopeOptions {
   initialSelectedBookIds?: string[]
   initialScopeTopics?: string[]
   initialScopeRefinement?: string
+  /** Assignment flow: at most one catalog title; picking a new title replaces the previous. */
+  bookSelectionMode?: 'multi' | 'single'
 }
 
 // ---------------------------------------------------------------------------
@@ -43,6 +45,7 @@ export function useQuizRagScope({
   initialSelectedBookIds,
   initialScopeTopics,
   initialScopeRefinement,
+  bookSelectionMode = 'multi',
 }: UseQuizRagScopeOptions) {
   // ---- catalog state -------------------------------------------------------
   const [catalog, setCatalog] = useState<AdaptedBook[]>([])
@@ -81,8 +84,12 @@ export function useQuizRagScope({
   // ---- hydration effects ---------------------------------------------------
   useEffect(() => {
     if (initialSelectedBookIds === undefined) return
-    setSelectedBookIds(initialSelectedBookIds)
-  }, [initialSelectedBookIds])
+    setSelectedBookIds(
+      bookSelectionMode === 'single' && initialSelectedBookIds.length > 1
+        ? [initialSelectedBookIds[0]!]
+        : initialSelectedBookIds,
+    )
+  }, [initialSelectedBookIds, bookSelectionMode])
 
   useEffect(() => {
     if (initialScopeTopics === undefined) return
@@ -262,11 +269,16 @@ export function useQuizRagScope({
     setRetryCounter((n) => n + 1)
   }, [])
 
-  const toggleBook = useCallback((id: string) => {
-    setSelectedBookIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-    )
-  }, [])
+  const toggleBook = useCallback(
+    (id: string) => {
+      if (bookSelectionMode === 'single') {
+        setSelectedBookIds((prev) => (prev[0] === id ? [] : [id]))
+        return
+      }
+      setSelectedBookIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    },
+    [bookSelectionMode],
+  )
 
   const removeBook = useCallback((id: string) => {
     setSelectedBookIds((prev) => prev.filter((x) => x !== id))

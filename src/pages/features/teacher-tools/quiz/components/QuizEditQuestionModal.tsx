@@ -10,6 +10,7 @@ import {
   type QuizQuestionStub,
 } from '../../demo/generationFromSources'
 import { DEFAULT_HANDOUT_LAYOUT } from '../config/handoutLayoutConfig'
+import { ShortAnswerHandoutLines } from './ShortAnswerHandoutLines'
 
 const PROMPT_MAX = 2000
 
@@ -283,18 +284,12 @@ function QuizEditQuestionModalInner({
             </div>
             <div className="mt-4 rounded-xl border border-dashed border-gray-200 bg-gray-50/80 px-3 py-3">
               <p className="text-xs font-medium text-gray-600">Quick preview (matches default handout line height)</p>
-              <div className="mt-2 flex flex-col">
-                {Array.from({ length: clampResponseLines(draft.responseLines) }, (_, i) => (
-                  <div
-                    key={i}
-                    className="border-b border-gray-400"
-                    style={{
-                      minHeight: DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx,
-                      marginTop: i === 0 ? 4 : 10,
-                    }}
-                  />
-                ))}
-              </div>
+              <ShortAnswerHandoutLines
+                responseLines={draft.type === 'short' ? draft.responseLines : undefined}
+                ruledLineSpacingPx={DEFAULT_HANDOUT_LAYOUT.ruledLineSpacingPx}
+                lineStyle="review"
+                className="mt-2 flex flex-col"
+              />
             </div>
           </section>
         )}

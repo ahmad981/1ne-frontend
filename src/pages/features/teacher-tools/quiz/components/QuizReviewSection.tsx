@@ -13,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { clampResponseLines, type QuizQuestionStub } from '../../demo/generationFromSources'
+import { ShortAnswerStudentResponsePreview } from './ShortAnswerHandoutLines'
 import { newDemoId } from '../../demo/newDemoId'
 import { QuizEditQuestionModal } from './QuizEditQuestionModal'
 import type { HandoutLayoutOpts } from '../config/handoutLayoutConfig'
@@ -228,21 +229,10 @@ export function QuizReviewSection({
                   </ol>
                 )}
                 {q.type === 'short' && (
-                  <div className="mt-3 border-t border-gray-100 pt-3">
-                    <p className="text-xs font-medium text-gray-500">Student response (handout preview)</p>
-                    <div className="mt-2 flex flex-col rounded-lg border border-dashed border-gray-200 bg-gray-50/80 px-3 py-3">
-                      {Array.from({ length: clampResponseLines(q.responseLines) }, (_, i) => (
-                        <div
-                          key={i}
-                          className="border-b border-gray-400"
-                          style={{
-                            minHeight: handoutLayout.ruledLineSpacingPx,
-                            marginTop: i === 0 ? 4 : 10,
-                          }}
-                        />
-                      ))}
-                    </div>
-                  </div>
+                  <ShortAnswerStudentResponsePreview
+                    responseLines={q.responseLines}
+                    ruledLineSpacingPx={handoutLayout.ruledLineSpacingPx}
+                  />
                 )}
               </div>
             </li>

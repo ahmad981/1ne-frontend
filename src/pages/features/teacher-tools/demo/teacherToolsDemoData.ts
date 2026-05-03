@@ -83,7 +83,7 @@ export interface DemoWorksheet {
   topic: string
   subject: string
   grade: string
-  format: 'printable_pdf' | 'interactive_digital'
+  format: 'printable_pdf' | 'interactive_digital' | 'both'
   status: ContentStatus
   classes: string[]
   createdAt: string
