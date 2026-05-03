@@ -42,6 +42,8 @@ import {
 } from '../../utils/visualArtsUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapArtHistoryResult,
   mapArtTechniqueResult,
@@ -58,6 +60,7 @@ type TabType = 'history' | 'technique' | 'portfolio' | 'projects' | 'literacy' |
 
 const VisualArtsStudioAssistant = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('history')
   const [gradeLevel, setGradeLevel] = useState('6-12')
   const [mediaType, setMediaType] = useState('Mixed Media')
@@ -103,7 +106,7 @@ const VisualArtsStudioAssistant = () => {
   const handleExploreMovement = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_history_explorer', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'art_history_explorer', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -112,7 +115,8 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           select_art_movement: selectedMovement,
         },
-      })
+      }))
+      if (response == null) return
       setArtMovement(mapArtHistoryResult(response.result))
       toast.success('Art movement profile loaded')
     } catch (error: unknown) {
@@ -131,7 +135,7 @@ const VisualArtsStudioAssistant = () => {
   const handleGetTechnique = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_technique_guidance', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'art_technique_guidance', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -140,7 +144,8 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           select_technique: selectedTechnique,
         },
-      })
+      }))
+      if (response == null) return
       setTechniqueGuide(mapArtTechniqueResult(response.result))
       toast.success('Technique guide loaded')
     } catch (error: unknown) {
@@ -159,7 +164,7 @@ const VisualArtsStudioAssistant = () => {
   const handleGeneratePortfolioAssessment = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'portfolio_development', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'portfolio_development', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -168,7 +173,8 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           portfolio_type: portfolioType,
         },
-      })
+      }))
+      if (response == null) return
       setPortfolioAssessment(mapPortfolioDevelopmentResult(response.result))
       toast.success('Portfolio guidance generated')
     } catch (error: unknown) {
@@ -187,7 +193,7 @@ const VisualArtsStudioAssistant = () => {
   const handleGenerateProject = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'creative_project_generator', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'creative_project_generator', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -197,7 +203,8 @@ const VisualArtsStudioAssistant = () => {
           project_theme: projectTheme,
           duration: projectDuration,
         },
-      })
+      }))
+      if (response == null) return
       setCreativeProject(mapCreativeProjectResult(response.result, mediaType))
       toast.success('Creative project generated')
     } catch (error: unknown) {
@@ -218,7 +225,7 @@ const VisualArtsStudioAssistant = () => {
     setIsGenerating(true)
     try {
       const title = artworkTitle.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'visual_literacy_analysis', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'visual_literacy_analysis', {
         input: title,
         input_type: 'text',
         parameters: {
@@ -228,7 +235,8 @@ const VisualArtsStudioAssistant = () => {
           artwork_title: title,
           artist_name: artistName.trim(),
         },
-      })
+      }))
+      if (response == null) return
       setVisualAnalysis(mapVisualLiteracyResult(response.result))
       toast.success('Visual analysis generated')
     } catch (error: unknown) {
@@ -249,7 +257,7 @@ const VisualArtsStudioAssistant = () => {
     setIsGenerating(true)
     try {
       const artwork = connectionArtwork.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'cultural_connections', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'cultural_connections', {
         input: artwork,
         input_type: 'text',
         parameters: {
@@ -259,7 +267,8 @@ const VisualArtsStudioAssistant = () => {
           artwork_or_theme: artwork,
           theme_focus: connectionTheme,
         },
-      })
+      }))
+      if (response == null) return
       setCulturalConnection(mapCulturalConnectionsResult(response.result))
       toast.success('Cultural connections generated')
     } catch (error: unknown) {
@@ -278,7 +287,7 @@ const VisualArtsStudioAssistant = () => {
   const handleGenerateRubric = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'art_assessment_builder', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'art_assessment_builder', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -287,7 +296,8 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           project_type: assessmentProjectType,
         },
-      })
+      }))
+      if (response == null) return
       setAssessmentRubric(mapArtAssessmentRubricResult(response.result))
       toast.success('Rubric generated')
     } catch (error: unknown) {
@@ -315,6 +325,15 @@ const VisualArtsStudioAssistant = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-pink-600 via-purple-600 to-indigo-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

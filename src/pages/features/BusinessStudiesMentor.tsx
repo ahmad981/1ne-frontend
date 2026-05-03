@@ -48,12 +48,15 @@ import {
   mapTradeAgreementsResponseToUI,
   mapCrossCulturalGuideResponseToUI,
 } from '../../utils/businessAdapters'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 const BUSINESS_MENTOR_SLUG = 'business-studies-mentor'
 
 type TabType = 'standards' | 'entrepreneurship' | 'economics' | 'financial' | 'scenarios' | 'trade' | 'cultural' | 'assessment'
 
 const BusinessStudiesMentor = () => {
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('standards')
   const [gradeLevel, setGradeLevel] = useState('9-12')
   const [selectedRegion, setSelectedRegion] = useState('Global')
@@ -92,15 +95,18 @@ const BusinessStudiesMentor = () => {
   // International Standards (backend)
   const handleExploreStandard = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'international_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'international_standards', {
         input: selectedStandard,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const standard = mapInternationalStandardsResponseToUI(response.result as Record<string, unknown>, selectedStandard, selectedRegion)
       setBusinessStandard(standard)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('International standards:', e)
     } finally {
       setIsGenerating(false)
@@ -110,15 +116,18 @@ const BusinessStudiesMentor = () => {
   // Entrepreneurship Framework (backend)
   const handleGetEntrepreneurshipFramework = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'entrepreneurship_framework', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'entrepreneurship_framework', {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const framework = mapEntrepreneurshipFrameworkResponseToUI(response.result as Record<string, unknown>)
       setEntrepreneurshipFramework(framework)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Entrepreneurship framework:', e)
     } finally {
       setIsGenerating(false)
@@ -128,15 +137,18 @@ const BusinessStudiesMentor = () => {
   // Economic Concept (backend)
   const handleGetEconomicConcept = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'economic_concepts', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'economic_concepts', {
         input: selectedConcept,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const concept = mapEconomicConceptResponseToUI(response.result as Record<string, unknown>)
       setEconomicConcept(concept)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Economic concept:', e)
     } finally {
       setIsGenerating(false)
@@ -146,15 +158,18 @@ const BusinessStudiesMentor = () => {
   // Financial Literacy (backend)
   const handleGenerateFinancialModule = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'financial_literacy_module', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'financial_literacy_module', {
         input: financialTopic,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const module = mapFinancialLiteracyModuleResponseToUI(response.result as Record<string, unknown>, financialTopic, gradeLevel)
       setFinancialModule(module)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Financial literacy module:', e)
     } finally {
       setIsGenerating(false)
@@ -164,15 +179,18 @@ const BusinessStudiesMentor = () => {
   // Business Scenario (backend)
   const handleGenerateScenario = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'business_scenarios', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'business_scenarios', {
         input: scenarioType,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const scenario = mapBusinessScenarioResponseToUI(response.result as Record<string, unknown>, scenarioType, selectedIndustry, selectedRegion)
       setBusinessScenario(scenario)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Business scenario:', e)
     } finally {
       setIsGenerating(false)
@@ -182,15 +200,18 @@ const BusinessStudiesMentor = () => {
   // Trade Agreements (backend)
   const handleGetTradeAgreements = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'trade_agreements', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'trade_agreements', {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const agreements = mapTradeAgreementsResponseToUI(response.result as Record<string, unknown>)
       setTradeAgreements(agreements)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Trade agreements:', e)
     } finally {
       setIsGenerating(false)
@@ -200,15 +221,18 @@ const BusinessStudiesMentor = () => {
   // Cross-Cultural Guide (backend)
   const handleGetCulturalGuide = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'cross_cultural_guide', {
+      const response = await runWithCredits(chatbotApi.executeCapability(BUSINESS_MENTOR_SLUG, 'cross_cultural_guide', {
         input: culturalRegion,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const guide = mapCrossCulturalGuideResponseToUI(response.result as Record<string, unknown>, culturalRegion)
       setCulturalGuide(guide)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Cross-cultural guide:', e)
     } finally {
       setIsGenerating(false)
@@ -230,6 +254,14 @@ const BusinessStudiesMentor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

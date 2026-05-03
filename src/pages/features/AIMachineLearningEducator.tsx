@@ -37,6 +37,8 @@ import {
 } from '../../utils/aiMlUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapAiConceptsResult,
   mapEthicalAiToPrinciples,
@@ -51,6 +53,7 @@ type TabType = 'ai-concepts' | 'ethical-ai' | 'ml-projects' | 'standards' | 'res
 
 const AIMachineLearningEducator = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('ai-concepts')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [difficulty, setDifficulty] = useState('Beginner')
@@ -81,14 +84,15 @@ const AIMachineLearningEducator = () => {
   const handleLoadAIConcepts = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_concepts', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_concepts', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           difficulty,
         },
-      })
+      }))
+      if (response == null) return
       setAiConcepts(mapAiConceptsResult(response.result, gradeLevel))
       toast.success('AI concepts loaded')
     } catch (error: unknown) {
@@ -107,14 +111,15 @@ const AIMachineLearningEducator = () => {
   const handleLoadEthicalPrinciples = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           difficulty,
         },
-      })
+      }))
+      if (response == null) return
       setEthicalPrinciples(mapEthicalAiToPrinciples(response.result))
       toast.success('Ethical principles loaded')
     } catch (error: unknown) {
@@ -133,14 +138,15 @@ const AIMachineLearningEducator = () => {
   const handleLoadEthicsFrameworks = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ethical_ai', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           difficulty,
         },
-      })
+      }))
+      if (response == null) return
       setEthicsFrameworks(mapEthicalAiToFrameworks(response.result))
       toast.success('Ethics frameworks loaded')
     } catch (error: unknown) {
@@ -159,14 +165,15 @@ const AIMachineLearningEducator = () => {
   const handleLoadMLProjects = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ml_projects', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ml_projects', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           difficulty,
         },
-      })
+      }))
+      if (response == null) return
       setMlProjects(mapMlProjectsResult(response.result, gradeLevel))
       toast.success('ML projects loaded')
     } catch (error: unknown) {
@@ -185,14 +192,15 @@ const AIMachineLearningEducator = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ai_standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           difficulty,
         },
-      })
+      }))
+      if (response == null) return
       setAiStandards(mapAiStandardsResult(response.result, gradeLevel))
       toast.success('Standards loaded')
     } catch (error: unknown) {
@@ -217,6 +225,15 @@ const AIMachineLearningEducator = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

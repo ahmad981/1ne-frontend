@@ -14,6 +14,7 @@ import teacherIdentityReducer from './features/teacherIdentity/teacherIdentitySl
 import learningProgressReducer from './features/learningProgress/learningProgressSlice';
 import learningHubAdminReducer from './features/learningHubAdmin/learningHubAdminSlice';
 import personalizationReducer from './features/personalization/personalizationSlice';
+import subscriptionReducer from './features/subscription/subscriptionSlice';
 
 const storage =
   typeof window !== 'undefined'
@@ -54,6 +55,7 @@ const rootReducer = combineReducers({
   learningProgress: learningProgressReducer,
   learningHubAdmin: learningHubAdminReducer,
   personalization: personalizationReducer,
+  subscription: subscriptionReducer,
 });
 
 // Create a persisted reducer

@@ -42,6 +42,8 @@ import {
 } from '../../utils/digitalLiteracyUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapDigitalCitizenshipLessonResult,
   mapDigitalStandardsToCitizenshipList,
@@ -57,6 +59,7 @@ type TabType = 'digital-citizenship' | 'online-safety' | 'media-literacy' | 'tec
 
 const DigitalLiteracyAdvisor = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('digital-citizenship')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -90,13 +93,14 @@ const DigitalLiteracyAdvisor = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setCitizenshipStandards(mapDigitalStandardsToCitizenshipList(response.result, gradeLevel))
       toast.success('Standards loaded')
     } catch (error: unknown) {
@@ -116,7 +120,7 @@ const DigitalLiteracyAdvisor = () => {
     if (!lessonTopic.trim()) return
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'digital_citizenship', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'digital_citizenship', {
         input: lessonTopic.trim(),
         input_type: 'text',
         parameters: {
@@ -124,7 +128,8 @@ const DigitalLiteracyAdvisor = () => {
           lesson_topic: lessonTopic.trim(),
           duration: lessonDuration,
         },
-      })
+      }))
+      if (response == null) return
       setGeneratedLesson(mapDigitalCitizenshipLessonResult(response.result, gradeLevel))
       toast.success('Lesson generated')
     } catch (error: unknown) {
@@ -143,14 +148,15 @@ const DigitalLiteracyAdvisor = () => {
   const handleLoadSafetyGuidelines = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
         input: 'General online safety overview',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           safety_topic: 'General online safety overview',
         },
-      })
+      }))
+      if (response == null) return
       setSafetyGuidelines(mapOnlineSafetyToGuidelines(response.result, gradeLevel))
       toast.success('Safety guidelines loaded')
     } catch (error: unknown) {
@@ -171,14 +177,15 @@ const DigitalLiteracyAdvisor = () => {
     setIsGenerating(true)
     try {
       const topic = safetyTopic.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'online_safety', {
         input: topic,
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           safety_topic: topic,
         },
-      })
+      }))
+      if (response == null) return
       setGeneratedSafetyPlan(mapOnlineSafetyToPlan(response.result, topic, gradeLevel))
       toast.success('Safety plan generated')
     } catch (error: unknown) {
@@ -197,13 +204,14 @@ const DigitalLiteracyAdvisor = () => {
   const handleLoadMediaConcepts = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'media_literacy', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'media_literacy', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setMediaConcepts(mapMediaLiteracyResult(response.result, gradeLevel))
       toast.success('Media literacy content loaded')
     } catch (error: unknown) {
@@ -222,13 +230,14 @@ const DigitalLiteracyAdvisor = () => {
   const handleLoadStrategies = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'tech_integration', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'tech_integration', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setIntegrationStrategies(mapTechIntegrationResult(response.result, gradeLevel))
       toast.success('Integration strategies loaded')
     } catch (error: unknown) {
@@ -254,6 +263,15 @@ const DigitalLiteracyAdvisor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

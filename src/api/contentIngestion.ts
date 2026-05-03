@@ -1,7 +1,7 @@
 /**
  * Content Ingestion API client
  */
-import { apiRequest, buildUrl, getAuthToken } from './client'
+import { apiRequest, buildUrl, getAuthToken, ApiError } from './client'
 import { API_BASE_URL } from '../config/api'
 
 export interface ContentPack {
@@ -804,6 +804,12 @@ Quick fix: Make sure backend ENVIRONMENT=dev (allows all origins)`
           throw new Error('Worksheet or content pack not found.')
         } else if (response.status === 400) {
           throw new Error(errorMessage || 'Invalid request parameters.')
+        } else if (response.status === 402) {
+          const msg =
+            typeof errorDetail === 'object' && errorDetail !== null && 'message' in errorDetail
+              ? String((errorDetail as { message?: string }).message)
+              : errorMessage
+          throw new ApiError(402, msg, { detail: errorDetail })
         }
         
         throw new Error(`Error ${response.status}: ${errorMessage}`)

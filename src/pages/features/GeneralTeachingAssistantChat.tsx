@@ -5,6 +5,8 @@ import * as chatbotApi from '../../api/chatbots'
 import * as subscriptionApi from '../../api/subscriptions'
 // @ts-ignore - useSnackbar is a JS file
 import { useSnackbar } from '../../hooks/useSnackbar'
+import NoCreditsCard from '../../components/NoCreditsCard'
+import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
 import {
   ArrowLeft,
   Send,
@@ -115,7 +117,10 @@ const GeneralTeachingAssistantChat = () => {
   const [subscriptionTier, setSubscriptionTier] = useState<'free' | 'premium' | 'enterprise'>('free')
   const [quota, setQuota] = useState<subscriptionApi.QuotaSummary | null>(null)
   const [featureAccess, setFeatureAccess] = useState<Record<string, boolean>>({})
+  const [insufficientCredits, setInsufficientCredits] = useState(false)
+  const [creditErrorReason, setCreditErrorReason] = useState<string | undefined>(undefined)
   const { toast } = useSnackbar()
+  const refreshCreditBalance = useRefreshCreditBalance()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -428,6 +433,9 @@ const GeneralTeachingAssistantChat = () => {
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
 
+    setInsufficientCredits(false)
+    setCreditErrorReason(undefined)
+
     try {
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
@@ -538,7 +546,25 @@ const GeneralTeachingAssistantChat = () => {
               }
               break
             } else if (chunk.type === 'error') {
-              throw new Error(chunk.data?.detail || 'Streaming error')
+              const errCode = chunk.data?.error_code
+              const errDetail = chunk.data?.detail
+              const isCreditError =
+                errCode === 'insufficient_credits' ||
+                errDetail === 'no_credits' ||
+                errDetail === 'credits_expired' ||
+                (typeof errDetail === 'string' && errDetail.toLowerCase().includes('credit'))
+              if (isCreditError) {
+                setCreditErrorReason(errCode || errDetail)
+                setInsufficientCredits(true)
+                setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId))
+                setStreamingContent('')
+                setStreamingMessageId(null)
+                setIsLoading(false)
+                setCanStopGeneration(false)
+                setThinkingState(null)
+                return
+              }
+              throw new Error(errDetail || 'Streaming error')
             }
           }
 
@@ -605,7 +631,8 @@ const GeneralTeachingAssistantChat = () => {
             } catch (error) {
               console.error('Error updating quota:', error)
             }
-            
+            await refreshCreditBalance()
+
             // Play audio if enabled
             if (audioEnabled && featureAccess.audio_transcription) {
               speakText(streamedContent)
@@ -636,32 +663,7 @@ const GeneralTeachingAssistantChat = () => {
           toast.error(streamError?.detail || streamError?.message || 'Failed to stream response. Please try again.')
           return
         }
-        
-        // Update conversation ID if new conversation was created
-        if (response.conversation_id !== currentConversationId) {
-          setCurrentConversationId(response.conversation_id)
-          localStorage.setItem('general-teaching-assistant-current-conversation', response.conversation_id)
-          
-          // Refresh conversation list to include new conversation
-          refreshConversationInList(response.conversation_id)
-        } else if (response.conversation_id) {
-          // Refresh existing conversation metadata
-          refreshConversationInList(response.conversation_id)
-        }
-        
-        // Update quota
-        try {
-          const quotaData = await subscriptionApi.getQuotaSummary()
-          setQuota(quotaData)
-        } catch (error) {
-          console.error('Error updating quota:', error)
-        }
-        
-        // Play audio if enabled (premium feature)
-        if (audioEnabled && featureAccess.audio_transcription) {
-          speakText(assistantMessage.content)
-        }
-        
+
         generationTimeoutRef.current = null
       } catch (error: any) {
         console.error('Error sending message:', error)
@@ -821,11 +823,12 @@ const GeneralTeachingAssistantChat = () => {
         } catch (error) {
           console.error('Error updating quota:', error)
         }
-        
-          // Play audio if enabled (available for all users)
-          if (audioEnabled) {
-            speakText(newAssistantMessage.content)
-          }
+        await refreshCreditBalance()
+
+        // Play audio if enabled (available for all users)
+        if (audioEnabled) {
+          speakText(newAssistantMessage.content)
+        }
       } catch (error: any) {
         console.error('Error regenerating response:', error)
         setIsLoading(false)
@@ -2068,6 +2071,21 @@ What would you like help with today? Feel free to ask me anything about teaching
               </div>
             </div>
           )}
+
+              {insufficientCredits && (
+                <div className="flex gap-4 justify-start mt-4">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-amber-600 shadow-sm">
+                    <Bot className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="max-w-sm">
+                    <NoCreditsCard
+                      compact
+                      reason={creditErrorReason}
+                      onActivated={() => setInsufficientCredits(false)}
+                    />
+                  </div>
+                </div>
+              )}
 
               <div ref={messagesEndRef} />
             </div>

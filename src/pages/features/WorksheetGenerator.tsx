@@ -13,6 +13,9 @@ import {
 } from '../../api/contentIngestion'
 import { WorksheetDisplay } from '../../components/contentIngestion/WorksheetDisplay'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { parseCreditError, type ParsedCreditError } from '../../utils/creditErrors'
+import NoCreditsCard from '../../components/NoCreditsCard'
+import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
 
 export const WorksheetGenerator = () => {
   const [packs, setPacks] = useState<ContentPack[]>([])
@@ -37,8 +40,10 @@ export const WorksheetGenerator = () => {
   const [loading, setLoading] = useState(true)
   const [cacheStatus, setCacheStatus] = useState<'hit' | 'miss' | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
   const { toast } = useSnackbar()
   const navigate = useNavigate()
+  const refreshCreditBalance = useRefreshCreditBalance()
   
   useEffect(() => {
     loadPacks()
@@ -62,6 +67,7 @@ export const WorksheetGenerator = () => {
     e.preventDefault()
     setError(null)
     setCacheStatus(null)
+    setCreditGate(null)
     
     if (!selectedPack) {
       const errorMsg = 'Please select a content pack'
@@ -128,13 +134,20 @@ export const WorksheetGenerator = () => {
       
       setGeneratedWorksheet(worksheet)
       setCacheStatus(worksheet._cacheStatus || null)
-      
+      await refreshCreditBalance()
+
       if (worksheet._cacheStatus === 'hit') {
         toast.success('Worksheet loaded from cache!')
       } else {
         toast.success('Worksheet generated successfully!')
       }
     } catch (error: any) {
+      const credit = parseCreditError(error)
+      if (credit) {
+        setCreditGate(credit)
+        setError(null)
+        return
+      }
       const errorMessage = error.message || 'Failed to generate worksheet'
       setError(errorMessage)
       
@@ -499,7 +512,16 @@ export const WorksheetGenerator = () => {
               </p>
             </div>
             
-            {error && (
+            {creditGate && (
+              <NoCreditsCard
+                reason={creditGate.reason}
+                balance={creditGate.balance}
+                required={creditGate.required}
+                onActivated={() => setCreditGate(null)}
+              />
+            )}
+
+            {error && !creditGate && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                 <p className="text-sm text-red-800 font-medium">Error</p>
                 <p className="text-sm text-red-700 mt-1">{error}</p>

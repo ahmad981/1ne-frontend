@@ -45,6 +45,8 @@ import {
 } from '../../utils/musicUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapMusicTheoryResult,
   mapMusicCompositionResult,
@@ -61,6 +63,7 @@ type TabType = 'theory' | 'composition' | 'performance' | 'ensemble' | 'pedagogy
 
 const MusicPerformanceCoach = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('theory')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [selectedInstrument, setSelectedInstrument] = useState('Piano')
@@ -105,7 +108,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadTheory = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_theory', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'music_theory', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -114,7 +117,8 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           theory_concept: theoryConcept,
         },
-      })
+      }))
+      if (response == null) return
       setMusicTheoryInfo(mapMusicTheoryResult(response.result))
       toast.success('Music theory loaded')
     } catch (error: unknown) {
@@ -133,7 +137,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadCompositionGuide = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_composition', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'music_composition', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -142,7 +146,8 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           composition_type: compositionType,
         },
-      })
+      }))
+      if (response == null) return
       setCompositionGuide(mapMusicCompositionResult(response.result, selectedStyle, gradeLevel))
       toast.success('Composition guide loaded')
     } catch (error: unknown) {
@@ -161,7 +166,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadPerformanceTechnique = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'performance_techniques', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'performance_techniques', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -170,7 +175,8 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           technique: performanceTechnique,
         },
-      })
+      }))
+      if (response == null) return
       setTechniqueInfo(mapPerformanceTechniqueResult(response.result, performanceTechnique))
       toast.success('Performance techniques loaded')
     } catch (error: unknown) {
@@ -189,7 +195,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadEnsembleGuide = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ensemble_coordination', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ensemble_coordination', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -198,7 +204,8 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           ensemble_type: ensembleType,
         },
-      })
+      }))
+      if (response == null) return
       setEnsembleGuide(mapEnsembleResult(response.result))
       toast.success('Ensemble guide loaded')
     } catch (error: unknown) {
@@ -217,7 +224,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadPedagogicalMethods = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_pedagogy', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'music_pedagogy', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -225,7 +232,8 @@ const MusicPerformanceCoach = () => {
           instrument: selectedInstrument,
           style: selectedStyle,
         },
-      })
+      }))
+      if (response == null) return
       setPedagogicalMethods(mapMusicPedagogyList(response.result))
       toast.success('Pedagogy methods loaded')
     } catch (error: unknown) {
@@ -244,7 +252,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadGames = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_games', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'music_games', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -253,7 +261,8 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           game_category: gameCategory.toLowerCase(),
         },
-      })
+      }))
+      if (response == null) return
       setMusicGames(mapMusicGamesList(response.result))
       toast.success('Music games loaded')
     } catch (error: unknown) {
@@ -272,7 +281,7 @@ const MusicPerformanceCoach = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'music_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'music_standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -280,7 +289,8 @@ const MusicPerformanceCoach = () => {
           instrument: selectedInstrument,
           style: selectedStyle,
         },
-      })
+      }))
+      if (response == null) return
       setMusicStandards(mapMusicStandardsList(response.result, gradeLevel))
       toast.success('Music standards loaded')
     } catch (error: unknown) {
@@ -308,6 +318,15 @@ const MusicPerformanceCoach = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-rose-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

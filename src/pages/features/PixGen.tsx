@@ -13,6 +13,9 @@ import {
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { generatePixGenImage } from '../../api/pixgen'
+import { parseCreditError, type ParsedCreditError } from '../../utils/creditErrors'
+import NoCreditsCard from '../../components/NoCreditsCard'
+import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
 
 const stylePresets = ['Watercolour storybook', 'Photo-real science lab', 'Flat infographic', 'Pixel art mini-game']
 const aspectRatios = ['1:1 Square', '3:2 Landscape', '9:16 Vertical', '2:3 Portrait']
@@ -130,6 +133,7 @@ const BATCH_SIZE = 4
 const BATCH_CONCURRENCY = 2
 
 const PixGen = () => {
+  const refreshCreditBalance = useRefreshCreditBalance()
   const [selectedStyle, setSelectedStyle] = useState(stylePresets[0])
   const [selectedRatio, setSelectedRatio] = useState(aspectRatios[1])
   const [prompt, setPrompt] = useState('')
@@ -139,6 +143,7 @@ const PixGen = () => {
   const [selectedPrompt, setSelectedPrompt] = useState<typeof preFilledPrompts[0] | null>(null)
   const [imageError, setImageError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
 
   const getFriendlyErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof ApiError) {
@@ -191,6 +196,7 @@ const PixGen = () => {
     setBatchImages([])
     setImageError(false)
     setErrorMessage(null)
+    setCreditGate(null)
 
     try {
       const payload = {
@@ -219,12 +225,20 @@ const PixGen = () => {
 
       setBatchImages(generatedImages)
       setPreviewImage(generatedImages[0] ?? null)
+      if (generatedImages.length > 0) {
+        await refreshCreditBalance()
+      }
       if (!generatedImages.length) {
         setErrorMessage('Batch completed but no image previews were returned.')
       } else if (failedCount > 0) {
         setErrorMessage(`${failedCount} image(s) failed to generate. Showing successful results.`)
       }
     } catch (error) {
+      const p = parseCreditError(error)
+      if (p) {
+        setCreditGate(p)
+        return
+      }
       setErrorMessage(getFriendlyErrorMessage(error, 'Batch generation failed.'))
     } finally {
       setIsGenerating(false)
@@ -237,6 +251,7 @@ const PixGen = () => {
     setIsGenerating(true)
     setImageError(false)
     setErrorMessage(null)
+    setCreditGate(null)
 
     try {
       const response = await generatePixGenImage({
@@ -247,11 +262,18 @@ const PixGen = () => {
 
       if (response.imageUrl) {
         setPreviewImage(response.imageUrl)
+        await refreshCreditBalance()
       } else {
         setPreviewImage(null)
         setErrorMessage('Generation completed but no image URL was returned.')
       }
     } catch (error) {
+      const p = parseCreditError(error)
+      if (p) {
+        setCreditGate(p)
+        setPreviewImage(null)
+        return
+      }
       setErrorMessage(getFriendlyErrorMessage(error, 'Image generation failed.'))
       setPreviewImage(null)
     } finally {
@@ -275,6 +297,14 @@ const PixGen = () => {
 
   return (
     <div className="space-y-10">
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-[#7c3aed] via-[#6366f1] to-[#0ea5e9] px-8 py-10 text-white shadow-xl">
         <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
           <div className="max-w-2xl space-y-5">

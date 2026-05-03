@@ -42,6 +42,8 @@ import {
 } from '../../utils/codingUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapCompetitionAnalyzerToProblem,
   mapAlgorithmTutorResult,
@@ -58,6 +60,7 @@ type TabType = 'competition' | 'algorithm' | 'debugging' | 'pbl' | 'thinking' | 
 
 const CodingProgrammingTutor = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('competition')
   const [gradeLevel, setGradeLevel] = useState('9-12')
   const [programmingLanguage, setProgrammingLanguage] = useState('python')
@@ -104,7 +107,7 @@ const CodingProgrammingTutor = () => {
     setIsGenerating(true)
     try {
       const text = problemText.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_analyzer', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_analyzer', {
         input: text,
         input_type: 'text',
         parameters: {
@@ -113,7 +116,8 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           problem_description: text,
         },
-      })
+      }))
+      if (response == null) return
       setCompetitionProblem(mapCompetitionAnalyzerToProblem(response.result, selectedCompetition, text))
       toast.success('Problem analyzed')
     } catch (error: unknown) {
@@ -132,7 +136,7 @@ const CodingProgrammingTutor = () => {
   const handleGetAlgorithm = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'algorithm_tutor', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'algorithm_tutor', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -141,7 +145,8 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           select_algorithm: selectedAlgorithm,
         },
-      })
+      }))
+      if (response == null) return
       setAlgorithmExplanation(mapAlgorithmTutorResult(response.result, programmingLanguage))
       toast.success('Algorithm explanation loaded')
     } catch (error: unknown) {
@@ -160,7 +165,7 @@ const CodingProgrammingTutor = () => {
   const handleGetDebuggingStrategy = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'debugging_assistant', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'debugging_assistant', {
         input: codeInput.trim() || ' ',
         input_type: 'text',
         parameters: {
@@ -169,7 +174,8 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           error_type: errorType,
         },
-      })
+      }))
+      if (response == null) return
       setDebuggingStrategy(mapDebuggingAssistantResult(response.result))
       toast.success('Debugging guidance loaded')
     } catch (error: unknown) {
@@ -188,7 +194,7 @@ const CodingProgrammingTutor = () => {
   const handleGenerateProject = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'project_planner', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'project_planner', {
         input: projectType,
         input_type: 'text',
         parameters: {
@@ -198,7 +204,8 @@ const CodingProgrammingTutor = () => {
           project_type: projectType,
           duration: projectDuration,
         },
-      })
+      }))
+      if (response == null) return
       setProjectMilestones(mapProjectPlannerToMilestones(response.result))
       toast.success('Project plan generated')
     } catch (error: unknown) {
@@ -217,7 +224,7 @@ const CodingProgrammingTutor = () => {
   const handleGetComputationalThinking = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'computational_thinking', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'computational_thinking', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -225,7 +232,8 @@ const CodingProgrammingTutor = () => {
           language: programmingLanguage,
           competition: selectedCompetition,
         },
-      })
+      }))
+      if (response == null) return
       setComputationalThinking(mapComputationalThinkingResult(response.result))
       toast.success('Computational thinking activities loaded')
     } catch (error: unknown) {
@@ -244,7 +252,7 @@ const CodingProgrammingTutor = () => {
   const handleGenerateRoadmap = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_roadmap', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'competition_roadmap', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -254,7 +262,8 @@ const CodingProgrammingTutor = () => {
           current_level: currentLevel,
           target_level: targetLevel,
         },
-      })
+      }))
+      if (response == null) return
       setRoadmap(mapCompetitionRoadmapResult(response.result, selectedCompetition, targetLevel))
       toast.success('Roadmap generated')
     } catch (error: unknown) {
@@ -275,7 +284,7 @@ const CodingProgrammingTutor = () => {
     setIsGenerating(true)
     try {
       const content = contentInput.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'standards_alignment', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'standards_alignment', {
         input: content,
         input_type: 'text',
         parameters: {
@@ -285,7 +294,8 @@ const CodingProgrammingTutor = () => {
           standards_framework: standardsFramework,
           content_to_analyze: content,
         },
-      })
+      }))
+      if (response == null) return
       setStandardsAlignment(mapCodingStandardsAlignmentResult(response.result, standardsFramework, gradeLevel))
       toast.success('Standards alignment analyzed')
     } catch (error: unknown) {
@@ -312,6 +322,15 @@ const CodingProgrammingTutor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

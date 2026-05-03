@@ -45,6 +45,8 @@ import {
 } from '../../utils/environmentalUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapRegionalClimateResult,
   mapSustainabilityProjectsResult,
@@ -62,6 +64,7 @@ type TabType = 'climate' | 'sustainability' | 'ecosystems' | 'regional' | 'stand
 
 const EnvironmentalScienceGuide = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('climate')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [selectedRegion, setSelectedRegion] = useState('Temperate')
@@ -105,7 +108,7 @@ const EnvironmentalScienceGuide = () => {
   const handleLoadClimateImpact = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'global_climate_education', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'global_climate_education', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -113,7 +116,8 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           select_region: climateRegion,
         },
-      })
+      }))
+      if (response == null) return
       setClimateImpact(mapRegionalClimateResult(response.result))
       toast.success('Climate impact loaded')
     } catch (error: unknown) {
@@ -132,7 +136,7 @@ const EnvironmentalScienceGuide = () => {
   const handleLoadProjects = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_projects', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_projects', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -140,7 +144,8 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           project_category: projectCategoryUiToApi(projectCategory),
         },
-      })
+      }))
+      if (response == null) return
       setSustainabilityProjects(mapSustainabilityProjectsResult(response.result))
       toast.success('Projects loaded')
     } catch (error: unknown) {
@@ -159,7 +164,7 @@ const EnvironmentalScienceGuide = () => {
   const handleLoadEcosystemInfo = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'ecological_systems', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'ecological_systems', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -167,7 +172,8 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           ecosystem_type: ecosystemType,
         },
-      })
+      }))
+      if (response == null) return
       setEcosystemInfo(mapEcosystemResult(response.result))
       toast.success('Ecosystem profile loaded')
     } catch (error: unknown) {
@@ -186,7 +192,7 @@ const EnvironmentalScienceGuide = () => {
   const handleLoadRegionalAnalysis = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'regional_climate_analysis', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'regional_climate_analysis', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -194,7 +200,8 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           select_region: selectedRegion,
         },
-      })
+      }))
+      if (response == null) return
       setRegionalAnalysis(mapRegionalClimateResult(response.result))
       toast.success('Regional analysis loaded')
     } catch (error: unknown) {
@@ -213,14 +220,15 @@ const EnvironmentalScienceGuide = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
           grade_level: gradeLevel,
           region: selectedRegion,
         },
-      })
+      }))
+      if (response == null) return
       setEnvironmentalStandards(mapEnvironmentalStandardsResult(response.result))
       toast.success('Standards loaded')
     } catch (error: unknown) {
@@ -239,7 +247,7 @@ const EnvironmentalScienceGuide = () => {
   const handleGenerateAssessment = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_assessment_tools', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'sustainability_assessment_tools', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -247,7 +255,8 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           assessment_category: assessmentCategory,
         },
-      })
+      }))
+      if (response == null) return
       setSustainabilityAssessment(mapSustainabilityAssessmentResult(response.result))
       toast.success('Assessment generated')
     } catch (error: unknown) {
@@ -268,7 +277,7 @@ const EnvironmentalScienceGuide = () => {
     setIsGenerating(true)
     try {
       const goal = actionGoal.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_action_planning', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'environmental_action_planning', {
         input: goal,
         input_type: 'text',
         parameters: {
@@ -277,7 +286,8 @@ const EnvironmentalScienceGuide = () => {
           action_goal: goal,
           timeframe: actionTimeframe,
         },
-      })
+      }))
+      if (response == null) return
       setActionPlan(mapEnvironmentalActionPlanResult(response.result))
       toast.success('Action plan generated')
     } catch (error: unknown) {
@@ -305,6 +315,15 @@ const EnvironmentalScienceGuide = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

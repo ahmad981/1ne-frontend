@@ -45,6 +45,8 @@ import {
 } from '../../utils/dramaUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapScriptAnalysisResult,
   mapCharacterProfileResult,
@@ -61,6 +63,7 @@ type TabType = 'script-analysis' | 'character' | 'stage-direction' | 'production
 
 const DramaTheaterDirector = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('script-analysis')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [playGenre, setPlayGenre] = useState('Drama')
@@ -109,7 +112,7 @@ const DramaTheaterDirector = () => {
     setIsGenerating(true)
     try {
       const title = playTitle.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'script_analysis_tools', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'script_analysis_tools', {
         input: title,
         input_type: 'text',
         parameters: {
@@ -119,7 +122,8 @@ const DramaTheaterDirector = () => {
           play_title: title,
           playwright: playwright.trim(),
         },
-      })
+      }))
+      if (response == null) return
       setScriptAnalysis(mapScriptAnalysisResult(response.result))
       toast.success('Script analysis generated')
     } catch (error: unknown) {
@@ -140,7 +144,7 @@ const DramaTheaterDirector = () => {
     setIsGenerating(true)
     try {
       const name = characterName.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'character_development', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'character_development', {
         input: name,
         input_type: 'text',
         parameters: {
@@ -150,7 +154,8 @@ const DramaTheaterDirector = () => {
           character_name: name,
           role: characterRole,
         },
-      })
+      }))
+      if (response == null) return
       setCharacterProfile(mapCharacterProfileResult(response.result))
       toast.success('Character profile generated')
     } catch (error: unknown) {
@@ -171,7 +176,7 @@ const DramaTheaterDirector = () => {
     setIsGenerating(true)
     try {
       const scene = sceneName.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'stage_direction', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'stage_direction', {
         input: scene,
         input_type: 'text',
         parameters: {
@@ -180,7 +185,8 @@ const DramaTheaterDirector = () => {
           stage_type: stageType,
           scene_name: scene,
         },
-      })
+      }))
+      if (response == null) return
       setStageDirection(mapStageDirectionResult(response.result))
       toast.success('Stage direction generated')
     } catch (error: unknown) {
@@ -201,7 +207,7 @@ const DramaTheaterDirector = () => {
     setIsGenerating(true)
     try {
       const title = productionTitle.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'production_planning', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'production_planning', {
         input: title,
         input_type: 'text',
         parameters: {
@@ -211,7 +217,8 @@ const DramaTheaterDirector = () => {
           production_title: title,
           duration: productionDuration,
         },
-      })
+      }))
+      if (response == null) return
       setProductionPlan(mapProductionPlanResult(response.result))
       toast.success('Production plan generated')
     } catch (error: unknown) {
@@ -230,7 +237,7 @@ const DramaTheaterDirector = () => {
   const handleLoadActingMethods = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'acting_methods', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'acting_methods', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -238,7 +245,8 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
-      })
+      }))
+      if (response == null) return
       setActingMethods(mapActingMethodsList(response.result))
       toast.success('Acting methods loaded')
     } catch (error: unknown) {
@@ -257,7 +265,7 @@ const DramaTheaterDirector = () => {
   const handleLoadTheaterStyles = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_styles', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_styles', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -265,7 +273,8 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
-      })
+      }))
+      if (response == null) return
       setTheaterStyles(mapTheaterStylesList(response.result))
       toast.success('Theater styles loaded')
     } catch (error: unknown) {
@@ -284,7 +293,7 @@ const DramaTheaterDirector = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'theater_standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -292,7 +301,8 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
-      })
+      }))
+      if (response == null) return
       setTheaterStandards(mapTheaterStandardsList(response.result, gradeLevel))
       toast.success('Theater standards loaded')
     } catch (error: unknown) {
@@ -320,6 +330,15 @@ const DramaTheaterDirector = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-red-700 via-rose-700 to-pink-700 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

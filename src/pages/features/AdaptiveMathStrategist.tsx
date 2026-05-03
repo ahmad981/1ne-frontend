@@ -30,6 +30,8 @@ import {
 } from 'lucide-react'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapDifferentiatedProblemsResult,
   mapAdaptiveLearningPathResult,
@@ -46,6 +48,7 @@ const CHATBOT_SLUG = 'adaptive-math-strategist'
 
 const AdaptiveMathStrategist = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<'problems' | 'adaptive' | 'concepts' | 'intervention' | 'visual' | 'assessment'>('problems')
   const [gradeLevel, setGradeLevel] = useState('5')
   const [topic, setTopic] = useState('')
@@ -64,7 +67,7 @@ const AdaptiveMathStrategist = () => {
     try {
       const mathTopic = topic.trim()
       const n = parseProblemCountOption(problemCountOption)
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'differentiated_problems', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'differentiated_problems', {
         input: mathTopic,
         input_type: 'text',
         parameters: {
@@ -73,7 +76,8 @@ const AdaptiveMathStrategist = () => {
           ...(standard.trim() ? { standard: standard.trim() } : {}),
           number_of_problems: n,
         },
-      })
+      }))
+      if (response == null) return
       setProblemSet(mapDifferentiatedProblemsResult(response.result))
       toast.success('Problem set generated')
     } catch (error: unknown) {
@@ -96,14 +100,15 @@ const AdaptiveMathStrategist = () => {
     setIsGenerating(true)
     try {
       const currentTopic = topic.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'adaptive_learning_path', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'adaptive_learning_path', {
         input: currentTopic,
         input_type: 'text',
         parameters: {
           student_level: studentLevel,
           current_topic: currentTopic,
         },
-      })
+      }))
+      if (response == null) return
       setAdaptivePath(mapAdaptiveLearningPathResult(response.result))
       toast.success('Learning path generated')
     } catch (error: unknown) {
@@ -123,14 +128,15 @@ const AdaptiveMathStrategist = () => {
     setIsGenerating(true)
     try {
       const concept = topic.trim()
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'conceptual_learning', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'conceptual_learning', {
         input: concept,
         input_type: 'text',
         parameters: {
           math_concept: concept,
           grade_level: String(gradeLevel),
         },
-      })
+      }))
+      if (response == null) return
       setConceptualUnderstanding(mapConceptualLearningResult(response.result))
       toast.success('Concept analysis ready')
     } catch (error: unknown) {
@@ -148,11 +154,12 @@ const AdaptiveMathStrategist = () => {
   const handleInterventionStrategy = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'intervention_strategies', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'intervention_strategies', {
         input: ' ',
         input_type: 'text',
         parameters: {},
-      })
+      }))
+      if (response == null) return
       setInterventionStrategy(mapInterventionStrategiesResult(response.result))
       toast.success('Intervention strategies generated')
     } catch (error: unknown) {
@@ -178,6 +185,15 @@ const AdaptiveMathStrategist = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-green-600 via-emerald-600 to-teal-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

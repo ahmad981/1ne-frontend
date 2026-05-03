@@ -76,9 +76,10 @@ import Analytics from '../pages/features/Analytics';
 import Reporting from '../pages/features/Reporting';
 import Assessment from '../pages/features/Assessment';
 import LearningHubContentOperations from '../pages/admin/LearningHubContentOperations';
+import AccessCodesAdmin from '../pages/admin/AccessCodesAdmin';
 import Profile from '../pages/Profile';
 import Settings from '../pages/Settings';
-import Subscription from '../pages/Subscription';
+// Subscription page retired — /subscription redirects to /settings?tab=plan
 import ExploreUseCases from '../pages/ExploreUseCases';
 import { ContentPacksManagement } from '../pages/features/ContentPacksManagement';
 import { ContentPackDetail } from '../pages/features/ContentPackDetail';
@@ -139,12 +140,7 @@ export const commonRoutes = [
   },
   {
     path: '/subscription',
-    moduleName: 'Subscription',
-    element: (
-      <DashboardLayout>
-        <Subscription />
-      </DashboardLayout>
-    ),
+    element: <Navigate to="/settings?tab=plan" replace />,
   },
   {
     path: '*',
@@ -953,6 +949,15 @@ export const superAdminRoutes = [
         element: (
           <DashboardLayout>
             <LearningHubContentOperations />
+          </DashboardLayout>
+        ),
+      },
+      {
+        path: '/admin/access-codes',
+        moduleName: 'Access Codes',
+        element: (
+          <DashboardLayout>
+            <AccessCodesAdmin />
           </DashboardLayout>
         ),
       },

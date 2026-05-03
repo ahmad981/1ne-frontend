@@ -52,6 +52,9 @@ import {
   Coins,
   Zap,
 } from 'lucide-react'
+import { fetchCreditBalance } from '../redux/features/subscription/subscriptionSlice'
+import ActivateCreditsModal from './ActivateCreditsModal'
+import { creditBalanceUiPercents } from '../utils/creditBalanceUi'
 
 type MenuItem = {
   path: string
@@ -128,7 +131,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const navigate = useNavigate()
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
   const { profileDetails } = useSelector((state: any) => state.auth)
+  const subscription = useSelector((state: any) => state.subscription)
   const profileDropdownRef = useRef<HTMLDivElement>(null)
+  const [activateModalOpen, setActivateModalOpen] = useState(false)
   
   // Get user role from profileDetails or user state - handle enum format
   const getUserRole = (): string | null => {
@@ -166,11 +171,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     console.error('Error formatting role:', error);
   }
   
-  // Load profile details on mount and when user changes
+  // Load profile details and credit balance on mount
   useEffect(() => {
     if (user?.token) {
-      // Always refresh profile details to ensure we have latest data
       dispatch(getProfileDetails())
+      dispatch(fetchCreditBalance() as any)
     }
   }, [user?.token, user?.id, dispatch])
 
@@ -461,34 +466,79 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
             {/* Right side - Token counter, messages, notifications, profile */}
             <div className="flex items-center gap-4">
-            {/* Token Counter */}
-            <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gradient-to-r from-amber-50 to-orange-50 px-4 py-2">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-100">
-                  <Coins className="h-4 w-4 text-amber-600" />
-                </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-semibold text-gray-600">Tokens</span>
-                    <Zap className="h-3 w-3 text-amber-500" />
+            {/* Credit Balance */}
+            {(() => {
+              const bal = subscription.balance ?? 0
+              const total = subscription.totalAllocated ?? 0
+              const { ratio, barWidthPct, labelPct } = creditBalanceUiPercents(bal, total)
+              const hasCredits = subscription.hasActiveCredits
+
+              const barColor = ratio > 0.5
+                ? 'from-emerald-400 to-teal-500'
+                : ratio > 0.2
+                ? 'from-amber-400 to-orange-500'
+                : 'from-red-400 to-rose-500'
+
+              const bgColor = ratio > 0.5
+                ? 'from-emerald-50 to-teal-50'
+                : ratio > 0.2
+                ? 'from-amber-50 to-orange-50'
+                : 'from-red-50 to-rose-50'
+
+              const iconColor = ratio > 0.5
+                ? 'bg-emerald-100 text-emerald-600'
+                : ratio > 0.2
+                ? 'bg-amber-100 text-amber-600'
+                : 'bg-red-100 text-red-600'
+
+              if (!hasCredits && !subscription.loading) {
+                return (
+                  <button
+                    onClick={() => setActivateModalOpen(true)}
+                    className="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 hover:border-primary-300 hover:text-primary-600 transition"
+                  >
+                    <Coins className="h-4 w-4" />
+                    Activate credits
+                  </button>
+                )
+              }
+
+              return (
+                <button
+                  onClick={() => navigate('/settings?tab=plan')}
+                  title={subscription.expiresAt
+                    ? `Expires ${new Date(subscription.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    : subscription.autoRenew ? 'Auto-renewing' : undefined}
+                  className={`flex items-center gap-2 rounded-xl border border-gray-200 bg-gradient-to-r ${bgColor} px-4 py-2 transition hover:shadow-sm`}
+                >
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${iconColor}`}>
+                    <Coins className="h-4 w-4" />
                   </div>
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-sm font-bold text-gray-900">12,450</span>
-                    <span className="text-xs text-gray-500">/ 50,000</span>
+                  <div className="flex flex-col">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-semibold text-gray-600">Credits</span>
+                      <Zap className="h-3 w-3 text-amber-500" />
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-sm font-bold text-gray-900">{bal.toLocaleString()}</span>
+                      {total > 0 && (
+                        <span className="text-xs text-gray-500">/ {total.toLocaleString()}</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </div>
-              <div className="h-8 w-px bg-gray-300 mx-1" />
-              <div className="flex items-center gap-1">
-                <div className="h-2 w-20 rounded-full bg-gray-200 overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-amber-400 to-orange-500 rounded-full transition-all duration-300"
-                    style={{ width: '25%' }}
-                  />
-                </div>
-                <span className="text-xs font-semibold text-gray-600">25%</span>
-              </div>
-            </div>
+                  <div className="h-8 w-px bg-gray-300 mx-1" />
+                  <div className="flex items-center gap-1.5">
+                    <div className="h-2 w-20 rounded-full bg-gray-200 overflow-hidden">
+                      <div
+                        className={`h-full bg-gradient-to-r ${barColor} rounded-full transition-all duration-500`}
+                        style={{ width: `${Math.min(100, barWidthPct)}%` }}
+                      />
+                    </div>
+                    <span className="text-xs font-semibold text-gray-600">{labelPct}%</span>
+                  </div>
+                </button>
+              )
+            })()}
 
             {/* Messages Dropdown */}
             <div
@@ -1050,6 +1100,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           onClick={() => setMobileMenuOpen(false)}
         />
       )}
+
+      <ActivateCreditsModal
+        open={activateModalOpen}
+        onClose={() => setActivateModalOpen(false)}
+      />
     </div>
   )
 }

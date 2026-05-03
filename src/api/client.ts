@@ -18,7 +18,7 @@ export class ApiError extends Error {
   }
 }
 
-interface RequestOptions extends RequestInit {
+interface RequestOptions extends Omit<RequestInit, 'body'> {
   query?: Record<string, string | number | boolean | undefined>
   body?: unknown
   timeout?: number // Timeout in milliseconds (default: 30000 = 30 seconds)
@@ -240,8 +240,9 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     ...headers, // Custom headers override defaults
   }
   
+  const headerLog = requestHeaders as Record<string, string>
   console.log('[apiRequest] 📤 Request headers:', {
-    'Content-Type': requestHeaders['Content-Type'],
+    'Content-Type': headerLog['Content-Type'],
     'Authorization': authToken ? `${authToken.substring(0, 20)}...` : 'None',
   })
 
@@ -376,6 +377,17 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         } catch (error) {
           console.error('[apiRequest] Failed to clear expired token:', error)
         }
+      }
+
+      if (response.status === 402) {
+        const raw = (payload as Record<string, unknown> | null)?.detail
+        let msg = 'Insufficient credits'
+        if (typeof raw === 'object' && raw !== null && 'message' in raw) {
+          msg = String((raw as Record<string, unknown>).message)
+        } else if (typeof raw === 'string') {
+          msg = raw
+        }
+        throw new ApiError(response.status, msg, payload)
       }
 
       // 502 from Vite dev server = proxy could not connect to FastAPI (ECONNREFUSED / wrong port).

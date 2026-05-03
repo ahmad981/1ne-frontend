@@ -47,12 +47,15 @@ import {
   mapMarketingConceptsResponseToUI,
   mapMarketingStandardsResponseToUI,
 } from '../../utils/marketingAdapters'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 const MARKETING_STRATEGIST_SLUG = 'marketing-branding-strategist'
 
 type TabType = 'marketing-concepts' | 'branding' | 'digital-marketing' | 'market-research' | 'campaigns' | 'standards' | 'resources'
 
 const MarketingBrandingStrategist = () => {
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('marketing-concepts')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
   const [isGenerating, setIsGenerating] = useState(false)
@@ -89,15 +92,18 @@ const MarketingBrandingStrategist = () => {
   // Load Marketing Concepts (backend)
   const handleLoadMarketingConcepts = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'marketing_concepts', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'marketing_concepts', {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
-      })
+      }))
+      if (response == null) return
       const concepts = mapMarketingConceptsResponseToUI(response.result as Record<string, unknown>, gradeLevel)
       setMarketingConcepts(concepts)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Marketing concepts:', e)
     } finally {
       setIsGenerating(false)
@@ -107,15 +113,18 @@ const MarketingBrandingStrategist = () => {
   // Load Branding Strategies (backend)
   const handleLoadBrandingStrategies = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'branding_strategies', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'branding_strategies', {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
-      })
+      }))
+      if (response == null) return
       const strategies = mapBrandingStrategiesResponseToUI(response.result as Record<string, unknown>)
       setBrandingStrategies(strategies)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Branding strategies:', e)
     } finally {
       setIsGenerating(false)
@@ -125,15 +134,18 @@ const MarketingBrandingStrategist = () => {
   // Load Digital Marketing Channels (backend)
   const handleLoadDigitalChannels = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'digital_marketing_channels', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'digital_marketing_channels', {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
-      })
+      }))
+      if (response == null) return
       const channels = mapDigitalMarketingChannelsResponseToUI(response.result as Record<string, unknown>)
       setDigitalChannels(channels)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Digital marketing channels:', e)
     } finally {
       setIsGenerating(false)
@@ -143,15 +155,18 @@ const MarketingBrandingStrategist = () => {
   // Load Market Research Methods (backend)
   const handleLoadResearchMethods = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'market_research_methods', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'market_research_methods', {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
-      })
+      }))
+      if (response == null) return
       const methods = mapMarketResearchMethodsResponseToUI(response.result as Record<string, unknown>)
       setResearchMethods(methods)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Market research methods:', e)
     } finally {
       setIsGenerating(false)
@@ -161,15 +176,18 @@ const MarketingBrandingStrategist = () => {
   // Load Marketing Standards (backend)
   const handleLoadStandards = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'international_marketing_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'international_marketing_standards', {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
-      })
+      }))
+      if (response == null) return
       const standards = mapMarketingStandardsResponseToUI(response.result as Record<string, unknown>)
       setMarketingStandards(standards)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Marketing standards:', e)
     } finally {
       setIsGenerating(false)
@@ -180,9 +198,10 @@ const MarketingBrandingStrategist = () => {
   const handleGenerateCampaign = async () => {
     if (!product.trim() || !targetAudience.trim() || !objective.trim()) return
     setIsGenerating(true)
+    clearCreditError()
     try {
       // Backend capability key is "compaign" (typo) — must match seed.
-      const response = await chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'compaign', {
+      const response = await runWithCredits(chatbotApi.executeCapability(MARKETING_STRATEGIST_SLUG, 'compaign', {
         input: gradeLevel,
         input_type: 'text',
         parameters: {
@@ -191,10 +210,12 @@ const MarketingBrandingStrategist = () => {
           target_audience: targetAudience.trim(),
           primary_objective: objective.trim(),
         },
-      })
+      }))
+      if (response == null) return
       const campaign = mapMarketingCampaignResponseToUI(response.result as Record<string, unknown>)
       setGeneratedCampaign(campaign)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Marketing campaign:', e)
     } finally {
       setIsGenerating(false)
@@ -215,6 +236,14 @@ const MarketingBrandingStrategist = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-pink-600 via-rose-600 to-red-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

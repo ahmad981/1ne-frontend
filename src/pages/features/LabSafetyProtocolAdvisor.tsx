@@ -43,6 +43,8 @@ import {
 } from '../../utils/labSafetyUtils'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapLabSafetyStandardsResult,
   mapLabSafetyProtocolResult,
@@ -60,6 +62,7 @@ type TabType = 'standards' | 'protocols' | 'risk-assessment' | 'chemicals' | 'eq
 
 const LabSafetyProtocolAdvisor = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('standards')
   const [labType, setLabType] = useState('Chemistry')
   const [gradeLevel, setGradeLevel] = useState('High School (9-12)')
@@ -102,14 +105,15 @@ const LabSafetyProtocolAdvisor = () => {
   const handleLoadStandards = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_standards', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_standards', {
         input: ' ',
         input_type: 'text',
         parameters: {
           lab_type: labType,
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setSafetyStandards(mapLabSafetyStandardsResult(response.result))
       toast.success('Safety standards loaded')
     } catch (error: unknown) {
@@ -129,7 +133,7 @@ const LabSafetyProtocolAdvisor = () => {
     setIsGenerating(true)
     try {
       const context = `Lab safety protocol for ${labType} (${gradeLevel}). Focus: ${protocolCategory}.`
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_protocols', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_safety_protocols', {
         input: context,
         input_type: 'text',
         parameters: {
@@ -137,7 +141,8 @@ const LabSafetyProtocolAdvisor = () => {
           grade_level: gradeLevel,
           protocol_category: labProtocolCategoryToParam(protocolCategory),
         },
-      })
+      }))
+      if (response == null) return
       setSafetyProtocol(mapLabSafetyProtocolResult(response.result))
       toast.success('Protocol generated')
     } catch (error: unknown) {
@@ -157,14 +162,15 @@ const LabSafetyProtocolAdvisor = () => {
     if (!experimentName.trim()) return
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_risk_assessment', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_risk_assessment', {
         input: experimentName.trim(),
         input_type: 'text',
         parameters: {
           lab_type: labType,
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setRiskAssessment(mapLabRiskAssessmentResult(response.result))
       toast.success('Risk assessment generated')
     } catch (error: unknown) {
@@ -184,14 +190,15 @@ const LabSafetyProtocolAdvisor = () => {
     if (!chemicalName.trim()) return
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_chemical_safety', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_chemical_safety', {
         input: chemicalName.trim(),
         input_type: 'text',
         parameters: {
           lab_type: labType,
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setChemicalInfo(mapLabChemicalResult(response.result))
       toast.success('Chemical information loaded')
     } catch (error: unknown) {
@@ -211,14 +218,15 @@ const LabSafetyProtocolAdvisor = () => {
     if (!equipmentName.trim()) return
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_equipment_safety', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_equipment_safety', {
         input: equipmentName.trim(),
         input_type: 'text',
         parameters: {
           lab_type: labType,
           grade_level: gradeLevel,
         },
-      })
+      }))
+      if (response == null) return
       setEquipmentSafety(mapLabEquipmentResult(response.result))
       toast.success('Equipment safety guide loaded')
     } catch (error: unknown) {
@@ -237,7 +245,7 @@ const LabSafetyProtocolAdvisor = () => {
   const handleGetEmergencyProcedure = async () => {
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_emergency_procedures', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_emergency_procedures', {
         input: ' ',
         input_type: 'text',
         parameters: {
@@ -245,7 +253,8 @@ const LabSafetyProtocolAdvisor = () => {
           grade_level: gradeLevel,
           emergency_type: emergencyType,
         },
-      })
+      }))
+      if (response == null) return
       setEmergencyProcedure(mapLabEmergencyResult(response.result))
       toast.success('Emergency procedure loaded')
     } catch (error: unknown) {
@@ -265,7 +274,7 @@ const LabSafetyProtocolAdvisor = () => {
     if (!experimentTitle.trim() || !experimentObjective.trim()) return
     setIsGenerating(true)
     try {
-      const response = await chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_experiment_design', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CHATBOT_SLUG, 'lab_experiment_design', {
         input: experimentTitle.trim(),
         input_type: 'text',
         parameters: {
@@ -274,7 +283,8 @@ const LabSafetyProtocolAdvisor = () => {
           experiment_title: experimentTitle.trim(),
           experiment_objective: experimentObjective.trim(),
         },
-      })
+      }))
+      if (response == null) return
       setExperimentDesign(mapLabExperimentDesignResult(response.result))
       toast.success('Experiment design generated')
     } catch (error: unknown) {
@@ -302,6 +312,15 @@ const LabSafetyProtocolAdvisor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 via-orange-600 to-yellow-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

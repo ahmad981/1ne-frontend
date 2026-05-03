@@ -50,6 +50,8 @@ import {
 } from 'lucide-react'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface NGSSInvestigation {
   phenomenon: string
@@ -111,6 +113,7 @@ interface InquiryGuidance {
 
 const STEMInquiryMentor = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const CHATBOT_SLUG = 'stem-inquiry-mentor'
   
   const [activeTab, setActiveTab] = useState<'investigation' | 'engineering' | 'inquiry' | 'data' | 'assessment' | 'alignment'>('investigation')
@@ -129,9 +132,10 @@ const STEMInquiryMentor = () => {
     }
     
     setIsGenerating(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'ngss_investigation',
         {
@@ -142,11 +146,13 @@ const STEMInquiryMentor = () => {
             subject: subject,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setNGSSInvestigation(response.result as NGSSInvestigation)
       toast.success('NGSS investigation generated successfully')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating NGSS investigation:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to generate investigation'
       toast.error(errorMessage)
@@ -166,9 +172,10 @@ const STEMInquiryMentor = () => {
     }
     
     setIsGenerating(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'engineering_design',
         {
@@ -178,11 +185,13 @@ const STEMInquiryMentor = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setEngineeringChallenge(response.result as EngineeringChallenge)
       toast.success('Engineering challenge generated successfully')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating engineering challenge:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to generate challenge'
       toast.error(errorMessage)
@@ -202,9 +211,10 @@ const STEMInquiryMentor = () => {
     }
     
     setIsGenerating(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'inquiry_guidance',
         {
@@ -214,11 +224,13 @@ const STEMInquiryMentor = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setInquiryGuidance(response.result as InquiryGuidance)
       toast.success('Inquiry guidance generated successfully')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating inquiry guidance:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to generate guidance'
       toast.error(errorMessage)
@@ -242,6 +254,15 @@ const STEMInquiryMentor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-cyan-600 to-teal-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

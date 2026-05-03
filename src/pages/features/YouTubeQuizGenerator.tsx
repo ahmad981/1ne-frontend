@@ -19,7 +19,10 @@ import {
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
 import { generateYouTubeQuiz, YouTubeQuizSection } from '../../api/youtubeQuiz'
+import { parseCreditError, type ParsedCreditError } from '../../utils/creditErrors'
+import NoCreditsCard from '../../components/NoCreditsCard'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
 import { LessonFlowBuilder } from './youtube-quiz/LessonFlowBuilder'
 import { ClassroomUseFlow } from './youtube-quiz/ClassroomUseFlow'
 import { QuickStartVideoSources } from './youtube-quiz/QuickStartVideoSources'
@@ -132,6 +135,7 @@ const workflowSteps = [
 const HERO_COLLAPSE_KEY = 'yt_quiz_hero_collapsed_v1'
 
 const YouTubeQuizGenerator = () => {
+  const refreshCreditBalance = useRefreshCreditBalance()
   const { toast } = useSnackbar()
   const urlInputRef = useRef<HTMLInputElement>(null)
   const [isHeroCollapsed, setIsHeroCollapsed] = useState<boolean>(() => {
@@ -155,6 +159,7 @@ const YouTubeQuizGenerator = () => {
   const [hasGenerated, setHasGenerated] = useState(false)
   const [urlError, setUrlError] = useState<string | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
   const [appliedStrategyId, setAppliedStrategyId] = useState<string | null>(null)
   const [appliedStrategyTitle, setAppliedStrategyTitle] = useState<string | null>(null)
   const [selectedLibraryVideoId, setSelectedLibraryVideoId] = useState<string | null>(null)
@@ -255,6 +260,7 @@ const YouTubeQuizGenerator = () => {
     setQuizPreview(null)
     setApiError(null)
     setUrlError(null)
+    setCreditGate(null)
 
     try {
       const response = await generateYouTubeQuiz({
@@ -280,6 +286,8 @@ const YouTubeQuizGenerator = () => {
       setQuizPreview(generatedQuiz)
       setHasGenerated(true)
 
+      await refreshCreditBalance()
+
       // Navigate to results page after generation
       setTimeout(() => {
         navigate('/youtube-quiz/results', {
@@ -287,6 +295,13 @@ const YouTubeQuizGenerator = () => {
         })
       }, 500)
     } catch (error) {
+      const credit = parseCreditError(error)
+      if (credit) {
+        setCreditGate(credit)
+        setHasGenerated(false)
+        setIsGenerating(false)
+        return
+      }
       console.error('Failed to generate YouTube quiz:', error)
       setHasGenerated(false)
       let message = 'Quiz generation failed. Please try again.'
@@ -335,6 +350,14 @@ const YouTubeQuizGenerator = () => {
 
   return (
     <div className="space-y-10">
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
       {!isHeroCollapsed ? (
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#ff4d4f] via-[#ff7756] to-[#ffb347] px-6 py-6 text-white shadow-xl">
           <button

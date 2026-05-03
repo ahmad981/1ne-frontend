@@ -50,12 +50,15 @@ import {
   mapLinkedInGuideResponseToUI,
   mapSkillsAssessmentResponseToUI,
 } from '../../utils/careerAdapters'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 const CAREER_COACH_SLUG = 'career-readiness-coach'
 
 type TabType = 'resume' | 'interview' | 'skills' | 'industry' | 'pathway' | 'linkedin' | 'assessment' | 'standards'
 
 const CareerReadinessCoach = () => {
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const [activeTab, setActiveTab] = useState<TabType>('resume')
   const [gradeLevel, setGradeLevel] = useState('9-12')
   const [selectedRegion, setSelectedRegion] = useState('United States')
@@ -99,15 +102,18 @@ const CareerReadinessCoach = () => {
   // Resume Format Explorer (backend)
   const handleExploreResumeFormat = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'international_resume_builder', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'international_resume_builder', {
         input: selectedResumeFormat,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const format = mapResumeFormatResponseToUI(response.result as Record<string, unknown>, selectedResumeFormat)
       setResumeFormat(format)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Resume format:', e)
     } finally {
       setIsGenerating(false)
@@ -117,15 +123,18 @@ const CareerReadinessCoach = () => {
   // Interview Questions (backend)
   const handleGetInterviewQuestions = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'interview_prep', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'interview_prep', {
         input: interviewCategory,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const questions = mapInterviewPrepResponseToUI(response.result as Record<string, unknown>, interviewCategory)
       setInterviewQuestions(questions)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Interview prep:', e)
     } finally {
       setIsGenerating(false)
@@ -135,15 +144,18 @@ const CareerReadinessCoach = () => {
   // NACE Competencies (backend)
   const handleGetNACECompetencies = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'professional_skills_competencies', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'professional_skills_competencies', {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const competencies = mapNACECompetenciesResponseToUI(response.result as Record<string, unknown>)
       setNACECompetencies(competencies)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Professional skills:', e)
     } finally {
       setIsGenerating(false)
@@ -153,15 +165,18 @@ const CareerReadinessCoach = () => {
   // Industry Insights (backend)
   const handleGetIndustryInsights = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'industry_insights', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'industry_insights', {
         input: selectedIndustry,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const insight = mapIndustryInsightsResponseToUI(response.result as Record<string, unknown>, selectedIndustry)
       setIndustryInsight(insight)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Industry insights:', e)
     } finally {
       setIsGenerating(false)
@@ -171,15 +186,18 @@ const CareerReadinessCoach = () => {
   // Career Pathway (backend)
   const handleGeneratePathway = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'career_pathway_planning', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'career_pathway_planning', {
         input: targetCareer,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry, career_level: careerLevel },
-      })
+      }))
+      if (response == null) return
       const pathway = mapCareerPathwayResponseToUI(response.result as Record<string, unknown>, targetCareer, selectedIndustry)
       setCareerPathway(pathway)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Career pathway:', e)
     } finally {
       setIsGenerating(false)
@@ -189,15 +207,18 @@ const CareerReadinessCoach = () => {
   // LinkedIn Guide (backend)
   const handleGetLinkedInGuide = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'linkedin_guide', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'linkedin_guide', {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
-      })
+      }))
+      if (response == null) return
       const guide = mapLinkedInGuideResponseToUI(response.result as Record<string, unknown>)
       setLinkedInGuide(guide)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('LinkedIn guide:', e)
     } finally {
       setIsGenerating(false)
@@ -207,15 +228,18 @@ const CareerReadinessCoach = () => {
   // Skills Assessment (backend)
   const handleGenerateAssessment = async () => {
     setIsGenerating(true)
+    clearCreditError()
     try {
-      const response = await chatbotApi.executeCapability(CAREER_COACH_SLUG, 'skills_assessment_gap_analysis', {
+      const response = await runWithCredits(chatbotApi.executeCapability(CAREER_COACH_SLUG, 'skills_assessment_gap_analysis', {
         input: assessmentCompetency,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, current_level: currentLevel, target_level: targetLevel },
-      })
+      }))
+      if (response == null) return
       const assessment = mapSkillsAssessmentResponseToUI(response.result as Record<string, unknown>, assessmentCompetency, currentLevel, targetLevel)
       setSkillsAssessment(assessment)
-    } catch (e) {
+    } catch (e: unknown) {
+      if (captureApiError(e)) return
       console.error('Skills assessment:', e)
     } finally {
       setIsGenerating(false)
@@ -237,6 +261,14 @@ const CareerReadinessCoach = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

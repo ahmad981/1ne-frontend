@@ -40,6 +40,8 @@ import {
 } from 'lucide-react'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface GrammarCheck {
   errors: {
@@ -103,6 +105,7 @@ interface GrammarLesson {
 
 const GrammarWritingMentor = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const CHATBOT_SLUG = 'grammar-writing-mentor'
   
   const [activeTab, setActiveTab] = useState<'grammar' | 'feedback' | 'peer' | 'lessons' | 'prompts' | 'rubric'>('grammar')
@@ -167,9 +170,10 @@ const GrammarWritingMentor = () => {
     }
     
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'grammar_check',
         {
@@ -179,11 +183,13 @@ const GrammarWritingMentor = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setGrammarCheck(response.result as GrammarCheck)
       toast.success('Grammar check completed')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error checking grammar:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to check grammar')
       toast.error(errorMessage)
@@ -203,9 +209,10 @@ const GrammarWritingMentor = () => {
     }
     
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'writing_feedback',
         {
@@ -216,11 +223,13 @@ const GrammarWritingMentor = () => {
             writing_type: writingType,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setWritingFeedback(response.result as WritingFeedback)
       toast.success('Writing feedback generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating feedback:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to generate writing feedback')
       toast.error(errorMessage)
@@ -235,9 +244,10 @@ const GrammarWritingMentor = () => {
 
   const handlePeerReviewGuide = async () => {
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'peer_review_guide',
         {
@@ -247,12 +257,14 @@ const GrammarWritingMentor = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setPeerReviewGuide(response.result as PeerReviewGuide)
       setHasGeneratedPeerGuide(true)
       toast.success('Peer review guide generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating peer review guide:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to generate peer review guide')
       toast.error(errorMessage)
@@ -267,9 +279,10 @@ const GrammarWritingMentor = () => {
 
   const handleGrammarLesson = async () => {
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'grammar_lesson',
         {
@@ -279,12 +292,14 @@ const GrammarWritingMentor = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setGrammarLesson(response.result as GrammarLesson)
       setHasGeneratedLesson(true)
       toast.success('Grammar lesson generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating grammar lesson:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to generate grammar lesson')
       toast.error(errorMessage)
@@ -308,6 +323,14 @@ const GrammarWritingMentor = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

@@ -10,9 +10,11 @@ import remarkGfm from 'remark-gfm'
 import { fetchTemplateDetail } from '../../api/templates'
 import { TemplateResponse } from '../../api/types'
 import { useTemplateStream } from '../../hooks/useTemplateStream'
+import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
 import { composeAiDocumentFromSections } from '../../lib/aiDocument'
 import { AiDocumentRenderer } from '../../components/ai/AiDocumentRenderer'
 import { normalizeStreamingContent } from '../../components/ai/SectionRenderer'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 type TemplateField = {
   name: string
@@ -40,6 +42,7 @@ const TemplateRunner = () => {
   const [showOutput, setShowOutput] = useState(false)
   const [exemplarNotice, setExemplarNotice] = useState<string | null>(null)
   
+  const refreshCreditBalance = useRefreshCreditBalance()
   const {
     content: streamedContent,
     formattedContent,
@@ -50,6 +53,7 @@ const TemplateRunner = () => {
     error: streamError,
     executionId,
     providerFailedNotice,
+    insufficientCredits,
     startStream,
     stopStream,
     reset: resetStream,
@@ -328,10 +332,19 @@ const TemplateRunner = () => {
   }, [isStreaming, streamedContent, executionId, sections.length])
 
   useEffect(() => {
-    if (streamError) {
-      setSubmitError(streamError)
+    if (insufficientCredits) {
+      setShowOutput(false)
+      setShowPromptEditor(true)
+      return
     }
-  }, [streamError])
+    if (streamError) {
+      if (streamError.toLowerCase().includes('credit')) {
+        setShowOutput(false)
+      } else {
+        setSubmitError(streamError)
+      }
+    }
+  }, [streamError, insufficientCredits])
 
   // Professional auto-scroll during streaming (like ChatGPT)
   // Continuously scroll to bottom as content streams in
@@ -438,7 +451,6 @@ const TemplateRunner = () => {
 
     resetStream()
     setSubmitError(null)
-
     const nextValues: Record<string, string> = {}
     schemaFields.forEach((field) => {
       const raw = (template.exemplarInput as Record<string, unknown>)[field.name]
@@ -557,6 +569,9 @@ const TemplateRunner = () => {
     startStream(slug, payload, {
       exemplarOutput: template?.exemplarOutput ?? undefined,
       outputSchema: template?.outputSchema ?? undefined,
+      onSuccessfulCompletion: () => {
+        void refreshCreditBalance()
+      },
     })
   }
 
@@ -631,6 +646,9 @@ const TemplateRunner = () => {
     startStream(slug, payload, {
       exemplarOutput: template?.exemplarOutput ?? undefined,
       outputSchema: template?.outputSchema ?? undefined,
+      onSuccessfulCompletion: () => {
+        void refreshCreditBalance()
+      },
     })
   }
 
@@ -1615,7 +1633,17 @@ const TemplateRunner = () => {
             </div>
           )}
         </div>
-      </div>
+          {insufficientCredits && (
+            <div className="mt-6">
+              <NoCreditsCard
+                reason={insufficientCredits.reason}
+                balance={insufficientCredits.balance}
+                required={insufficientCredits.required}
+                onActivated={() => resetStream()}
+              />
+            </div>
+          )}
+        </div>
 
         {/* Prompt Editor Section - Collapsible */}
         {schemaFields.length > 0 && (
@@ -1667,7 +1695,7 @@ const TemplateRunner = () => {
                     </div>
                   ))}
 
-                  {submitError && (
+                  {submitError && !insufficientCredits && (
                     <div className="rounded-lg border border-red-200 bg-red-50 p-3">
                       <p className="text-sm text-red-800">{submitError}</p>
                     </div>
@@ -1704,7 +1732,7 @@ const TemplateRunner = () => {
         )}
 
         {/* Output Display - Chat-like Message */}
-        {(parsedOutput || isStreaming || sections.length > 0 || showOutput) && (
+        {(parsedOutput || isStreaming || sections.length > 0 || showOutput) && !insufficientCredits && (
           <div id="ai-output" className="mt-8">
             {providerFailedNotice && (
               <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-4">

@@ -25,6 +25,8 @@ import {
 } from 'lucide-react'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface TextAnalysis {
   readingLevel: string
@@ -63,6 +65,7 @@ interface WritingFeedback {
 
 const LiteracyLabCoach = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const CHATBOT_SLUG = 'literacy-lab-coach'
   
   const [activeTab, setActiveTab] = useState<'analyze' | 'guided' | 'writing' | 'prompts' | 'vocabulary'>('analyze')
@@ -81,9 +84,10 @@ const LiteracyLabCoach = () => {
     }
     
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'text_complexity',
         {
@@ -94,12 +98,14 @@ const LiteracyLabCoach = () => {
             subject: subject,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       // Response should match TextAnalysis interface
       setAnalysis(response.result as TextAnalysis)
       toast.success('Text analysis completed')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error analyzing text:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to analyze text'
       toast.error(errorMessage)
@@ -120,9 +126,10 @@ const LiteracyLabCoach = () => {
     }
     
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'guided_reading',
         {
@@ -132,11 +139,13 @@ const LiteracyLabCoach = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setGuidedReading(response.result as GuidedReadingStrategy)
       toast.success('Guided reading strategies generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating guided reading:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to generate guided reading strategies'
       toast.error(errorMessage)
@@ -156,9 +165,10 @@ const LiteracyLabCoach = () => {
     }
     
     setIsAnalyzing(true)
+    clearCreditError()
     
     try {
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'writing_feedback',
         {
@@ -168,11 +178,13 @@ const LiteracyLabCoach = () => {
             grade_level: gradeLevel,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setWritingFeedback(response.result as WritingFeedback)
       toast.success('Writing feedback generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating feedback:', error)
       const errorMessage = error?.detail || error?.message || 'Failed to generate writing feedback'
       toast.error(errorMessage)
@@ -195,6 +207,14 @@ const LiteracyLabCoach = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
       {/* Header */}
       <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">

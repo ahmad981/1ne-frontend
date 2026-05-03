@@ -17,7 +17,6 @@ import {
   GraduationCap,
   Users,
   Lightbulb,
-  Crown,
   Wrench,
   Home,
   ListChecks,
@@ -26,6 +25,7 @@ import {
   Award,
   FolderOpen,
   Upload,
+  Key,
 } from 'lucide-react';
 
 const teacherMenu = [
@@ -67,7 +67,6 @@ const teacherMenu = [
   { path: '/analytics', text: 'Analytics', icon: BarChart3 },
   { path: '/use-cases', text: 'Explore Use Cases', icon: Lightbulb },
   { path: '/profile', text: 'Profile', icon: User },
-  { path: '/subscription', text: 'Subscription', icon: Crown },
   { path: '/settings', text: 'Settings', icon: Settings },
 ];
 
@@ -79,6 +78,7 @@ const superAdminMenu = [
     child: [
       { path: '/admin/content-packs', text: 'Content Management', moduleName: 'Content Management', icon: BookOpen, childIcon: BookOpen },
       { path: '/administration/learning-hub-content', text: 'Learning Hub content', icon: BookOpen },
+      { path: '/admin/access-codes', text: 'Access Codes', moduleName: 'Access Codes', icon: Key, childIcon: Key },
     ],
   },
   { path: '/profile', text: 'Profile', icon: User },

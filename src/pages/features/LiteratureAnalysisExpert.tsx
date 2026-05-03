@@ -33,6 +33,8 @@ import {
 } from 'lucide-react'
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
+import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface ThemeAnalysis {
   themes: {
@@ -77,6 +79,7 @@ interface DiscussionPrompts {
 
 const LiteratureAnalysisExpert = () => {
   const { toast } = useSnackbar()
+  const { creditError, clearCreditError, captureApiError, runWithCredits } = useCapabilityCreditGate()
   const CHATBOT_SLUG = 'literature-analysis-expert'
   
   const [activeTab, setActiveTab] = useState<'theme' | 'character' | 'devices' | 'discussion' | 'compare' | 'essay'>('theme')
@@ -141,9 +144,11 @@ const LiteratureAnalysisExpert = () => {
     
     setIsAnalyzing(true)
     
+    clearCreditError()
+    
     try {
       const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'theme_exploration',
         {
@@ -155,11 +160,13 @@ const LiteratureAnalysisExpert = () => {
             author: author || undefined,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setThemeAnalysis(response.result as ThemeAnalysis)
       toast.success('Theme analysis completed')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error analyzing themes:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to analyze themes')
       toast.error(errorMessage)
@@ -180,9 +187,11 @@ const LiteratureAnalysisExpert = () => {
     
     setIsAnalyzing(true)
     
+    clearCreditError()
+    
     try {
       const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'character_analysis',
         {
@@ -194,11 +203,13 @@ const LiteratureAnalysisExpert = () => {
             author: author || undefined,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setCharacterAnalysis(response.result as CharacterAnalysis)
       toast.success('Character analysis completed')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error analyzing characters:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to analyze characters')
       toast.error(errorMessage)
@@ -219,9 +230,11 @@ const LiteratureAnalysisExpert = () => {
     
     setIsAnalyzing(true)
     
+    clearCreditError()
+    
     try {
       const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'literary_devices',
         {
@@ -233,11 +246,13 @@ const LiteratureAnalysisExpert = () => {
             author: author || undefined,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setLiteraryDevices(response.result as LiteraryDevices)
       toast.success('Literary devices analysis completed')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error analyzing literary devices:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to analyze literary devices')
       toast.error(errorMessage)
@@ -258,9 +273,11 @@ const LiteratureAnalysisExpert = () => {
     
     setIsAnalyzing(true)
     
+    clearCreditError()
+    
     try {
       const inputText = textInput.trim() || `${title}${author ? ` by ${author}` : ''}`
-      const response = await chatbotApi.executeCapability(
+      const response = await runWithCredits(chatbotApi.executeCapability(
         CHATBOT_SLUG,
         'discussion_prompts',
         {
@@ -272,11 +289,13 @@ const LiteratureAnalysisExpert = () => {
             author: author || undefined,
           },
         }
-      )
+      ))
+      if (response == null) return
       
       setDiscussionPrompts(response.result as DiscussionPrompts)
       toast.success('Discussion prompts generated')
     } catch (error: any) {
+      if (captureApiError(error)) return
       console.error('Error generating discussion prompts:', error)
       const errorMessage = extractErrorMessage(error, 'Failed to generate discussion prompts')
       toast.error(errorMessage)
@@ -300,6 +319,15 @@ const LiteratureAnalysisExpert = () => {
 
   return (
     <div className="space-y-6">
+      {creditError && (
+        <NoCreditsCard
+          reason={creditError.reason}
+          balance={creditError.balance}
+          required={creditError.required}
+          onActivated={clearCreditError}
+        />
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600 rounded-3xl p-8 text-white shadow-xl">
         <div className="flex items-start justify-between">
