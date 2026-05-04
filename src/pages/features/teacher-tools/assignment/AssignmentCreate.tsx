@@ -154,7 +154,19 @@ export default function AssignmentCreate() {
       setGrade(a.grade)
       setAssignmentType(a.type)
       setDueAt(a.dueAt)
+      setStudentInstructions(
+        typeof a.studentInstructions === 'string' && a.studentInstructions.trim()
+          ? a.studentInstructions
+          : 'Submit your work as a single document. Cite all sources using the format shown in class.',
+      )
       if (a.topic) setLoadedTopic(a.topic)
+      if (Array.isArray(a.briefTopics)) setTopicBlocks(a.briefTopics as AssignmentBriefTopicStub[])
+      if (a.handoutLayout) {
+        const next = { ...DEFAULT_HANDOUT_LAYOUT, ...a.handoutLayout }
+        handoutLayoutRef.current = next
+        setHandoutLayout(next)
+      }
+      if (Array.isArray(a.briefTopics) && a.briefTopics.length > 0) setPhase('review')
       setHydrateReady(true)
     })()
     return () => {
@@ -445,6 +457,9 @@ export default function AssignmentCreate() {
     status,
     topic: rag.combinedTopicLabel,
     sourceSummary: formatSourceSummary(rag.getGenerationContext()),
+    briefTopics: topicBlocks,
+    studentInstructions,
+    handoutLayout: handoutLayoutRef.current,
   })
 
   const handleSaveDraft = useCallback(async () => {

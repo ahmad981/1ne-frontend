@@ -1,6 +1,14 @@
 import type { ContentStatus, SubmissionStatus, ToolType } from '../types'
 import type { HandoutLayoutOpts } from '../quiz/config/handoutLayoutConfig'
-import { buildDemoQuizQuestionStubs, type QuizQuestionStub } from './generationFromSources'
+import {
+  buildDemoQuizQuestionStubs,
+  type AssignmentBriefTopicStub,
+  type ExamSectionStub,
+  type QuizQuestionStub,
+} from './generationFromSources'
+import type { WorksheetBlock } from './topicAwareGenerators'
+import type { ExamPaperConfig } from '../exams/config/examPaperConfig'
+import type { ExamLongStub, ExamMcqStub, ExamShortStub } from '../exams/demo/examQuestionStubs'
 
 export const demoClasses = [
   { key: 'g5a', label: 'Grade 5 A', grade: 'Grade 5', subject: 'Mathematics' },
@@ -75,6 +83,10 @@ export interface DemoAssignment {
   status: ContentStatus
   topic: string
   sourceSummary?: string
+  /** Persisted review snapshot so print/PDF/export match latest edits. */
+  briefTopics?: AssignmentBriefTopicStub[]
+  studentInstructions?: string
+  handoutLayout?: HandoutLayoutOpts
 }
 
 export interface DemoWorksheet {
@@ -89,6 +101,9 @@ export interface DemoWorksheet {
   createdAt: string
   usageCount: number
   sourceSummary?: string
+  /** Persisted review snapshot (sessions + blocks). */
+  sessions?: { id: string; title: string; blocks: WorksheetBlock[] }[]
+  handoutLayout?: HandoutLayoutOpts
 }
 
 export interface DemoExam {
@@ -106,6 +121,13 @@ export interface DemoExam {
   status: ContentStatus
   completionPct: number
   sourceSummary?: string
+  /** Persisted review snapshot so preview/export reflect latest changes. */
+  paper?: ExamPaperConfig
+  sections?: ExamSectionStub[]
+  mcqs?: ExamMcqStub[]
+  shorts?: ExamShortStub[]
+  longs?: ExamLongStub[]
+  handoutLayout?: HandoutLayoutOpts
 }
 
 export interface DemoTemplate {

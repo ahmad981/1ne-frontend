@@ -245,6 +245,19 @@ export default function ExamCreate() {
       setScheduleTime(ex.scheduleStart.slice(11, 16))
       setSelectedClasses(ex.classes ?? [])
       setCompletionMeta({ completionPct: ex.completionPct })
+      if (ex.paper) setPaper(ex.paper)
+      if (Array.isArray(ex.sections)) setGeneratedSections(ex.sections)
+      if (ex.handoutLayout) {
+        const next = { ...DEFAULT_HANDOUT_LAYOUT, ...ex.handoutLayout }
+        setHandoutLayout(next)
+        setDraftLayout(next)
+      }
+      if (Array.isArray(ex.mcqs) && Array.isArray(ex.shorts) && Array.isArray(ex.longs)) {
+        examQsHydratedRef.current = true
+        setExamMcqs(ex.mcqs)
+        setExamShorts(ex.shorts)
+        setExamLongs(ex.longs)
+      }
       setHydrateReady(true)
     })()
     return () => { cancelled = true }
@@ -432,6 +445,12 @@ export default function ExamCreate() {
       status,
       completionPct: isEdit ? completionMeta.completionPct : 0,
       sourceSummary: formatSourceSummary(ctx),
+      paper,
+      sections,
+      mcqs: examMcqs,
+      shorts: examShorts,
+      longs: examLongs,
+      handoutLayout,
     }
   }
 

@@ -53,6 +53,9 @@ export default function WorksheetDetail() {
 
   const bp = getTopicBlueprint(w.subject, w.topic)
   const an = analyticsForTopic(bp)
+  const persistedBlocks = useMemo(() => (Array.isArray(w.sessions) ? w.sessions.flatMap((s) => s.blocks ?? []) : []), [w.sessions])
+  const blocksForUi = persistedBlocks.length > 0 ? persistedBlocks : bp.blocks
+  const blockTypesForUi = useMemo(() => new Set(blocksForUi.map((b) => b.type)).size, [blocksForUi])
   const formatLabel =
     w.format === 'printable_pdf'
       ? 'Print-ready PDF'
@@ -131,8 +134,8 @@ export default function WorksheetDetail() {
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Questions</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{bp.blocks.length}</p>
-              <p className="mt-1 text-xs text-gray-500">Across {new Set(bp.blocks.map((b) => b.type)).size} types</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{blocksForUi.length}</p>
+              <p className="mt-1 text-xs text-gray-500">Across {blockTypesForUi} types</p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Times used</p>
@@ -193,7 +196,7 @@ export default function WorksheetDetail() {
       {tab === 'Content' && (
         <div className="space-y-4">
           {(['mcq', 'fill_blank', 'short', 'match'] as const).map((kind) => {
-            const group = bp.blocks.filter((b) => b.type === kind)
+            const group = blocksForUi.filter((b) => b.type === kind)
             if (group.length === 0) return null
             return (
               <section key={kind} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">

@@ -75,7 +75,7 @@ export default function ExamDetail() {
     )
   }
 
-  const sections = examSections(e)
+  const sections = Array.isArray(e.sections) && e.sections.length > 0 ? e.sections : examSections(e)
   const LOCKED_TABS = new Set<string>(['Candidates', 'Results', 'Analytics'])
 
   return (
@@ -257,7 +257,7 @@ export default function ExamDetail() {
             </div>
             <div className="flex items-center justify-between py-2.5">
               <dt className="text-gray-500">Webcam proctoring</dt>
-              <dd className="text-gray-800 italic text-gray-400">Preview only — Phase 2</dd>
+              <dd className="italic text-gray-400">Preview only — Phase 2</dd>
             </div>
             <div className="flex items-center justify-between py-2.5">
               <dt className="text-gray-500">Auto-submit</dt>

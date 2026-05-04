@@ -432,6 +432,15 @@ export default function WorksheetCreate() {
       setOutputFormat(w.format === 'both' || w.format === 'printable_pdf' || w.format === 'interactive_digital' ? w.format : 'interactive_digital')
       setLoadedTopic(w.topic)
       setUsageMeta({ createdAt: w.createdAt, usageCount: w.usageCount })
+      if (Array.isArray(w.sessions)) setSessions(w.sessions as WorksheetSession[])
+      if (w.handoutLayout) {
+        const next = { ...DEFAULT_HANDOUT_LAYOUT, ...w.handoutLayout }
+        setHandoutLayout(next)
+        setDraftLayout(next)
+      }
+      if (Array.isArray(w.sessions) && w.sessions.some((s: WorksheetSession) => (s.blocks?.length ?? 0) > 0)) {
+        setPhase('review')
+      }
       setHydrateReady(true)
     })()
     return () => {
@@ -614,6 +623,8 @@ export default function WorksheetCreate() {
       createdAt,
       usageCount: isEdit ? usageMeta.usageCount : 0,
       sourceSummary: formatSourceSummary(ctx),
+      sessions,
+      handoutLayout,
     }
   }
 
