@@ -15,6 +15,7 @@ import learningProgressReducer from './features/learningProgress/learningProgres
 import learningHubAdminReducer from './features/learningHubAdmin/learningHubAdminSlice';
 import personalizationReducer from './features/personalization/personalizationSlice';
 import subscriptionReducer from './features/subscription/subscriptionSlice';
+import { quizApiSlice } from './features/teacherTools/quiz/quizApiSlice';
 
 const storage =
   typeof window !== 'undefined'
@@ -56,6 +57,7 @@ const rootReducer = combineReducers({
   learningHubAdmin: learningHubAdminReducer,
   personalization: personalizationReducer,
   subscription: subscriptionReducer,
+  [quizApiSlice.reducerPath]: quizApiSlice.reducer,
 });
 
 // Create a persisted reducer
@@ -65,7 +67,7 @@ const persistedReducer = persistReducer(persistConfig, rootReducer);
 export const store = configureStore({
   reducer: persistedReducer,
   middleware: (getDefaultMiddleware) =>
-    getDefaultMiddleware({ serializableCheck: false }),
+    getDefaultMiddleware({ serializableCheck: false }).concat(quizApiSlice.middleware),
 });
 
 // Create a persistor

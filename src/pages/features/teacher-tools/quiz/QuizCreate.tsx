@@ -20,6 +20,18 @@ import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
 import {
+  addQuestion as apiAddQuestion,
+  createQuiz as apiCreateQuiz,
+  deleteQuestion as apiDeleteQuestion,
+  generateQuiz as apiGenerateQuiz,
+  patchQuestion as apiPatchQuestion,
+  patchQuiz as apiPatchQuiz,
+  regenerateQuestion as apiRegenerateQuestion,
+  reorderQuestions as apiReorderQuestions,
+  type QuestionType,
+  type QuizGeneratePayload,
+} from '../../../../api/quizApi'
+import {
   QUIZ_CREATION_STEPS,
   distributeBalancedToTypeCounts,
   QUESTION_COUNT,
@@ -60,6 +72,9 @@ export default function QuizCreate() {
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [genProgress, setGenProgress] = useState(0.15)
   const [lastCriteria, setLastCriteria] = useState<QuizStubCriteria | null>(null)
+  const [liveQuizId, setLiveQuizId] = useState<string | null>(null)
+  const [questionLoadingId, setQuestionLoadingId] = useState<string | null>(null)
+  const [isRegeneratingAll, setIsRegeneratingAll] = useState(false)
 
   const [title, setTitle] = useState('Topic check quiz')
   const [subject, setSubject] = useState<string>(SUBJECTS[0])
@@ -143,6 +158,7 @@ export default function QuizCreate() {
       setTimeLimit(q.timeLimitMinutes)
       setLoadedQuiz(q)
       setQuestionCount(q.questions)
+      setLiveQuizId(quizId)
       if (q.studentInstructions) setStudentInstructions(q.studentInstructions)
       if (q.difficulty && isDifficultyId(q.difficulty)) setDifficulty(q.difficulty)
       if (typeof q.shuffleQuestions === 'boolean') setShuffleQuestions(q.shuffleQuestions)
@@ -165,6 +181,12 @@ export default function QuizCreate() {
   }, [api, isEdit, navigate, quizId, toast])
 
   const resolveQuizIdForGen = useCallback(() => quizId ?? newDemoId('quiz'), [quizId])
+
+  function genIdempotencyKey(): string {
+    // Backend supports Idempotency-Key for /generate. Use a stable-ish UUID when possible.
+    if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  }
 
   const buildCriteria = useCallback(
     (idForGen: string): QuizStubCriteria => {
@@ -249,16 +271,87 @@ export default function QuizCreate() {
     const delay = randomGenerationDelay()
     try {
       await new Promise((r) => setTimeout(r, delay))
-      const id = resolveQuizIdForGen()
-      const crit = buildCriteria(id)
-      const next = buildQuizStubsFromCriteria(crit)
-      setStubs(next)
+
+      const genPayload: QuizGeneratePayload = {
+        questionCount: mixMode === 'custom' ? Math.min(QUESTION_COUNT.max, Math.max(QUESTION_COUNT.min, countMcq + countTf + countShort)) : questionCount,
+        mixMode,
+        includeMcq: mixMode === 'custom' ? countMcq > 0 : includeMcq,
+        includeTf: mixMode === 'custom' ? countTf > 0 : includeTf,
+        includeShort: mixMode === 'custom' ? countShort > 0 : includeShort,
+        ...(mixMode === 'custom' ? { countsByType: { mcq: countMcq, tf: countTf, short: countShort } } : {}),
+        difficulty: difficulty as QuizGeneratePayload['difficulty'],
+        teacherNotes: teacherNotes.trim() || undefined,
+      }
+
+      const idForCriteria = liveQuizId ?? resolveQuizIdForGen()
+      const crit = buildCriteria(idForCriteria)
+
+      if (liveQuizId) {
+        const genResult = await apiGenerateQuiz(liveQuizId, genPayload, genIdempotencyKey())
+        setStubs(genResult.quiz.questionStubs as any)
+        setLastCriteria(crit)
+        setPhase('review')
+        toast.success('Questions generated — review below.')
+        return
+      }
+
+      const payload = {
+        id: '',
+        title: title.trim() || 'Untitled quiz',
+        subject,
+        grade,
+        classes: [classKeyForGrade(grade)],
+        questions: 0,
+        totalMarks: 0,
+        timeLimitMinutes: timeLimit,
+        status: 'draft' as const,
+        submissionCount: 0,
+        avgScore: 0,
+        topic: rag.combinedTopicLabel,
+        sourceBookIds: rag.selectedBookIds,
+        scopeTopics: rag.selectedTopics,
+        scopeRefinement: rag.scopeRefinement.trim() || undefined,
+        sourceSummary: undefined,
+        questionStubs: [],
+        studentInstructions,
+        difficulty,
+        shuffleQuestions,
+        shuffleAnswers,
+        negativeMarking,
+        handoutLayout: handoutLayoutRef.current,
+      }
+
+      const createdQuiz = await apiCreateQuiz({
+        title: payload.title,
+        subject: payload.subject,
+        grade: payload.grade,
+        classes: payload.classes,
+        timeLimitMinutes: payload.timeLimitMinutes,
+        studentInstructions: payload.studentInstructions,
+        teacherNotes: teacherNotes.trim() || undefined,
+        status: 'draft',
+        sourceBookIds: payload.sourceBookIds,
+        scopeTopics: payload.scopeTopics,
+        scopeRefinement: payload.scopeRefinement,
+        generateWithoutSources: rag.generateWithoutSources,
+        difficulty: difficulty as any,
+        shuffleQuestions,
+        shuffleAnswers,
+        negativeMarking,
+        handoutLayout: payload.handoutLayout ?? null,
+      })
+
+      setLiveQuizId(createdQuiz.id)
+
+      const genResult = await apiGenerateQuiz(createdQuiz.id, genPayload, genIdempotencyKey())
+      setStubs(genResult.quiz.questionStubs as any)
       setLastCriteria(crit)
       setPhase('review')
       toast.success('Questions generated — review below.')
-    } catch {
-      setGenerationError('Generation failed (demo). Adjust sources and try again.')
+    } catch (e) {
+      setGenerationError('Generation failed. Adjust sources and try again.')
       toast.error('Could not generate questions.')
+      console.error('Quiz generation failed:', e)
     } finally {
       window.clearInterval(steps)
       setGenerating(false)
@@ -284,87 +377,154 @@ export default function QuizCreate() {
   ])
 
   const regenerateAll = useCallback(() => {
-    const crit = lastCriteria ?? buildCriteria(resolveQuizIdForGen())
-    setGenerating(true)
-    setGenProgress(0.2)
-    const interval = window.setInterval(() => {
-      setGenProgress((p) => Math.min(0.9, p + 0.1))
-    }, 400)
-    window.setTimeout(() => {
-      window.clearInterval(interval)
+    ;(async () => {
+      if (!liveQuizId) {
+        toast.error('Quiz is not ready yet. Generate once to create it.')
+        return
+      }
+      if (generating || questionLoadingId || isRegeneratingAll) return
+      setIsRegeneratingAll(true)
       try {
-        setStubs(buildQuizStubsFromCriteria(crit))
+        const genPayload: QuizGeneratePayload = {
+          questionCount: mixMode === 'custom' ? Math.min(QUESTION_COUNT.max, Math.max(QUESTION_COUNT.min, countMcq + countTf + countShort)) : questionCount,
+          mixMode,
+          includeMcq: mixMode === 'custom' ? countMcq > 0 : includeMcq,
+          includeTf: mixMode === 'custom' ? countTf > 0 : includeTf,
+          includeShort: mixMode === 'custom' ? countShort > 0 : includeShort,
+          ...(mixMode === 'custom' ? { countsByType: { mcq: countMcq, tf: countTf, short: countShort } } : {}),
+          difficulty: difficulty as QuizGeneratePayload['difficulty'],
+          teacherNotes: teacherNotes.trim() || undefined,
+        }
+        const genResult = await apiGenerateQuiz(liveQuizId, genPayload, genIdempotencyKey())
+        setStubs(genResult.quiz.questionStubs as any)
+        const crit = lastCriteria ?? buildCriteria(liveQuizId)
         setLastCriteria(crit)
         toast.success('Question set regenerated.')
+      } catch (e) {
+        console.error('Regenerate all failed:', e)
+        toast.error('Could not regenerate question set')
       } finally {
-        setGenerating(false)
-        setGenProgress(1)
+        setIsRegeneratingAll(false)
       }
-    }, randomGenerationDelay())
-  }, [lastCriteria, buildCriteria, resolveQuizIdForGen, toast])
+    })()
+  }, [
+    liveQuizId,
+    mixMode,
+    includeMcq,
+    includeTf,
+    includeShort,
+    questionCount,
+    countMcq,
+    countTf,
+    countShort,
+    difficulty,
+    teacherNotes,
+    toast,
+    lastCriteria,
+    buildCriteria,
+    generating,
+    questionLoadingId,
+    isRegeneratingAll,
+  ])
 
   const regenerateOne = useCallback(
     (index: number) => {
-      const crit = lastCriteria ?? buildCriteria(resolveQuizIdForGen())
-      const at = stubs[index]
-      const prevType = at?.type ?? 'mcq'
-      const preservedShortLines = at?.type === 'short' ? at.responseLines : undefined
-      const one = buildQuizStubsFromCriteria({
-        ...crit,
-        count: 1,
-        forceType: prevType,
-        quizId: `${crit.quizId}-reg-${index}-${Date.now()}`,
-      })[0]
-      setStubs((rows) =>
-        rows.map((s, i) =>
-          i === index
-            ? {
-                ...one,
-                id: s.id,
-                options: one.type === 'mcq' ? one.options : undefined,
-                responseLines: one.type === 'short' ? (preservedShortLines ?? one.responseLines) : undefined,
-                reviewBadges: one.reviewBadges ?? s.reviewBadges,
-              }
-            : s
-        )
-      )
-      toast.success('Question regenerated.')
+      ;(async () => {
+        if (!liveQuizId) {
+          toast.error('Quiz is not ready yet. Generate once to create it.')
+          return
+        }
+        if (generating || questionLoadingId || isRegeneratingAll) return
+        const qid = stubs[index]?.id
+        if (!qid) return
+        setQuestionLoadingId(qid)
+        try {
+          const updated = await apiRegenerateQuestion(liveQuizId, qid)
+          setStubs(updated.questionStubs as any)
+          toast.success('Question regenerated.')
+        } catch (e) {
+          console.error('Question regeneration failed:', e)
+          toast.error('Could not regenerate question')
+        } finally {
+          setQuestionLoadingId(null)
+        }
+      })()
     },
-    [lastCriteria, buildCriteria, resolveQuizIdForGen, stubs, toast]
+    [liveQuizId, stubs, toast, generating, questionLoadingId, isRegeneratingAll]
   )
 
   const reorder = useCallback((from: number, to: number) => {
-    if (to < 0 || to >= stubs.length) return
-    setStubs((prev) => {
-      const next = [...prev]
+    ;(async () => {
+      if (!liveQuizId) return
+      if (to < 0 || to >= stubs.length) return
+      const movingId = stubs[from]?.id
+      if (!movingId) return
+
+      const next = [...stubs]
       const [row] = next.splice(from, 1)
       next.splice(to, 0, row)
-      return next
-    })
-  }, [stubs.length])
+      const order = next.map((s, i) => ({ id: s.id, sort_order: i }))
+
+      setQuestionLoadingId(movingId)
+      try {
+        const updated = await apiReorderQuestions(liveQuizId, order)
+        setStubs(updated.questionStubs as any)
+      } catch (e) {
+        console.error('Reorder failed:', e)
+        toast.error('Could not reorder questions')
+      } finally {
+        setQuestionLoadingId(null)
+      }
+    })()
+  }, [liveQuizId, stubs, toast])
 
   const deleteAt = useCallback(
     (index: number) => {
-      if (stubs.length <= 1) {
-        toast.error('Keep at least one question, or go back to edit requirements.')
-        return
-      }
-      setStubs((prev) => prev.filter((_, i) => i !== index))
-      toast.success('Question removed')
+      ;(async () => {
+        if (!liveQuizId) return
+        const qid = stubs[index]?.id
+        if (!qid) return
+        setQuestionLoadingId(qid)
+        try {
+          const updated = await apiDeleteQuestion(liveQuizId, qid)
+          setStubs(updated.questionStubs as any)
+          toast.success('Question removed')
+        } catch (e) {
+          console.error('Question delete failed:', e)
+          toast.error('Could not remove question')
+        } finally {
+          setQuestionLoadingId(null)
+        }
+      })()
     },
-    [stubs.length, toast]
+    [liveQuizId, stubs, toast]
   )
 
   const handleAddQuestion = useCallback(
     (stub: QuizQuestionStub) => {
-      if (stubs.length >= QUESTION_COUNT.max) {
-        toast.error(`Each quiz supports at most ${QUESTION_COUNT.max} questions.`)
-        return
-      }
-      setStubs((prev) => [...prev, stub])
-      toast.success('Question added to the set')
+      ;(async () => {
+        if (!liveQuizId) return
+        if (stubs.length >= QUESTION_COUNT.max) {
+          toast.error(`Each quiz supports at most ${QUESTION_COUNT.max} questions.`)
+          return
+        }
+        try {
+          const updated = await apiAddQuestion(liveQuizId, {
+            type: stub.type as QuestionType,
+            prompt: stub.prompt,
+            points: stub.points ?? 1,
+            options: stub.options,
+            response_lines: stub.responseLines,
+          })
+          setStubs(updated.questionStubs as any)
+          toast.success('Question added to the set')
+        } catch (e) {
+          console.error('Add question failed:', e)
+          toast.error('Could not add question')
+        }
+      })()
     },
-    [stubs.length, toast]
+    [liveQuizId, stubs.length, toast]
   )
 
   const goList = () => navigate('/teacher-tools/quiz')
@@ -451,26 +611,17 @@ export default function QuizCreate() {
     }
     setSaveDraftPending(true)
     try {
-      const payload = buildDemoPayload('draft')
-      if (isEdit && quizId) {
-        const res = await api.updateQuiz(quizId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited. Duplicate from the list first.')
-          else toast.error('Could not save draft')
-          return
-        }
-        toast.success('Draft saved')
-        navigate(`/teacher-tools/quiz/${quizId}`)
-        return
-      }
-      const id = newDemoId('quiz')
-      await api.createQuiz({ id, ...payload })
+      if (!liveQuizId) return
+      await apiPatchQuiz(liveQuizId, {
+        status: 'draft',
+        handoutLayout: handoutLayoutRef.current ?? null,
+      })
       toast.success('Draft saved')
-      navigate(`/teacher-tools/quiz/${id}`)
+      navigate('/teacher-tools/quiz')
     } finally {
       setSaveDraftPending(false)
     }
-  }, [api, buildDemoPayload, isEdit, quizId, navigate, stubs.length, toast])
+  }, [liveQuizId, navigate, stubs.length, toast])
 
   const handlePublish = useCallback(async () => {
     if (stubs.length === 0) {
@@ -479,26 +630,17 @@ export default function QuizCreate() {
     }
     setPublishPending(true)
     try {
-      const payload = buildDemoPayload('published')
-      if (isEdit && quizId) {
-        const res = await api.updateQuiz(quizId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited. Duplicate from the list first.')
-          else toast.error('Could not save quiz')
-          return
-        }
-        toast.success('Quiz updated')
-        navigate(`/teacher-tools/quiz/${quizId}`)
-        return
-      }
-      const id = newDemoId('quiz')
-      await api.createQuiz({ id, ...payload })
+      if (!liveQuizId) return
+      await apiPatchQuiz(liveQuizId, {
+        status: 'published',
+        handoutLayout: handoutLayoutRef.current ?? null,
+      })
       toast.success('Quiz published')
-      navigate(`/teacher-tools/quiz/${id}`)
+      navigate('/teacher-tools/quiz')
     } finally {
       setPublishPending(false)
     }
-  }, [api, buildDemoPayload, isEdit, navigate, quizId, stubs.length, toast])
+  }, [liveQuizId, navigate, stubs.length, toast])
 
   const exportPdf = useCallback(() => {
     const ctx = rag.getGenerationContext()
@@ -664,8 +806,29 @@ export default function QuizCreate() {
           canAddMoreQuestions={stubs.length < QUESTION_COUNT.max}
           onReorder={reorder}
           onDelete={deleteAt}
+          questionLoadingId={questionLoadingId}
+          regeneratingAll={isRegeneratingAll}
           onUpdateStub={(index, next) => {
-            setStubs((prev) => prev.map((s, i) => (i === index ? next : s)))
+            ;(async () => {
+              if (!liveQuizId) return
+              const qid = stubs[index]?.id
+              if (!qid) return
+              setQuestionLoadingId(qid)
+              try {
+                const updated = await apiPatchQuestion(liveQuizId, qid, {
+                  prompt: next.prompt,
+                  points: next.points,
+                  options: next.options,
+                  response_lines: next.responseLines,
+                })
+                setStubs(updated.questionStubs as any)
+              } catch (e) {
+                console.error('Question edit failed:', e)
+                toast.error('Could not update question')
+              } finally {
+                setQuestionLoadingId(null)
+              }
+            })()
           }}
           onAddQuestion={handleAddQuestion}
           onRegenerateAll={regenerateAll}

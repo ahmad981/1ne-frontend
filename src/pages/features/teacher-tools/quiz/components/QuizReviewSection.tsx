@@ -5,6 +5,7 @@ import {
   Download,
   Eye,
   FileJson,
+  Loader2,
   Pencil,
   PlusCircle,
   Printer,
@@ -33,6 +34,8 @@ type Props = {
   onAddQuestion: (stub: QuizQuestionStub) => void
   onRegenerateAll: () => void
   onRegenerateOne: (index: number) => void
+  questionLoadingId?: string | null
+  regeneratingAll?: boolean
   onBackToEdit: () => void
   onSaveDraft: () => void
   onExportPdf: () => void
@@ -65,6 +68,8 @@ export function QuizReviewSection({
   onAddQuestion,
   onRegenerateAll,
   onRegenerateOne,
+  questionLoadingId,
+  regeneratingAll,
   onBackToEdit,
   onSaveDraft,
   onExportPdf,
@@ -76,6 +81,8 @@ export function QuizReviewSection({
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
   const [manualDraft, setManualDraft] = useState<QuizQuestionStub | null>(null)
+
+  const busy = Boolean(questionLoadingId) || Boolean(regeneratingAll)
 
   return (
     <div className="space-y-6">
@@ -172,7 +179,7 @@ export function QuizReviewSection({
                   <button
                     type="button"
                     title="Move up"
-                    disabled={index === 0}
+                    disabled={busy || index === 0}
                     onClick={() => onReorder(index, index - 1)}
                     className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
                   >
@@ -181,7 +188,7 @@ export function QuizReviewSection({
                   <button
                     type="button"
                     title="Move down"
-                    disabled={index === stubs.length - 1}
+                    disabled={busy || index === stubs.length - 1}
                     onClick={() => onReorder(index, index + 1)}
                     className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
                   >
@@ -190,7 +197,9 @@ export function QuizReviewSection({
                   <button
                     type="button"
                     title="Edit"
+                    disabled={busy}
                     onClick={() => {
+                      if (busy) return
                       setEditingIndex(index)
                       setEditing(q)
                     }}
@@ -201,15 +210,27 @@ export function QuizReviewSection({
                   <button
                     type="button"
                     title="Regenerate this question"
-                    onClick={() => onRegenerateOne(index)}
+                    disabled={busy}
+                    onClick={() => {
+                      if (busy) return
+                      onRegenerateOne(index)
+                    }}
                     className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
                   >
-                    <RefreshCw className="h-4 w-4" />
+                    {questionLoadingId === q.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
                   </button>
                   <button
                     type="button"
                     title="Remove"
-                    onClick={() => onDelete(index)}
+                    disabled={busy}
+                    onClick={() => {
+                      if (busy) return
+                      onDelete(index)
+                    }}
                     className="rounded-lg p-1.5 text-red-700 hover:bg-red-50"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -251,10 +272,11 @@ export function QuizReviewSection({
         <button
           type="button"
           onClick={onRegenerateAll}
+          disabled={busy}
           className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"
         >
-          <Sparkles className="h-4 w-4" />
-          Regenerate all
+          {regeneratingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {regeneratingAll ? 'Regenerating…' : 'Regenerate all'}
         </button>
       </div>
 
