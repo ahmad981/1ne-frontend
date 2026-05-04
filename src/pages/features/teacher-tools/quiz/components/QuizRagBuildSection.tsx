@@ -10,7 +10,7 @@ import {
   X,
 } from 'lucide-react'
 import type { QuizRagScopeModel } from '../hooks/useQuizRagScope'
-import { getBookById } from '../../demo/demoContentLibrary'
+import { getBookById, type DemoBook } from '../../demo/demoContentLibrary'
 import { DIFFICULTY_OPTIONS, QUESTION_COUNT } from '../config/quizCreationConfig'
 import type { QuestionMixMode, QuizDifficultyId } from '../../demo/generationFromSources'
 import { SUBJECTS, GRADES } from '../../types'
@@ -124,7 +124,7 @@ export function QuizRagBuildSection({
   const customTotal = countMcq + countTf + countShort
 
   const selectedBooks = rag.selectedBookIds
-    .map((id) => getBookById(id, rag.catalog))
+    .map((id) => getBookById(id, rag.catalog as unknown as DemoBook[]))
     .filter(Boolean)
 
   return (

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import {
   TeacherToolsActionMenu,
@@ -11,9 +11,10 @@ import {
   type FilterValues,
 } from '../components'
 import { ASSIGNMENT_STATUS_FILTER_OPTIONS } from '../components/teacherToolsStatusFilterOptions'
-import { demoClasses, TEACHER_TOOLS_SEED_ASSIGNMENT_IDS } from '../demo/teacherToolsDemoData'
+import { demoClasses } from '../demo/teacherToolsDemoData'
 import { SUBJECTS, GRADES } from '../types'
 import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import { formatListLoadError } from '../utils/listLoadError'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
@@ -24,6 +25,7 @@ const tabs = ['All', 'Draft', 'Active', 'Due Soon', 'Overdue', 'Graded', 'Archiv
 export default function AssignmentList() {
   const { toast } = useSnackbar()
   const navigate = useNavigate()
+  const location = useLocation()
   const { api, allAssignments } = useTeacherToolsDemo()
   const [tab, setTab] = useState<(typeof tabs)[number]>('All')
   const [simulateLoadError, setSimulateLoadError] = useState(false)
@@ -54,14 +56,16 @@ export default function AssignmentList() {
       await api.listAssignments()
       setListReady(true)
     } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Something went wrong')
+      if (import.meta.env.DEV) console.warn('[AssignmentList] listAssignments failed', e)
+      const msg = formatListLoadError(e)
+      setListError(msg)
       setListReady(false)
     }
   }, [api, simulateLoadError])
 
   useEffect(() => {
     void runListLoad()
-  }, [runListLoad, refreshKey])
+  }, [runListLoad, refreshKey, location.pathname])
 
   const filtered = useMemo(() => {
     return allAssignments.filter((a) => {
@@ -104,16 +108,6 @@ export default function AssignmentList() {
   const bump = () => setRefreshKey((k) => k + 1)
 
   const goEdit = async (id: string) => {
-    if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id)) {
-      const r = await api.duplicateAssignment(id)
-      if (r.ok && 'id' in r && r.id) {
-        toast.success('Created an editable copy from the sample library')
-        navigate(`/teacher-tools/assignment/${r.id}/edit`)
-        return
-      }
-      toast.error('Could not create a copy')
-      return
-    }
     navigate(`/teacher-tools/assignment/${id}/edit`)
   }
 
@@ -122,10 +116,6 @@ export default function AssignmentList() {
     setArchivePending(true)
     try {
       const res = await api.updateAssignment(archiveId, { status: 'archived' })
-      if (!res.ok && res.error === 'READ_ONLY') {
-        toast.error('Sample items cannot be archived. Duplicate first.')
-        return
-      }
       if (res.ok) {
         toast.success('Assignment archived')
         setArchiveId(null)
@@ -261,14 +251,14 @@ export default function AssignmentList() {
 
       {listError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          <p className="font-semibold">Could not load assignments</p>
+          <p className="font-semibold">No assignments to show</p>
           <p className="mt-1 text-red-700">{listError}</p>
           <button
             type="button"
             onClick={() => bump()}
             className="mt-4 rounded-full bg-primary-600 px-4 py-2 text-xs font-semibold text-white"
           >
-            Retry
+            Try again
           </button>
         </div>
       )}

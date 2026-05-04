@@ -1,4 +1,5 @@
 import { createApi } from '@reduxjs/toolkit/query/react'
+import type { BaseQueryFn } from '@reduxjs/toolkit/query'
 
 import { ApiError, apiRequest } from '../../../../api/client'
 import type {
@@ -39,7 +40,7 @@ const BASE = '/v1/teacher-tools/quizzes'
 
 export const quizApiSlice = createApi({
   reducerPath: 'quizApi',
-  baseQuery,
+  baseQuery: baseQuery as BaseQueryFn<BaseQueryArgs, unknown, BaseQueryError>,
   tagTypes: ['Quiz', 'QuizList'],
   endpoints: (builder) => ({
     listQuizzes: builder.query<QuizListResponse, QuizListParams | void>({

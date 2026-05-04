@@ -87,6 +87,14 @@ export interface DemoAssignment {
   briefTopics?: AssignmentBriefTopicStub[]
   studentInstructions?: string
   handoutLayout?: HandoutLayoutOpts
+  /** Round-trip RAG + generation settings (API-backed assignments). */
+  sourceBookIds?: string[]
+  scopeTopics?: string[]
+  scopeRefinement?: string
+  generateWithoutSources?: boolean
+  rigorProfile?: string
+  teacherNotes?: string
+  difficulty?: string
 }
 
 export interface DemoWorksheet {

@@ -31,7 +31,8 @@ export interface TeacherToolsSessionExtras {
   extraExams: DemoExam[]
 }
 
-export type MutationResult<T extends Record<string, unknown> = Record<string, never>> =
+/** Default `T` is `object` so plain `{ ok: true }` success is valid (avoid `& Record<string, never>`). */
+export type MutationResult<T extends object = object> =
   | ({ ok: true } & T)
   | { ok: false; error: 'READ_ONLY' | 'NOT_FOUND' | string }
 
@@ -45,7 +46,7 @@ export interface TeacherToolsMockApi {
 
   listAssignments: () => Promise<DemoAssignment[]>
   getAssignment: (id: string) => Promise<DemoAssignment | undefined>
-  createAssignment: (a: DemoAssignment) => Promise<void>
+  createAssignment: (a: DemoAssignment) => Promise<{ id: string }>
   updateAssignment: (id: string, patch: Partial<DemoAssignment>) => Promise<MutationResult>
   deleteAssignment: (id: string) => Promise<MutationResult>
   duplicateAssignment: (id: string) => Promise<MutationResult<{ id: string }>>
@@ -88,28 +89,31 @@ export function createTeacherToolsMockApi(opts: {
 
     updateQuiz: async (id, patch) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraQuizzes.some((q) => q.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraQuizzes.some((q) => q.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({
           ...e,
           extraQuizzes: e.extraQuizzes.map((q) => (q.id === id ? { ...q, ...patch } : q)),
         }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     deleteQuiz: async (id) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
+        if (TEACHER_TOOLS_SEED_QUIZ_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
         const had = getExtras().extraQuizzes.some((q) => q.id === id)
-        if (!had) return { ok: false as const, error: 'NOT_FOUND' }
+        if (!had) return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({ ...e, extraQuizzes: e.extraQuizzes.filter((q) => q.id !== id) }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     duplicateQuiz: async (id) => {
-      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+      return withLatency<MutationResult<{ id: string }>>(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
         const merged = [...demoQuizzes, ...getExtras().extraQuizzes]
         const found = merged.find((q) => q.id === id)
         if (!found) return { ok: false as const, error: 'NOT_FOUND' }
@@ -136,31 +140,36 @@ export function createTeacherToolsMockApi(opts: {
     createAssignment: async (a) => {
       await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
       setExtras((e) => ({ ...e, extraAssignments: [...e.extraAssignments, a] }))
+      return { id: a.id }
     },
 
     updateAssignment: async (id, patch) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraAssignments.some((a) => a.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraAssignments.some((a) => a.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({
           ...e,
           extraAssignments: e.extraAssignments.map((a) => (a.id === id ? { ...a, ...patch } : a)),
         }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     deleteAssignment: async (id) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraAssignments.some((a) => a.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_ASSIGNMENT_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraAssignments.some((a) => a.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({ ...e, extraAssignments: e.extraAssignments.filter((a) => a.id !== id) }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     duplicateAssignment: async (id) => {
-      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+      return withLatency<MutationResult<{ id: string }>>(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
         const merged = [...demoAssignments, ...getExtras().extraAssignments]
         const found = merged.find((a) => a.id === id)
         if (!found) return { ok: false as const, error: 'NOT_FOUND' }
@@ -190,27 +199,31 @@ export function createTeacherToolsMockApi(opts: {
 
     updateWorksheet: async (id, patch) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraWorksheets.some((w) => w.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraWorksheets.some((w) => w.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({
           ...e,
           extraWorksheets: e.extraWorksheets.map((w) => (w.id === id ? { ...w, ...patch } : w)),
         }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     deleteWorksheet: async (id) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraWorksheets.some((w) => w.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraWorksheets.some((w) => w.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({ ...e, extraWorksheets: e.extraWorksheets.filter((w) => w.id !== id) }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     duplicateWorksheet: async (id) => {
-      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+      return withLatency<MutationResult<{ id: string }>>(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
         const merged = [...demoWorksheets, ...getExtras().extraWorksheets]
         const found = merged.find((w) => w.id === id)
         if (!found) return { ok: false as const, error: 'NOT_FOUND' }
@@ -239,27 +252,31 @@ export function createTeacherToolsMockApi(opts: {
 
     updateExam: async (id, patch) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraExams.some((x) => x.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraExams.some((x) => x.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({
           ...e,
           extraExams: e.extraExams.map((x) => (x.id === id ? { ...x, ...patch } : x)),
         }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     deleteExam: async (id) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id)) return { ok: false as const, error: 'READ_ONLY' as const }
-        if (!getExtras().extraExams.some((x) => x.id === id)) return { ok: false as const, error: 'NOT_FOUND' }
+        if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id))
+          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
+        if (!getExtras().extraExams.some((x) => x.id === id))
+          return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({ ...e, extraExams: e.extraExams.filter((x) => x.id !== id) }))
-        return { ok: true as const }
+        return { ok: true as const } as MutationResult
       })
     },
 
     duplicateExam: async (id) => {
-      return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
+      return withLatency<MutationResult<{ id: string }>>(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
         const merged = [...demoExams, ...getExtras().extraExams]
         const found = merged.find((x) => x.id === id)
         if (!found) return { ok: false as const, error: 'NOT_FOUND' }

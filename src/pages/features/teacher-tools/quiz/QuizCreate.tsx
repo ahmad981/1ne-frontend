@@ -3,7 +3,6 @@ import { useNavigate, useParams, useLocation, useSearchParams } from 'react-rout
 import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
 import {
-  buildQuizStubsFromCriteria,
   formatSourceSummary,
   type QuizDifficultyId,
   type QuizQuestionStub,
@@ -556,52 +555,6 @@ export default function QuizCreate() {
       setMixMode('balanced')
     },
     [mixMode, questionCount, includeMcq, includeTf, includeShort, countMcq, countTf, countShort]
-  )
-
-  const buildDemoPayload = useCallback(
-    (status: 'draft' | 'published'): Omit<DemoQuiz, 'id'> => {
-      const ctx = rag.getGenerationContext()
-      const n = stubs.length
-      const tm = totalMarksFromStubs(stubs)
-      const activeLayout = handoutLayoutRef.current
-      return {
-        title: title.trim() || 'Untitled quiz',
-        subject,
-        grade,
-        classes: [classKeyForGrade(grade)],
-        questions: n,
-        totalMarks: tm,
-        timeLimitMinutes: timeLimit,
-        status,
-        submissionCount: 0,
-        avgScore: 0,
-        topic: rag.combinedTopicLabel,
-        sourceBookIds: rag.selectedBookIds,
-        scopeTopics: rag.selectedTopics,
-        scopeRefinement: rag.scopeRefinement.trim() || undefined,
-        sourceSummary: formatSourceSummary(ctx),
-        questionStubs: stubs,
-        studentInstructions,
-        difficulty,
-        shuffleQuestions,
-        shuffleAnswers,
-        negativeMarking,
-        handoutLayout: activeLayout,
-      }
-    },
-    [
-      rag,
-      stubs,
-      title,
-      subject,
-      grade,
-      timeLimit,
-      studentInstructions,
-      difficulty,
-      shuffleQuestions,
-      shuffleAnswers,
-      negativeMarking,
-    ]
   )
 
   const handleSaveDraft = useCallback(async () => {

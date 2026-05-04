@@ -31,6 +31,8 @@ export interface UseQuizRagScopeOptions {
   initialSelectedBookIds?: string[]
   initialScopeTopics?: string[]
   initialScopeRefinement?: string
+  /** Hydrate when editing an assignment that was saved with this flag. */
+  initialGenerateWithoutSources?: boolean
   /** Assignment flow: at most one catalog title; picking a new title replaces the previous. */
   bookSelectionMode?: 'multi' | 'single'
 }
@@ -45,6 +47,7 @@ export function useQuizRagScope({
   initialSelectedBookIds,
   initialScopeTopics,
   initialScopeRefinement,
+  initialGenerateWithoutSources,
   bookSelectionMode = 'multi',
 }: UseQuizRagScopeOptions) {
   // ---- catalog state -------------------------------------------------------
@@ -59,7 +62,9 @@ export function useQuizRagScope({
   const [selectedBookIds, setSelectedBookIds] = useState<string[]>(
     () => initialSelectedBookIds ?? [],
   )
-  const [generateWithoutSources, setGenerateWithoutSources] = useState(false)
+  const [generateWithoutSources, setGenerateWithoutSources] = useState(
+    () => initialGenerateWithoutSources ?? false,
+  )
 
   // ---- topic state ---------------------------------------------------------
   const [availableTopics, setAvailableTopics] = useState<string[]>([])
@@ -100,6 +105,11 @@ export function useQuizRagScope({
     if (initialScopeRefinement === undefined) return
     setScopeRefinement(initialScopeRefinement)
   }, [initialScopeRefinement])
+
+  useEffect(() => {
+    if (initialGenerateWithoutSources === undefined) return
+    setGenerateWithoutSources(!!initialGenerateWithoutSources)
+  }, [initialGenerateWithoutSources])
 
   /** Full catalog is tenant-wide; quiz subject/grade are for the handout only, not catalog filtering. */
   const CATALOG_PAGE_SIZE = 100

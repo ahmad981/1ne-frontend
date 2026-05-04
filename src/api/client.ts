@@ -1,9 +1,7 @@
 import { TemplateListParams } from './types'
-import { API_URL, API_BASE_URL as CONFIG_API_BASE_URL } from '../config/api'
+import { API_URL } from '../config/api'
 
-// Use centralized API configuration
-// CONFIG_API_BASE_URL is the base URL without /api (e.g., http://127.0.0.1:8000)
-// API_URL is CONFIG_API_BASE_URL + /api (e.g., http://127.0.0.1:8000/api)
+// Use centralized API configuration — API_URL includes `/api` (e.g., http://127.0.0.1:8000/api)
 // For building API URLs, we use API_URL which already includes /api
 const API_BASE_URL = API_URL.replace(/\/$/, '')
 
@@ -280,17 +278,18 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
         const errorDetail = typeof payload === 'object' && payload !== null && 'detail' in (payload as Record<string, unknown>)
           ? String((payload as Record<string, unknown>).detail)
           : 'Not Found'
-        
-        console.error('[apiRequest] ❌ 404 Not Found - Endpoint does not exist')
-        console.error('[apiRequest] URL:', url)
-        console.error('[apiRequest] Response:', payload)
-        
-        // Provide helpful error message
-        const helpfulMessage = errorDetail === 'Not Found' 
-          ? `Endpoint not found: ${url}\n\nThis usually means:\n1. Backend hasn't restarted with new routes\n2. Route is not registered\n3. Check backend logs for errors\n\nIf testing locally, ensure backend is running on ${CONFIG_API_BASE_URL}`
-          : errorDetail
-        
-        throw new ApiError(response.status, helpfulMessage, payload)
+
+        console.error('[apiRequest] ❌ 404 Not Found', { url, payload })
+
+        // Short UI-safe message; full URL + hints stay in the console above.
+        const shortMessage =
+          errorDetail && errorDetail !== 'Not Found'
+            ? errorDetail.length > 180
+              ? `${errorDetail.slice(0, 177)}…`
+              : errorDetail
+            : 'This endpoint was not found (404). Restart the API with the latest code if you just added new routes.'
+
+        throw new ApiError(response.status, shortMessage, payload)
       }
       
       // Handle 401 Unauthorized - token may be expired

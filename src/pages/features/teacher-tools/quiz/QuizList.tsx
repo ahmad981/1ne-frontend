@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import {
   TeacherToolsActionMenu,
   TeacherToolsBulkActionBar,
   TeacherToolsFilterBar,
   TeacherToolsPageHeader,
+  TeacherToolsListSyncHint,
   TeacherToolsStatusBadge,
   TableSkeletonRows,
   type FilterValues,
 } from '../components'
 import { QUIZ_STATUS_FILTER_OPTIONS } from '../components/teacherToolsStatusFilterOptions'
-import { demoClasses, TEACHER_TOOLS_SEED_QUIZ_IDS } from '../demo/teacherToolsDemoData'
+import { demoClasses, demoQuizzes, TEACHER_TOOLS_SEED_QUIZ_IDS } from '../demo/teacherToolsDemoData'
 import { SUBJECTS, GRADES } from '../types'
 import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import { formatListLoadError } from '../utils/listLoadError'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
@@ -24,6 +26,7 @@ const tabs = ['All', 'Draft', 'Published', 'Scheduled', 'Archived'] as const
 export default function QuizList() {
   const { toast } = useSnackbar()
   const navigate = useNavigate()
+  const location = useLocation()
   const { api, allQuizzes } = useTeacherToolsDemo()
   const [tab, setTab] = useState<(typeof tabs)[number]>('All')
   const [simulateLoadError, setSimulateLoadError] = useState(false)
@@ -44,24 +47,33 @@ export default function QuizList() {
   const [bulkPending, setBulkPending] = useState(false)
   const [listReady, setListReady] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const [liveListUnavailable, setLiveListUnavailable] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const runListLoad = useCallback(async () => {
     setListReady(false)
     setListError(null)
+    setLiveListUnavailable(false)
     try {
       if (import.meta.env.DEV && simulateLoadError) throw new Error('Simulated load failure')
       await api.listQuizzes()
       setListReady(true)
     } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Something went wrong')
-      setListReady(false)
+      if (import.meta.env.DEV) console.warn('[QuizList] listQuizzes failed', e)
+      const msg = formatListLoadError(e)
+      if (demoQuizzes.length > 0) {
+        setListReady(true)
+        setLiveListUnavailable(true)
+      } else {
+        setListError(msg)
+        setListReady(false)
+      }
     }
   }, [api, simulateLoadError])
 
   useEffect(() => {
     void runListLoad()
-  }, [runListLoad, refreshKey])
+  }, [runListLoad, refreshKey, location.pathname])
 
   const filtered = useMemo(() => {
     return allQuizzes.filter((q) => {
@@ -184,6 +196,8 @@ export default function QuizList() {
         </label>
       )}
 
+      {liveListUnavailable && <TeacherToolsListSyncHint kind="quizzes" onRetry={() => bump()} />}
+
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -249,14 +263,14 @@ export default function QuizList() {
 
       {listError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          <p className="font-semibold">Could not load quizzes</p>
+          <p className="font-semibold">No quizzes to show</p>
           <p className="mt-1 text-red-700">{listError}</p>
           <button
             type="button"
             onClick={() => bump()}
             className="mt-4 rounded-full bg-primary-600 px-4 py-2 text-xs font-semibold text-white"
           >
-            Retry
+            Try again
           </button>
         </div>
       )}

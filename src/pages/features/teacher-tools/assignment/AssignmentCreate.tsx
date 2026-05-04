@@ -1,22 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
-import { demoClasses } from '../demo/teacherToolsDemoData'
-import {
-  buildAssignmentTopicsFromScope,
-  formatSourceSummary,
-  type AssignmentBriefLineStub,
-  type AssignmentBriefTopicStub,
-  type QuizDifficultyId,
-} from '../demo/generationFromSources'
+import { demoClasses, type DemoAssignment } from '../demo/teacherToolsDemoData'
+import { formatSourceSummary, type AssignmentBriefLineStub, type AssignmentBriefTopicStub, type QuizDifficultyId } from '../demo/generationFromSources'
 import { downloadAssignmentBriefPdf } from '../utils/generateAssignmentPdf'
 import { GRADES, SUBJECTS } from '../types'
 import { newDemoId } from '../demo/newDemoId'
 import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
 // @ts-expect-error — JS module
+import { store } from '../../../../redux/store'
+import { assignmentApiSlice } from '../../../../redux/features/teacherTools/assignment/assignmentApiSlice'
+import type { AssignmentCreatePayload, AssignmentGeneratePayload } from '../../../../api/assignmentApi'
+// @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
+import { formatListLoadError } from '../utils/listLoadError'
 import {
   ArrowDown,
   ArrowUp,
@@ -35,12 +34,11 @@ import { AssignmentPrintPreviewModal, type AssignmentPrintMeta } from './compone
 import { DEFAULT_HANDOUT_LAYOUT, type HandoutLayoutOpts } from '../quiz/config/handoutLayoutConfig'
 import { QUIZ_CREATION_STEPS } from '../quiz/config/quizCreationConfig'
 import { useQuizRagScope } from '../quiz/hooks/useQuizRagScope'
-import {
-  ASSIGNMENT_TOPIC_COUNT,
-  randomGenerationDelay,
-  validateRagAssignmentBuild,
-} from './config/assignmentCreationConfig'
+import { ASSIGNMENT_TOPIC_COUNT, validateRagAssignmentBuild } from './config/assignmentCreationConfig'
 import { AssignmentRagBuildSection, type TopicVolumeMode } from './components/AssignmentRagBuildSection'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const appDispatch = store.dispatch as any
 
 function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
@@ -52,14 +50,11 @@ function dueDateIso(daysAhead: number) {
   return d.toISOString().slice(0, 10)
 }
 
-type LastAssignmentGen = {
-  topicCount: number
-  difficulty: QuizDifficultyId
-  assignmentType: string
-  rigorProfile: string
-  generatorInstructions: string
-  topicMixMode: TopicVolumeMode
-  seedKey: string
+function newIdempotencyKey(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export default function AssignmentCreate() {
@@ -78,7 +73,6 @@ export default function AssignmentCreate() {
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
   const [topicBlocks, setTopicBlocks] = useState<AssignmentBriefTopicStub[]>([])
-  const [lastGen, setLastGen] = useState<LastAssignmentGen | null>(null)
   const [printOpen, setPrintOpen] = useState(false)
   const [handoutLayout, setHandoutLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
   const handoutLayoutRef = useRef<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
@@ -102,6 +96,15 @@ export default function AssignmentCreate() {
   const [hydrateReady, setHydrateReady] = useState(!isEdit)
   const [publishPending, setPublishPending] = useState(false)
   const [saveDraftPending, setSaveDraftPending] = useState(false)
+  const [liveAssignmentId, setLiveAssignmentId] = useState<string | null>(null)
+  const [regenTopicId, setRegenTopicId] = useState<string | null>(null)
+  const [regenLineKey, setRegenLineKey] = useState<string | null>(null)
+  const [hydratedRag, setHydratedRag] = useState<{
+    bookIds?: string[]
+    topics?: string[]
+    refinement?: string
+    withoutSources?: boolean
+  } | null>(null)
   const [editingLine, setEditingLine] = useState<{ topicId: string; lineId: string } | null>(null)
   const [editingLineValue, setEditingLineValue] = useState('')
   const [addingLineTopicId, setAddingLineTopicId] = useState<string | null>(null)
@@ -111,8 +114,19 @@ export default function AssignmentCreate() {
     subject,
     grade,
     bookSelectionMode: 'single',
-    initialScopeRefinement: loadedTopic,
+    initialSelectedBookIds: hydratedRag?.bookIds,
+    initialScopeTopics: hydratedRag?.topics,
+    initialScopeRefinement: hydratedRag?.refinement ?? loadedTopic,
+    initialGenerateWithoutSources: hydratedRag?.withoutSources,
   })
+
+  useEffect(() => {
+    if (isEdit && assignmentId) setLiveAssignmentId(assignmentId)
+    else if (!isEdit) {
+      setLiveAssignmentId(null)
+      setHydratedRag(null)
+    }
+  }, [isEdit, assignmentId])
 
   const totalBriefLines = topicBlocks.reduce((n, t) => n + t.lines.length, 0)
 
@@ -160,6 +174,15 @@ export default function AssignmentCreate() {
           : 'Submit your work as a single document. Cite all sources using the format shown in class.',
       )
       if (a.topic) setLoadedTopic(a.topic)
+      if (a.rigorProfile) setRigorProfile(a.rigorProfile)
+      if (a.difficulty) setDifficulty(a.difficulty as QuizDifficultyId)
+      if (a.teacherNotes) setGeneratorInstructions(a.teacherNotes)
+      setHydratedRag({
+        bookIds: a.sourceBookIds ?? [],
+        topics: a.scopeTopics ?? [],
+        refinement: a.scopeRefinement ?? '',
+        withoutSources: a.generateWithoutSources ?? false,
+      })
       if (Array.isArray(a.briefTopics)) setTopicBlocks(a.briefTopics as AssignmentBriefTopicStub[])
       if (a.handoutLayout) {
         const next = { ...DEFAULT_HANDOUT_LAYOUT, ...a.handoutLayout }
@@ -174,31 +197,41 @@ export default function AssignmentCreate() {
     }
   }, [api, assignmentId, isEdit, navigate, toast])
 
-  const runBuild = useCallback(
-    (ctx: ReturnType<typeof rag.getGenerationContext>, gen: LastAssignmentGen) => {
-      return buildAssignmentTopicsFromScope(ctx, {
-        topicCount: gen.topicCount,
-        assignmentType: gen.assignmentType,
-        rigorProfile: gen.rigorProfile,
-        difficulty: gen.difficulty,
-        generatorNotes: gen.generatorInstructions.trim() || undefined,
-        seedKey: gen.seedKey,
-      })
-    },
-    [],
-  )
-
-  const snapshotGen = useCallback((): LastAssignmentGen => {
+  const buildShellCreatePayload = useCallback((): AssignmentCreatePayload => {
     return {
-      topicCount,
-      difficulty,
-      assignmentType,
+      title: title.trim() || 'Untitled assignment',
+      subject,
+      grade,
+      classes: [classKeyForGrade(grade)],
+      type: assignmentType,
       rigorProfile,
-      generatorInstructions,
-      topicMixMode,
-      seedKey: newDemoId('asg-seed'),
+      dueAt: dueAt ? `${dueAt}T12:00:00.000Z` : null,
+      studentInstructions,
+      teacherNotes: generatorInstructions.trim() || undefined,
+      status: 'draft',
+      sourceBookIds: rag.selectedBookIds,
+      scopeTopics: rag.selectedTopics,
+      scopeRefinement: rag.scopeRefinement || undefined,
+      generateWithoutSources: rag.generateWithoutSources,
+      difficulty,
+      briefTopics: [],
+      handoutLayout: null,
     }
-  }, [topicCount, difficulty, assignmentType, rigorProfile, generatorInstructions, topicMixMode])
+  }, [
+    title,
+    subject,
+    grade,
+    assignmentType,
+    rigorProfile,
+    dueAt,
+    studentInstructions,
+    generatorInstructions,
+    rag.selectedBookIds,
+    rag.selectedTopics,
+    rag.scopeRefinement,
+    rag.generateWithoutSources,
+    difficulty,
+  ])
 
   const runGeneration = useCallback(async () => {
     const v = validateRagAssignmentBuild({
@@ -218,68 +251,122 @@ export default function AssignmentCreate() {
     setGenerating(true)
     setGenProgress(0.12)
     const steps = window.setInterval(() => {
-      setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.12))
-    }, 450)
-    const gen = snapshotGen()
+      setGenProgress((p) => Math.min(0.88, p + Math.random() * 0.08))
+    }, 600)
     try {
-      await new Promise((r) => setTimeout(r, randomGenerationDelay()))
-      const ctx = rag.getGenerationContext()
-      const next = runBuild(ctx, gen)
-      setTopicBlocks(next)
-      setLastGen(gen)
+      let assignmentId: string | null = liveAssignmentId
+      if (!assignmentId) {
+        const created = await appDispatch(
+          assignmentApiSlice.endpoints.createAssignment.initiate(buildShellCreatePayload()),
+        ).unwrap()
+        assignmentId = created.id
+        setLiveAssignmentId(created.id)
+      }
+      if (!assignmentId) {
+        setGenerationError('Could not create assignment.')
+        toast.error('Could not create assignment.')
+        return
+      }
+      const ensuredAssignmentId = assignmentId
+      setGenProgress(0.3)
+      const genPayload: AssignmentGeneratePayload = {
+        topicCount,
+        difficulty: difficulty as AssignmentGeneratePayload['difficulty'],
+        teacherNotes: generatorInstructions.trim() || undefined,
+        rigorProfile,
+      }
+      const genResult = await appDispatch(
+        assignmentApiSlice.endpoints.generateAssignment.initiate({
+          id: ensuredAssignmentId,
+          payload: genPayload,
+          idempotencyKey: newIdempotencyKey(),
+        }),
+      ).unwrap()
+      setTopicBlocks(genResult.assignment.briefTopics as AssignmentBriefTopicStub[])
       setPhase('review')
       toast.success('Assignment brief generated — review below.')
+      if (genResult.warnings?.length) {
+        console.warn('Assignment generation warnings:', genResult.warnings)
+      }
     } catch {
-      setGenerationError('Generation failed (demo). Adjust sources and try again.')
+      setGenerationError('Generation failed. Check your connection and try again.')
       toast.error('Could not generate assignment brief.')
     } finally {
       window.clearInterval(steps)
       setGenerating(false)
       setGenProgress(1)
     }
-  }, [title, rag, snapshotGen, runBuild, toast])
+  }, [
+    title,
+    rag,
+    toast,
+    liveAssignmentId,
+    buildShellCreatePayload,
+    topicCount,
+    difficulty,
+    generatorInstructions,
+    rigorProfile,
+  ])
 
-  const regenerateAll = useCallback(() => {
-    const gen = { ...(lastGen ?? snapshotGen()), seedKey: newDemoId('asg-seed') }
+  const regenerateAll = useCallback(async () => {
+    if (!liveAssignmentId) return
     setGenerating(true)
     setGenProgress(0.2)
-    const interval = window.setInterval(() => {
-      setGenProgress((p) => Math.min(0.9, p + 0.1))
-    }, 400)
-    window.setTimeout(() => {
-      window.clearInterval(interval)
-      try {
-        const ctx = rag.getGenerationContext()
-        setTopicBlocks(runBuild(ctx, gen))
-        setLastGen(gen)
-        toast.success('Brief regenerated.')
-      } finally {
-        setGenerating(false)
-        setGenProgress(1)
-      }
-    }, randomGenerationDelay())
-  }, [lastGen, snapshotGen, rag, runBuild, toast])
+    const steps = window.setInterval(() => {
+      setGenProgress((p) => Math.min(0.88, p + 0.08))
+    }, 500)
+    try {
+      const genResult = await appDispatch(
+        assignmentApiSlice.endpoints.generateAssignment.initiate({
+          id: liveAssignmentId,
+          payload: {
+            topicCount,
+            difficulty: difficulty as AssignmentGeneratePayload['difficulty'],
+            teacherNotes: generatorInstructions.trim() || undefined,
+            rigorProfile,
+          },
+          idempotencyKey: newIdempotencyKey(),
+        }),
+      ).unwrap()
+      setTopicBlocks(genResult.assignment.briefTopics as AssignmentBriefTopicStub[])
+      toast.success('Brief regenerated.')
+    } catch {
+      toast.error('Could not regenerate brief.')
+    } finally {
+      window.clearInterval(steps)
+      setGenerating(false)
+      setGenProgress(1)
+    }
+  }, [liveAssignmentId, topicCount, difficulty, generatorInstructions, rigorProfile, toast])
 
   const regenerateTopic = useCallback(
-    (topicId: string) => {
-      const gen = lastGen ?? snapshotGen()
+    async (topicId: string) => {
+      if (!liveAssignmentId) return
       const t = topicBlocks.find((x) => x.id === topicId)
       if (!t) return
-      const ctx = rag.getGenerationContext()
-      const one = buildAssignmentTopicsFromScope(ctx, {
-        topicCount: 1,
-        assignmentType: gen.assignmentType,
-        rigorProfile: gen.rigorProfile,
-        difficulty: gen.difficulty,
-        generatorNotes: gen.generatorInstructions.trim() || undefined,
-        seedKey: `${newDemoId('reg-topic')}|${t.title}`,
-        topicTitleOverride: t.title,
-      })[0]
-      if (!one) return
-      setTopicBlocks((prev) => prev.map((b) => (b.id === topicId ? { ...one, id: topicId } : b)))
-      toast.success('Topic section regenerated.')
+      setRegenTopicId(topicId)
+      try {
+        const res = await appDispatch(
+          assignmentApiSlice.endpoints.regenerateTopic.initiate({
+            assignmentId: liveAssignmentId,
+            topicId,
+            topicTitle: t.title,
+          }),
+        ).unwrap()
+        setTopicBlocks((prev) =>
+          prev.map((b) =>
+            b.id === topicId ? { ...(res.topic as AssignmentBriefTopicStub), id: topicId } : b,
+          ),
+        )
+        toast.success('Topic section regenerated.')
+      } catch (e) {
+        console.warn('[AssignmentCreate] regenerateTopic failed', e)
+        toast.error(formatListLoadError(e))
+      } finally {
+        setRegenTopicId(null)
+      }
     },
-    [lastGen, snapshotGen, rag, topicBlocks, toast],
+    [liveAssignmentId, topicBlocks, toast],
   )
 
   const moveTopic = useCallback((index: number, dir: -1 | 1) => {
@@ -323,32 +410,39 @@ export default function AssignmentCreate() {
   )
 
   const regenerateLine = useCallback(
-    (topicId: string, lineIndex: number) => {
-      const gen = lastGen ?? snapshotGen()
+    async (topicId: string, lineIndex: number) => {
+      if (!liveAssignmentId) return
       const t = topicBlocks.find((x) => x.id === topicId)
       if (!t) return
-      const ctx = rag.getGenerationContext()
-      const fresh = buildAssignmentTopicsFromScope(ctx, {
-        topicCount: 1,
-        assignmentType: gen.assignmentType,
-        rigorProfile: gen.rigorProfile,
-        difficulty: gen.difficulty,
-        generatorNotes: gen.generatorInstructions.trim() || undefined,
-        seedKey: `${newDemoId('reg-line')}|${t.title}|${lineIndex}`,
-        topicTitleOverride: t.title,
-      })[0]
-      const replacement = fresh?.lines[lineIndex % (fresh.lines.length || 3)]
-      if (!replacement) return
-      setTopicBlocks((prev) =>
-        prev.map((b) => {
-          if (b.id !== topicId) return b
-          const lines = b.lines.map((ln, i) => (i === lineIndex ? { ...ln, text: replacement.text } : ln))
-          return { ...b, lines }
-        }),
-      )
-      toast.success('Line regenerated.')
+      const lineKey = `${topicId}:${lineIndex}`
+      setRegenLineKey(lineKey)
+      try {
+        const res = await appDispatch(
+          assignmentApiSlice.endpoints.regenerateLine.initiate({
+            assignmentId: liveAssignmentId,
+            topicId,
+            topicTitle: t.title,
+            lineIndex,
+          }),
+        ).unwrap()
+        setTopicBlocks((prev) =>
+          prev.map((b) => {
+            if (b.id !== topicId) return b
+            const lines = b.lines.map((ln, i) =>
+              i === lineIndex ? { ...ln, text: res.text } : ln,
+            )
+            return { ...b, lines }
+          }),
+        )
+        toast.success('Line regenerated.')
+      } catch (e) {
+        console.warn('[AssignmentCreate] regenerateLine failed', e)
+        toast.error(formatListLoadError(e))
+      } finally {
+        setRegenLineKey(null)
+      }
     },
-    [lastGen, snapshotGen, rag, topicBlocks, toast],
+    [liveAssignmentId, topicBlocks, toast],
   )
 
   const updateLineText = useCallback((topicId: string, lineId: string, text: string) => {
@@ -443,24 +537,57 @@ export default function AssignmentCreate() {
     }
   }, [rag, title, subject, grade, dueAt, assignmentType, studentInstructions, topicBlocks, toast])
 
-  const buildPayload = (status: 'draft' | 'active') => ({
-    title: title.trim() || 'Untitled assignment',
-    subject,
-    grade,
-    classes: [classKeyForGrade(grade)],
-    type: assignmentType,
-    dueAt,
-    assignedCount: 0,
-    submitted: 0,
-    pending: 0,
-    graded: 0,
-    status,
-    topic: rag.combinedTopicLabel,
-    sourceSummary: formatSourceSummary(rag.getGenerationContext()),
-    briefTopics: topicBlocks,
-    studentInstructions,
-    handoutLayout: handoutLayoutRef.current,
-  })
+  const buildPayload = useCallback(
+    (status: 'draft' | 'active') => ({
+      title: title.trim() || 'Untitled assignment',
+      subject,
+      grade,
+      classes: [classKeyForGrade(grade)],
+      type: assignmentType,
+      dueAt,
+      assignedCount: 0,
+      submitted: 0,
+      pending: 0,
+      graded: 0,
+      status,
+      topic: rag.combinedTopicLabel,
+      sourceSummary: formatSourceSummary(rag.getGenerationContext()),
+      briefTopics: topicBlocks,
+      studentInstructions,
+      handoutLayout: handoutLayoutRef.current,
+      sourceBookIds: rag.selectedBookIds,
+      scopeTopics: rag.selectedTopics,
+      scopeRefinement: rag.scopeRefinement,
+      generateWithoutSources: rag.generateWithoutSources,
+      rigorProfile,
+      teacherNotes: generatorInstructions.trim() || undefined,
+      difficulty,
+    }),
+    [
+      title,
+      subject,
+      grade,
+      assignmentType,
+      dueAt,
+      rag,
+      topicBlocks,
+      studentInstructions,
+      generatorInstructions,
+      rigorProfile,
+      difficulty,
+    ],
+  )
+
+  const buildDemoForSave = useCallback(
+    (status: 'draft' | 'active'): DemoAssignment => {
+      const id = (isEdit && assignmentId ? assignmentId : liveAssignmentId) ?? 'pending'
+      return {
+        id,
+        ...buildPayload(status),
+      } as DemoAssignment
+    },
+    [isEdit, assignmentId, liveAssignmentId, buildPayload],
+  )
 
   const handleSaveDraft = useCallback(async () => {
     if (topicBlocks.length === 0) {
@@ -481,14 +608,33 @@ export default function AssignmentCreate() {
         navigate(`/teacher-tools/assignment/${assignmentId}`)
         return
       }
-      const id = newDemoId('asg')
-      await api.createAssignment({ id, ...payload })
+      if (liveAssignmentId) {
+        const res = await api.updateAssignment(liveAssignmentId, payload)
+        if (!res.ok) {
+          toast.error('Could not save draft')
+          return
+        }
+        toast.success('Draft saved')
+        navigate(`/teacher-tools/assignment/${liveAssignmentId}`)
+        return
+      }
+      const { id } = await api.createAssignment(buildDemoForSave('draft'))
       toast.success('Draft saved')
       navigate(`/teacher-tools/assignment/${id}`)
     } finally {
       setSaveDraftPending(false)
     }
-  }, [api, assignmentId, isEdit, navigate, rag, topicBlocks.length, toast, title, subject, grade, assignmentType, dueAt])
+  }, [
+    api,
+    assignmentId,
+    isEdit,
+    liveAssignmentId,
+    navigate,
+    topicBlocks.length,
+    toast,
+    buildPayload,
+    buildDemoForSave,
+  ])
 
   const handlePublish = useCallback(async () => {
     if (topicBlocks.length === 0) {
@@ -501,20 +647,38 @@ export default function AssignmentCreate() {
       if (isEdit && assignmentId) {
         const res = await api.updateAssignment(assignmentId, payload)
         if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited. Duplicate from the list first.')
+          if (res.error === 'READ_ONLY')
+            toast.error('Sample library items cannot be edited. Duplicate from the list first.')
           else toast.error('Could not save assignment')
           return
         }
         toast.success('Assignment updated')
+      } else if (liveAssignmentId) {
+        const res = await api.updateAssignment(liveAssignmentId, payload)
+        if (!res.ok) {
+          toast.error('Could not save assignment')
+          return
+        }
+        toast.success('Assignment published')
       } else {
-        await api.createAssignment({ id: newDemoId('asg'), ...payload })
+        await api.createAssignment(buildDemoForSave('active'))
         toast.success('Assignment published')
       }
       navigate('/teacher-tools/assignment')
     } finally {
       setPublishPending(false)
     }
-  }, [api, assignmentId, isEdit, navigate, rag, topicBlocks.length, toast, title, subject, grade, assignmentType, dueAt])
+  }, [
+    api,
+    assignmentId,
+    isEdit,
+    liveAssignmentId,
+    navigate,
+    topicBlocks.length,
+    toast,
+    buildPayload,
+    buildDemoForSave,
+  ])
 
   if (isEdit && !hydrateReady) {
     return (
@@ -692,8 +856,9 @@ export default function AssignmentCreate() {
                 </span>
                 <button
                   type="button"
-                  onClick={regenerateAll}
-                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                  disabled={generating || !liveAssignmentId}
+                  onClick={() => void regenerateAll()}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Regenerate all
                 </button>
@@ -732,8 +897,9 @@ export default function AssignmentCreate() {
                         <button
                           type="button"
                           title="Regenerate topic"
-                          onClick={() => regenerateTopic(topic.id)}
-                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                          disabled={!liveAssignmentId || generating || regenTopicId === topic.id}
+                          onClick={() => void regenerateTopic(topic.id)}
+                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
                         >
                           <RefreshCw className="h-4 w-4" />
                         </button>
@@ -796,8 +962,13 @@ export default function AssignmentCreate() {
                             <button
                               type="button"
                               title="Regenerate line"
-                              onClick={() => regenerateLine(topic.id, li)}
-                              className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                              disabled={
+                                !liveAssignmentId ||
+                                generating ||
+                                regenLineKey === `${topic.id}:${li}`
+                              }
+                              onClick={() => void regenerateLine(topic.id, li)}
+                              className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-40"
                             >
                               <RefreshCw className="h-4 w-4" />
                             </button>
@@ -829,8 +1000,9 @@ export default function AssignmentCreate() {
             </button>
             <button
               type="button"
-              onClick={regenerateAll}
-              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"
+              disabled={generating || !liveAssignmentId}
+              onClick={() => void regenerateAll()}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Sparkles className="h-4 w-4" />
               Regenerate all

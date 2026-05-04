@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import {
   TeacherToolsActionMenu,
   TeacherToolsBulkActionBar,
   TeacherToolsFilterBar,
   TeacherToolsPageHeader,
+  TeacherToolsListSyncHint,
   TeacherToolsStatusBadge,
   TableSkeletonRows,
   type FilterValues,
 } from '../components'
 import { WORKSHEET_STATUS_FILTER_OPTIONS } from '../components/teacherToolsStatusFilterOptions'
-import { demoClasses, TEACHER_TOOLS_SEED_WORKSHEET_IDS } from '../demo/teacherToolsDemoData'
+import { demoClasses, demoWorksheets, TEACHER_TOOLS_SEED_WORKSHEET_IDS } from '../demo/teacherToolsDemoData'
 import { SUBJECTS, GRADES } from '../types'
 import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import { formatListLoadError } from '../utils/listLoadError'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
@@ -24,6 +26,7 @@ const tabs = ['All', 'Draft', 'Published', 'Printable', 'Digital', 'Archived'] a
 export default function WorksheetList() {
   const { toast } = useSnackbar()
   const navigate = useNavigate()
+  const location = useLocation()
   const { api, allWorksheets } = useTeacherToolsDemo()
   const [tab, setTab] = useState<(typeof tabs)[number]>('All')
   const [simulateLoadError, setSimulateLoadError] = useState(false)
@@ -44,24 +47,33 @@ export default function WorksheetList() {
   const [bulkPending, setBulkPending] = useState(false)
   const [listReady, setListReady] = useState(false)
   const [listError, setListError] = useState<string | null>(null)
+  const [liveListUnavailable, setLiveListUnavailable] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
   const runListLoad = useCallback(async () => {
     setListReady(false)
     setListError(null)
+    setLiveListUnavailable(false)
     try {
       if (import.meta.env.DEV && simulateLoadError) throw new Error('Simulated load failure')
       await api.listWorksheets()
       setListReady(true)
     } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Something went wrong')
-      setListReady(false)
+      if (import.meta.env.DEV) console.warn('[WorksheetList] listWorksheets failed', e)
+      const msg = formatListLoadError(e)
+      if (demoWorksheets.length > 0) {
+        setListReady(true)
+        setLiveListUnavailable(true)
+      } else {
+        setListError(msg)
+        setListReady(false)
+      }
     }
   }, [api, simulateLoadError])
 
   useEffect(() => {
     void runListLoad()
-  }, [runListLoad, refreshKey])
+  }, [runListLoad, refreshKey, location.pathname])
 
   const filtered = useMemo(() => {
     return allWorksheets.filter((w) => {
@@ -180,6 +192,8 @@ export default function WorksheetList() {
         </label>
       )}
 
+      {liveListUnavailable && <TeacherToolsListSyncHint kind="worksheets" onRetry={() => bump()} />}
+
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -245,14 +259,14 @@ export default function WorksheetList() {
 
       {listError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          <p className="font-semibold">Could not load worksheets</p>
+          <p className="font-semibold">No worksheets to show</p>
           <p className="mt-1 text-red-700">{listError}</p>
           <button
             type="button"
             onClick={() => bump()}
             className="mt-4 rounded-full bg-primary-600 px-4 py-2 text-xs font-semibold text-white"
           >
-            Retry
+            Try again
           </button>
         </div>
       )}
