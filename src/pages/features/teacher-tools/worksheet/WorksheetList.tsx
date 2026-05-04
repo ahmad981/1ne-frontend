@@ -6,16 +6,21 @@ import {
   TeacherToolsBulkActionBar,
   TeacherToolsFilterBar,
   TeacherToolsPageHeader,
-  TeacherToolsListSyncHint,
   TeacherToolsStatusBadge,
   TableSkeletonRows,
   type FilterValues,
 } from '../components'
 import { WORKSHEET_STATUS_FILTER_OPTIONS } from '../components/teacherToolsStatusFilterOptions'
-import { demoClasses, demoWorksheets, TEACHER_TOOLS_SEED_WORKSHEET_IDS } from '../demo/teacherToolsDemoData'
+import { demoClasses } from '../demo/teacherToolsDemoData'
 import { SUBJECTS, GRADES } from '../types'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
 import { formatListLoadError } from '../utils/listLoadError'
+import {
+  useDeleteWorksheetMutation,
+  useDuplicateWorksheetMutation,
+  useListWorksheetsQuery,
+  usePatchWorksheetMutation,
+} from '../../../../redux/features/teacherTools/worksheet/worksheetApiSlice'
+import type { WorksheetApiItem } from '../../../../api/worksheetApi'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
@@ -23,11 +28,17 @@ import { CustomModal } from '../../../../components/shared/CustomModal'
 
 const tabs = ['All', 'Draft', 'Published', 'Printable', 'Digital', 'Archived'] as const
 
+function formatLabelForRow(w: WorksheetApiItem): string {
+  const f = w.outputFormat
+  if (f === 'printable_pdf') return 'Printable'
+  if (f === 'both') return 'Both'
+  return 'Digital'
+}
+
 export default function WorksheetList() {
   const { toast } = useSnackbar()
   const navigate = useNavigate()
   const location = useLocation()
-  const { api, allWorksheets } = useTeacherToolsDemo()
   const [tab, setTab] = useState<(typeof tabs)[number]>('All')
   const [simulateLoadError, setSimulateLoadError] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({
@@ -45,35 +56,24 @@ export default function WorksheetList() {
   const [archiveId, setArchiveId] = useState<string | null>(null)
   const [archivePending, setArchivePending] = useState(false)
   const [bulkPending, setBulkPending] = useState(false)
-  const [listReady, setListReady] = useState(false)
-  const [listError, setListError] = useState<string | null>(null)
-  const [liveListUnavailable, setLiveListUnavailable] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
 
-  const runListLoad = useCallback(async () => {
-    setListReady(false)
-    setListError(null)
-    setLiveListUnavailable(false)
-    try {
-      if (import.meta.env.DEV && simulateLoadError) throw new Error('Simulated load failure')
-      await api.listWorksheets()
-      setListReady(true)
-    } catch (e) {
-      if (import.meta.env.DEV) console.warn('[WorksheetList] listWorksheets failed', e)
-      const msg = formatListLoadError(e)
-      if (demoWorksheets.length > 0) {
-        setListReady(true)
-        setLiveListUnavailable(true)
-      } else {
-        setListError(msg)
-        setListReady(false)
-      }
-    }
-  }, [api, simulateLoadError])
+  const { data, isLoading, isError, error, refetch } = useListWorksheetsQuery(
+    { page_size: 200 },
+    { refetchOnMountOrArgChange: true },
+  )
 
   useEffect(() => {
-    void runListLoad()
-  }, [runListLoad, refreshKey, location.pathname])
+    void refetch()
+  }, [location.pathname, refreshKey, refetch])
+
+  const allWorksheets = data?.items ?? []
+  const listReady = !isLoading || Boolean(data)
+  const listError = simulateLoadError
+    ? 'Simulated load failure'
+    : isError
+      ? formatListLoadError(error)
+      : null
 
   const filtered = useMemo(() => {
     return allWorksheets.filter((w) => {
@@ -82,8 +82,9 @@ export default function WorksheetList() {
       if (filters.grade && w.grade !== filters.grade) return false
       if (filters.classKey && !w.classes?.includes(filters.classKey)) return false
       if (tab === 'All' && filters.status && w.status !== filters.status) return false
-      if (tab === 'Printable' && w.format !== 'printable_pdf' && w.format !== 'both') return false
-      if (tab === 'Digital' && w.format !== 'interactive_digital' && w.format !== 'both') return false
+      const f = w.outputFormat
+      if (tab === 'Printable' && f !== 'printable_pdf' && f !== 'both') return false
+      if (tab === 'Digital' && f !== 'interactive_digital' && f !== 'both') return false
       if (tab === 'Draft' && w.status !== 'draft') return false
       if (tab === 'Published' && w.status !== 'published') return false
       if (tab === 'Archived' && w.status !== 'archived') return false
@@ -96,23 +97,20 @@ export default function WorksheetList() {
     })
   }, [allWorksheets, filters, tab])
 
+  const [patchWorksheet] = usePatchWorksheetMutation()
+  const [deleteWorksheet] = useDeleteWorksheetMutation()
+  const [duplicateWorksheet] = useDuplicateWorksheetMutation()
+
   const toggle = (id: string) => {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
   }
 
-  const bump = () => setRefreshKey((k) => k + 1)
+  const bump = useCallback(() => {
+    setRefreshKey((k) => k + 1)
+    void refetch()
+  }, [refetch])
 
-  const goEdit = async (id: string) => {
-    if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id)) {
-      const r = await api.duplicateWorksheet(id)
-      if (r.ok && 'id' in r && r.id) {
-        toast.success('Created an editable copy from the sample library')
-        navigate(`/teacher-tools/worksheet/${r.id}/edit`)
-        return
-      }
-      toast.error('Could not create a copy')
-      return
-    }
+  const goEdit = (id: string) => {
     navigate(`/teacher-tools/worksheet/${id}/edit`)
   }
 
@@ -120,16 +118,12 @@ export default function WorksheetList() {
     if (!archiveId) return
     setArchivePending(true)
     try {
-      const res = await api.updateWorksheet(archiveId, { status: 'archived' })
-      if (!res.ok && res.error === 'READ_ONLY') {
-        toast.error('Sample items cannot be archived. Duplicate first.')
-        return
-      }
-      if (res.ok) {
-        toast.success('Worksheet archived')
-        setArchiveId(null)
-        bump()
-      }
+      await patchWorksheet({ id: archiveId, patch: { status: 'archived' } }).unwrap()
+      toast.success('Worksheet archived')
+      setArchiveId(null)
+      bump()
+    } catch {
+      toast.error('Could not archive worksheet')
     } finally {
       setArchivePending(false)
     }
@@ -139,26 +133,25 @@ export default function WorksheetList() {
     if (!deleteId) return
     setDeletePending(true)
     try {
-      const res = await api.deleteWorksheet(deleteId)
-      if (!res.ok) {
-        if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be deleted.')
-        else toast.error('Could not delete worksheet')
-        return
-      }
+      await deleteWorksheet(deleteId).unwrap()
       toast.success('Worksheet deleted')
       setDeleteId(null)
       bump()
+    } catch {
+      toast.error('Could not delete worksheet')
     } finally {
       setDeletePending(false)
     }
   }
 
   const runDuplicate = async (id: string) => {
-    const r = await api.duplicateWorksheet(id)
-    if (r.ok && 'id' in r && r.id) {
+    try {
+      await duplicateWorksheet(id).unwrap()
       toast.success('Worksheet duplicated')
       bump()
-    } else toast.error('Could not duplicate')
+    } catch {
+      toast.error('Could not duplicate')
+    }
   }
 
   return (
@@ -192,8 +185,6 @@ export default function WorksheetList() {
         </label>
       )}
 
-      {liveListUnavailable && <TeacherToolsListSyncHint kind="worksheets" onRetry={() => bump()} />}
-
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -218,11 +209,13 @@ export default function WorksheetList() {
             setBulkPending(true)
             try {
               for (const id of selected) {
-                await api.duplicateWorksheet(id)
+                await duplicateWorksheet(id).unwrap()
               }
               toast.success('Duplicated selected')
               setSelected([])
               bump()
+            } catch {
+              toast.error('Bulk duplicate failed')
             } finally {
               setBulkPending(false)
             }
@@ -255,7 +248,7 @@ export default function WorksheetList() {
         <p className="py-3 text-sm text-gray-600">Archived worksheets stay under the Archived tab. You can duplicate or delete later.</p>
       </CustomModal>
 
-      {!listReady && !listError && <TableSkeletonRows />}
+      {(isLoading && !data) && !listError && <TableSkeletonRows />}
 
       {listError && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
@@ -271,7 +264,7 @@ export default function WorksheetList() {
         </div>
       )}
 
-      {listReady && filtered.length === 0 && (
+      {listReady && !listError && filtered.length === 0 && (
         <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-600">
           No worksheets match your filters.{' '}
           <button
@@ -288,7 +281,7 @@ export default function WorksheetList() {
         </div>
       )}
 
-      {listReady && filtered.length > 0 && (
+      {listReady && !listError && filtered.length > 0 && (
         <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-sm">
           <table className="min-w-full divide-y divide-gray-200 text-sm">
             <thead className="bg-gray-50">
@@ -324,16 +317,14 @@ export default function WorksheetList() {
                     {w.sourceSummary && <p className="mt-0.5 text-xs font-normal text-gray-500 line-clamp-1">{w.sourceSummary}</p>}
                   </td>
                   <td className="px-3 py-3 text-gray-600">{w.topic}</td>
-                  <td className="px-3 py-3 text-gray-600">
-                    {w.format === 'printable_pdf' ? 'Printable' : w.format === 'both' ? 'Both' : 'Digital'}
-                  </td>
+                  <td className="px-3 py-3 text-gray-600">{formatLabelForRow(w)}</td>
                   <td className="px-3 py-3">
                     <TeacherToolsStatusBadge kind="content" value={w.status} />
                   </td>
                   <td className="px-3 py-3 text-right">
                     <TeacherToolsActionMenu
                       actions={[
-                        { key: 'edit', label: 'Edit', onClick: () => void goEdit(w.id) },
+                        { key: 'edit', label: 'Edit', onClick: () => goEdit(w.id) },
                         { key: 'dup', label: 'Duplicate', onClick: () => void runDuplicate(w.id) },
                         {
                           key: 'arch',

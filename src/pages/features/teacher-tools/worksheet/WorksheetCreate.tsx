@@ -2,19 +2,32 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
-import {
-  SHORT_RESPONSE_LINES,
-  clampResponseLines,
-  formatSourceSummary,
-  generateOneWorksheetBlock,
-  generateWorksheetBlocks,
-} from '../demo/generationFromSources'
-import type { WorksheetGenerationOpts, QuestionMixMode, QuizDifficultyId } from '../demo/generationFromSources'
+import { SHORT_RESPONSE_LINES, clampResponseLines, formatSourceSummary } from '../demo/generationFromSources'
+import type { QuestionMixMode, QuizDifficultyId } from '../demo/generationFromSources'
 import type { WorksheetBlock } from '../demo/topicAwareGenerators'
 import { GRADES, SUBJECTS } from '../types'
-import { newDemoId } from '../demo/newDemoId'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
 import type { DemoQuiz } from '../demo/teacherToolsDemoData'
+import {
+  useAddWorksheetBlockMutation,
+  useAddWorksheetSessionMutation,
+  useCreateWorksheetMutation,
+  useDeleteWorksheetBlockMutation,
+  useDeleteWorksheetSessionMutation,
+  useGenerateWorksheetMutation,
+  useLazyGetWorksheetQuery,
+  usePatchWorksheetBlockMutation,
+  usePatchWorksheetMutation,
+  usePatchWorksheetSessionMutation,
+  useRegenerateWorksheetBlockMutation,
+  useReorderWorksheetBlocksMutation,
+} from '../../../../redux/features/teacherTools/worksheet/worksheetApiSlice'
+import {
+  apiSessionsToLocal,
+  localBlockToCreatePayload,
+  localBlockToPatchPayload,
+  type LocalWorksheetBlock,
+  type LocalWorksheetSession,
+} from './worksheetApiAdapters'
 import { downloadQuizPdf } from '../utils/generateQuizPdf'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
@@ -47,8 +60,7 @@ import {
 } from '../quiz/config/handoutLayoutConfig'
 import { QUIZ_CREATION_STEPS } from '../quiz/config/quizCreationConfig'
 import { useQuizRagScope } from '../quiz/hooks/useQuizRagScope'
-import type { DemoWorksheet } from '../demo/teacherToolsDemoData'
-import { randomGenerationDelay, validateRagWorksheetBuild } from './config/worksheetCreationConfig'
+import { validateRagWorksheetBuild } from './config/worksheetCreationConfig'
 import { WorksheetRagIdentitySection, type WorksheetOutputFormat } from './components/WorksheetRagIdentitySection'
 import { WorksheetGenerationParametersSection } from './components/WorksheetGenerationParametersSection'
 
@@ -60,22 +72,16 @@ const TYPE_HEADING: Record<(typeof TYPE_ORDER)[number], string> = {
   match: 'MATCHING',
 }
 
-type WorksheetSession = { id: string; title: string; blocks: WorksheetBlock[] }
-
-function totalQuestionsInSessions(sessionList: WorksheetSession[]): number {
+function totalQuestionsInSessions(sessionList: LocalWorksheetSession[]): number {
   return sessionList.reduce((sum, s) => sum + s.blocks.length, 0)
 }
 
-function distinctBlockTypesInSessions(sessionList: WorksheetSession[]): number {
+function distinctBlockTypesInSessions(sessionList: LocalWorksheetSession[]): number {
   return new Set(sessionList.flatMap((s) => s.blocks.map((b) => b.type))).size
 }
 
 function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
-}
-
-function toPersistedFormat(f: WorksheetOutputFormat): DemoWorksheet['format'] {
-  return f
 }
 
 type WorksheetBlockEditForm =
@@ -222,6 +228,26 @@ function worksheetPreviewTypeLabel(block: WorksheetBlock): string {
   return TYPE_HEADING[block.type]
 }
 
+function worksheetMutationErrorMessage(err: unknown): string {
+  if (err && typeof err === 'object') {
+    const e = err as { data?: unknown; message?: string }
+    if (typeof e.message === 'string' && e.message && !e.message.startsWith('[')) {
+      return e.message.length > 220 ? `${e.message.slice(0, 217)}…` : e.message
+    }
+    const d = e.data
+    if (typeof d === 'string') return d.length > 220 ? `${d.slice(0, 217)}…` : d
+    if (d && typeof d === 'object') {
+      const det = (d as { detail?: unknown }).detail
+      if (typeof det === 'string') return det.length > 220 ? `${det.slice(0, 217)}…` : det
+      if (Array.isArray(det)) {
+        const parts = det.map((x) => (typeof x === 'object' && x !== null && 'msg' in x ? String((x as { msg: string }).msg) : JSON.stringify(x)))
+        return parts.join('; ').slice(0, 240)
+      }
+    }
+  }
+  return 'Request failed.'
+}
+
 function WorksheetPreviewBlockContent({
   block,
   ruledLineSpacingPx,
@@ -303,14 +329,38 @@ export default function WorksheetCreate() {
   const { worksheetId } = useParams<{ worksheetId?: string }>()
   const isEdit = location.pathname.endsWith('/edit')
   const { toast } = useSnackbar()
-  const { api } = useTeacherToolsDemo()
+  const worksheetIdRef = useRef<string | null>(worksheetId ?? null)
+  const idempotencyKeyRef = useRef<string>(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`)
+
+  useEffect(() => {
+    worksheetIdRef.current = worksheetId ?? worksheetIdRef.current
+  }, [worksheetId])
+  const [getWorksheet] = useLazyGetWorksheetQuery()
+  const [createWorksheet] = useCreateWorksheetMutation()
+  const [patchWorksheet] = usePatchWorksheetMutation()
+  const [generateWorksheetMutation] = useGenerateWorksheetMutation()
+  const [addWorksheetSessionMutation] = useAddWorksheetSessionMutation()
+  const [deleteWorksheetSessionMutation] = useDeleteWorksheetSessionMutation()
+  const [patchWorksheetSessionMutation] = usePatchWorksheetSessionMutation()
+  const [addWorksheetBlockMutation] = useAddWorksheetBlockMutation()
+  const [patchWorksheetBlockMutation] = usePatchWorksheetBlockMutation()
+  const [deleteWorksheetBlockMutation] = useDeleteWorksheetBlockMutation()
+  const [reorderWorksheetBlocksMutation] = useReorderWorksheetBlocksMutation()
+  const [regenerateWorksheetBlockMutation] = useRegenerateWorksheetBlockMutation()
+
+  const [ragHydration, setRagHydration] = useState<{
+    sourceBookIds: string[]
+    scopeTopics: string[]
+    scopeRefinement: string
+    generateWithoutSources: boolean
+  } | null>(null)
 
   const [phase, setPhase] = useState<'build' | 'review'>('build')
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
-  const [sessions, setSessions] = useState<WorksheetSession[]>([])
+  const [sessions, setSessions] = useState<LocalWorksheetSession[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
   const [handoutLayout, setHandoutLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
   const [draftLayout, setDraftLayout] = useState<HandoutLayoutOpts>(DEFAULT_HANDOUT_LAYOUT)
@@ -343,40 +393,17 @@ export default function WorksheetCreate() {
   const [addingBlockOpen, setAddingBlockOpen] = useState(false)
   const [addingBlockSessionId, setAddingBlockSessionId] = useState<string | null>(null)
   const [addQuestionDraft, setAddQuestionDraft] = useState<AddQuestionDraft>(() => emptyAddQuestionDraft())
+  const [regeneratingAll, setRegeneratingAll] = useState(false)
+  const [regeneratingBlockKey, setRegeneratingBlockKey] = useState<string | null>(null)
 
   const rag = useQuizRagScope({
     subject,
     grade,
-    initialScopeRefinement: loadedTopic,
+    initialSelectedBookIds: ragHydration?.sourceBookIds,
+    initialScopeTopics: ragHydration?.scopeTopics,
+    initialScopeRefinement: ragHydration ? ragHydration.scopeRefinement : loadedTopic,
+    initialGenerateWithoutSources: ragHydration?.generateWithoutSources,
   })
-
-  const worksheetGenOpts: WorksheetGenerationOpts = useMemo(
-    () => ({
-      mixMode,
-      questionCount,
-      includeMcq,
-      includeFillBlank,
-      includeShort,
-      includeMatch,
-      countsByType: { mcq: countMcq, fill_blank: countFillBlank, short: countShort, match: countMatch },
-      difficulty,
-      generatorNotes: teacherNotes.trim() || undefined,
-    }),
-    [
-      mixMode,
-      questionCount,
-      includeMcq,
-      includeFillBlank,
-      includeShort,
-      includeMatch,
-      countMcq,
-      countFillBlank,
-      countShort,
-      countMatch,
-      difficulty,
-      teacherNotes,
-    ],
-  )
 
   const previewSections = useMemo(() => {
     let n = 0
@@ -419,56 +446,124 @@ export default function WorksheetCreate() {
     let cancelled = false
     setHydrateReady(false)
     ;(async () => {
-      const w = await api.getWorksheet(worksheetId)
-      if (cancelled) return
-      if (!w) {
+      try {
+        const w = await getWorksheet(worksheetId).unwrap()
+        if (cancelled) return
+        worksheetIdRef.current = w.id
+        setTitle(w.title)
+        setSubject(w.subject)
+        setGrade(w.grade)
+        setOutputFormat(w.outputFormat)
+        setLoadedTopic(w.topic)
+        setTeacherNotes(w.teacherNotes ?? '')
+        if (w.difficulty === 'foundation' || w.difficulty === 'standard' || w.difficulty === 'challenge') {
+          setDifficulty(w.difficulty)
+        }
+        setUsageMeta({
+          createdAt: typeof w.createdAt === 'string' ? w.createdAt.slice(0, 10) : '',
+          usageCount: w.submissionCount,
+        })
+        setRagHydration({
+          sourceBookIds: w.sourceBookIds ?? [],
+          scopeTopics: w.scopeTopics ?? [],
+          scopeRefinement: w.scopeRefinement ?? '',
+          generateWithoutSources: Boolean(w.generateWithoutSources),
+        })
+        setSessions(apiSessionsToLocal(w.sessions ?? []))
+        if (w.handoutLayout && typeof w.handoutLayout === 'object') {
+          const next = { ...DEFAULT_HANDOUT_LAYOUT, ...(w.handoutLayout as HandoutLayoutOpts) }
+          setHandoutLayout(next)
+          setDraftLayout(next)
+        }
+        if ((w.sessions ?? []).some((s) => (s.blocks?.length ?? 0) > 0)) {
+          setPhase('review')
+        }
+        setHydrateReady(true)
+      } catch {
+        if (cancelled) return
         toast.error('Worksheet not found')
         navigate('/teacher-tools/worksheet')
-        return
       }
-      setTitle(w.title)
-      setSubject(w.subject)
-      setGrade(w.grade)
-      setOutputFormat(w.format === 'both' || w.format === 'printable_pdf' || w.format === 'interactive_digital' ? w.format : 'interactive_digital')
-      setLoadedTopic(w.topic)
-      setUsageMeta({ createdAt: w.createdAt, usageCount: w.usageCount })
-      if (Array.isArray(w.sessions)) setSessions(w.sessions as WorksheetSession[])
-      if (w.handoutLayout) {
-        const next = { ...DEFAULT_HANDOUT_LAYOUT, ...w.handoutLayout }
-        setHandoutLayout(next)
-        setDraftLayout(next)
-      }
-      if (Array.isArray(w.sessions) && w.sessions.some((s: WorksheetSession) => (s.blocks?.length ?? 0) > 0)) {
-        setPhase('review')
-      }
-      setHydrateReady(true)
     })()
     return () => {
       cancelled = true
     }
-  }, [api, isEdit, navigate, toast, worksheetId])
+  }, [getWorksheet, isEdit, navigate, toast, worksheetId])
 
-  const regenerate = useCallback(() => {
-    const gen = generateWorksheetBlocks(rag.getGenerationContext(), worksheetGenOpts)
-    setSessions((prev) => {
-      if (prev.length === 0) {
-        return [{ id: newDemoId('ws-session'), title: 'Session 1', blocks: gen }]
-      }
-      const [first, ...rest] = prev
-      return [{ ...first, blocks: gen }, ...rest]
-    })
-    toast.success('Content regenerated from sources')
-  }, [rag, toast, worksheetGenOpts])
+  const regenerate = useCallback(async () => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) {
+      toast.error('Worksheet id missing. Reload the page or run Generate from the build step.')
+      return
+    }
+    idempotencyKeyRef.current =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+    setRegeneratingAll(true)
+    try {
+      const result = await generateWorksheetMutation({
+        id: wsId,
+        payload: {
+          questionCount: totalQuestionsInSessions(sessions) || questionCount,
+          mixMode,
+          includeMcq,
+          includeFillBlank,
+          includeShort,
+          includeMatch,
+          countsByType: { mcq: countMcq, fill_blank: countFillBlank, short: countShort, match: countMatch },
+          difficulty,
+          teacherNotes: teacherNotes.trim() || undefined,
+        },
+        idempotencyKey: idempotencyKeyRef.current,
+      }).unwrap()
+      setSessions(apiSessionsToLocal(result.worksheet.sessions))
+      const warn = result.warnings?.[0]
+      if (warn) toast.warning(warn)
+      else toast.success('Worksheet regenerated from sources.')
+    } catch (err) {
+      toast.error(worksheetMutationErrorMessage(err))
+    } finally {
+      setRegeneratingAll(false)
+    }
+  }, [
+    worksheetId,
+    sessions,
+    questionCount,
+    mixMode,
+    includeMcq,
+    includeFillBlank,
+    includeShort,
+    includeMatch,
+    countMcq,
+    countFillBlank,
+    countShort,
+    countMatch,
+    difficulty,
+    teacherNotes,
+    toast,
+    generateWorksheetMutation,
+  ])
 
-  const addSession = () => {
-    setSessions((prev) => [
-      ...prev,
-      { id: newDemoId('ws-session'), title: `Session ${prev.length + 1}`, blocks: [] },
-    ])
-    toast.success('Session added')
+  const addSession = async () => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) {
+      toast.error('Generate the worksheet first.')
+      return
+    }
+    try {
+      const updated = await addWorksheetSessionMutation({
+        worksheetId: wsId,
+        payload: { title: `Session ${sessions.length + 1}` },
+      }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+      toast.success('Session added')
+    } catch {
+      toast.error('Could not add session')
+    }
   }
 
-  const removeSession = (sessionId: string) => {
+  const removeSession = async (sessionId: string) => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) return
     if (sessions.length <= 1) {
       toast.error('Keep at least one session.')
       return
@@ -477,21 +572,43 @@ export default function WorksheetCreate() {
     if (idx < 0) return
     const victim = sessions[idx]!
     const rest = sessions.filter((s) => s.id !== sessionId)
-    if (victim.blocks.length === 0) {
-      setSessions(rest)
-      toast.success('Session removed')
-      return
-    }
     const targetIdx = Math.max(0, idx - 1)
-    const merged = rest.map((s, i) =>
-      i === targetIdx ? { ...s, blocks: [...s.blocks, ...victim.blocks] } : s,
-    )
-    setSessions(merged)
-    toast.success('Session removed — its questions were merged into the session above.')
+    const targetSessionId = rest[targetIdx]?.id
+    if (!targetSessionId) return
+    try {
+      for (const b of victim.blocks) {
+        const updated = await addWorksheetBlockMutation({
+          worksheetId: wsId,
+          sessionId: targetSessionId,
+          block: localBlockToCreatePayload(b),
+        }).unwrap()
+        setSessions(apiSessionsToLocal(updated.sessions))
+      }
+      const updated = await deleteWorksheetSessionMutation({ worksheetId: wsId, sessionId }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+      toast.success('Session removed — its questions were merged into the session above.')
+    } catch {
+      toast.error('Could not remove session')
+    }
   }
 
-  const updateSessionTitle = (sessionId: string, title: string) => {
+  const updateSessionTitleLocal = (sessionId: string, title: string) => {
     setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)))
+  }
+
+  const flushSessionTitle = async (sessionId: string, title: string) => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) return
+    try {
+      const updated = await patchWorksheetSessionMutation({
+        worksheetId: wsId,
+        sessionId,
+        patch: { title },
+      }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+    } catch {
+      toast.error('Could not save session title')
+    }
   }
 
   const closeBlockEditor = () => {
@@ -521,47 +638,84 @@ export default function WorksheetCreate() {
     setAddQuestionDraft(emptyAddQuestionDraft())
   }
 
-  const regenerateBlock = (sessionId: string, blockIndex: number) => {
+  const handleRegenerateBlock = async (sessionId: string, blockIndex: number) => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) {
+      toast.error('Worksheet id missing. Reload the page or run Generate first.')
+      return
+    }
     const session = sessions.find((s) => s.id === sessionId)
-    const t = session?.blocks[blockIndex]?.type
-    if (!t) return
-    const next = generateOneWorksheetBlock(rag.getGenerationContext(), worksheetGenOpts, t, blockIndex + 3)
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId
-          ? { ...s, blocks: s.blocks.map((b, i) => (i === blockIndex ? next : b)) }
-          : s,
-      ),
-    )
-    toast.success('Block regenerated')
+    const block = session?.blocks[blockIndex] as LocalWorksheetBlock | undefined
+    if (!block?._id) {
+      toast.error('This question has no server id yet. Reload the worksheet, then try again.')
+      return
+    }
+    const rk = `${sessionId}:${block._id}`
+    setRegeneratingBlockKey(rk)
+    try {
+      const updated = await regenerateWorksheetBlockMutation({
+        worksheetId: wsId,
+        sessionId,
+        blockId: block._id,
+      }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+      toast.success('Question replaced with a new version.')
+    } catch (err) {
+      toast.error(worksheetMutationErrorMessage(err))
+    } finally {
+      setRegeneratingBlockKey(null)
+    }
   }
 
-  const deleteBlock = (sessionId: string, blockIndex: number) => {
+  const handleDeleteBlock = async (sessionId: string, blockIndex: number) => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) return
     const total = totalQuestionsInSessions(sessions)
     if (total <= 1) {
       toast.error('Keep at least one question block, or go back to edit requirements.')
       return
     }
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === sessionId ? { ...s, blocks: s.blocks.filter((_, i) => i !== blockIndex) } : s,
-      ),
-    )
-    toast.success('Block removed')
+    const session = sessions.find((s) => s.id === sessionId)
+    const block = session?.blocks[blockIndex] as LocalWorksheetBlock | undefined
+    if (!block?._id) return
+    try {
+      const updated = await deleteWorksheetBlockMutation({
+        worksheetId: wsId,
+        sessionId,
+        blockId: block._id,
+      }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+      toast.success('Block removed')
+    } catch {
+      toast.error('Could not remove block')
+    }
   }
 
-  const moveBlockInSession = (sessionId: string, blockIndex: number, direction: -1 | 1) => {
-    setSessions((prev) =>
-      prev.map((s) => {
-        if (s.id !== sessionId) return s
-        const target = blockIndex + direction
-        if (target < 0 || target >= s.blocks.length) return s
-        const nextBlocks = [...s.blocks]
-        const [row] = nextBlocks.splice(blockIndex, 1)
-        nextBlocks.splice(target, 0, row)
-        return { ...s, blocks: nextBlocks }
-      }),
-    )
+  const moveBlockInSession = async (sessionId: string, blockIndex: number, direction: -1 | 1) => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) return
+    const session = sessions.find((s) => s.id === sessionId)
+    if (!session) return
+    const target = blockIndex + direction
+    if (target < 0 || target >= session.blocks.length) return
+    const reordered = [...session.blocks]
+    const [row] = reordered.splice(blockIndex, 1)
+    reordered.splice(target, 0, row)
+    const order = reordered.map((b, i) => ({ id: (b as LocalWorksheetBlock)._id, sort_order: i }))
+    if (order.some((o) => !o.id)) {
+      toast.error('Missing block ids — save worksheet again.')
+      return
+    }
+    try {
+      const updated = await reorderWorksheetBlocksMutation({
+        worksheetId: wsId,
+        sessionId,
+        order,
+      }).unwrap()
+      setSessions(apiSessionsToLocal(updated.sessions))
+    } catch {
+      toast.error('Could not reorder blocks')
+    }
   }
 
   const runGeneration = useCallback(async () => {
@@ -592,92 +746,143 @@ export default function WorksheetCreate() {
       setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.12))
     }, 450)
     try {
-      await new Promise((r) => setTimeout(r, randomGenerationDelay()))
-      setSessions([
-        { id: newDemoId('ws-session'), title: 'Session 1', blocks: generateWorksheetBlocks(rag.getGenerationContext(), worksheetGenOpts) },
-      ])
+      let wsId = worksheetId ?? worksheetIdRef.current
+      if (!wsId) {
+        const created = await createWorksheet({
+          title: title.trim() || 'Untitled worksheet',
+          subject,
+          grade,
+          outputFormat,
+          classes: [classKeyForGrade(grade)],
+          sourceBookIds: rag.selectedBookIds,
+          scopeTopics: rag.selectedTopics,
+          scopeRefinement: rag.scopeRefinement.trim() || undefined,
+          generateWithoutSources: rag.generateWithoutSources,
+          difficulty,
+          teacherNotes: teacherNotes.trim() || undefined,
+          status: 'draft',
+        }).unwrap()
+        wsId = created.id
+        worksheetIdRef.current = wsId
+        navigate(`/teacher-tools/worksheet/${wsId}/edit`, { replace: true })
+      } else {
+        await patchWorksheet({
+          id: wsId,
+          patch: {
+            title: title.trim() || 'Untitled worksheet',
+            subject,
+            grade,
+            outputFormat,
+            classes: [classKeyForGrade(grade)],
+            sourceBookIds: rag.selectedBookIds,
+            scopeTopics: rag.selectedTopics,
+            scopeRefinement: rag.scopeRefinement.trim() || undefined,
+            generateWithoutSources: rag.generateWithoutSources,
+            difficulty,
+            teacherNotes: teacherNotes.trim() || undefined,
+          },
+        }).unwrap()
+      }
+      idempotencyKeyRef.current =
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+      const result = await generateWorksheetMutation({
+        id: wsId,
+        payload: {
+          questionCount,
+          mixMode,
+          includeMcq,
+          includeFillBlank,
+          includeShort,
+          includeMatch,
+          countsByType: { mcq: countMcq, fill_blank: countFillBlank, short: countShort, match: countMatch },
+          difficulty,
+          teacherNotes: teacherNotes.trim() || undefined,
+        },
+        idempotencyKey: idempotencyKeyRef.current,
+      }).unwrap()
+      setSessions(apiSessionsToLocal(result.worksheet.sessions))
       setPhase('review')
-      toast.success('Worksheet generated — review below.')
-    } catch {
-      setGenerationError('Generation failed (demo). Please retry with updated inputs.')
-      toast.error('Could not generate worksheet content.')
+      if (result.warnings.length > 0) toast.warning(result.warnings[0] ?? '')
+      else toast.success('Worksheet generated — review below.')
+    } catch (err) {
+      setGenerationError('Generation failed. Please retry.')
+      toast.error(worksheetMutationErrorMessage(err))
     } finally {
       window.clearInterval(steps)
       setGenerating(false)
       setGenProgress(1)
     }
-  }, [title, rag, toast, worksheetGenOpts])
-
-  const buildPayload = (status: 'draft' | 'published') => {
-    const ctx = rag.getGenerationContext()
-    const classes = [classKeyForGrade(grade)]
-    const createdAt = isEdit && usageMeta.createdAt ? usageMeta.createdAt : new Date().toISOString().slice(0, 10)
-    return {
-      title: title.trim() || 'Untitled worksheet',
-      topic: rag.combinedTopicLabel,
-      subject,
-      grade,
-      format: toPersistedFormat(outputFormat),
-      status,
-      classes,
-      createdAt,
-      usageCount: isEdit ? usageMeta.usageCount : 0,
-      sourceSummary: formatSourceSummary(ctx),
-      sessions,
-      handoutLayout,
-    }
-  }
+  }, [
+    worksheetId,
+    title,
+    subject,
+    grade,
+    outputFormat,
+    rag,
+    difficulty,
+    mixMode,
+    questionCount,
+    includeMcq,
+    includeFillBlank,
+    includeShort,
+    includeMatch,
+    countMcq,
+    countFillBlank,
+    countShort,
+    countMatch,
+    teacherNotes,
+    toast,
+    navigate,
+    createWorksheet,
+    patchWorksheet,
+    generateWorksheetMutation,
+  ])
 
   const handleSaveDraft = async () => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) {
+      toast.error('Generate first.')
+      return
+    }
     if (totalQuestionsInSessions(sessions) === 0) {
       toast.error('Generate at least one block before saving a draft.')
       return
     }
     setSaveDraftPending(true)
     try {
-      const payload = buildPayload('draft')
-      if (isEdit && worksheetId) {
-        const res = await api.updateWorksheet(worksheetId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited.')
-          else toast.error('Could not save draft')
-          return
-        }
-        toast.success('Draft saved')
-        navigate(`/teacher-tools/worksheet/${worksheetId}`)
-        return
-      }
-      const id = newDemoId('ws')
-      await api.createWorksheet({ id, ...payload })
+      await patchWorksheet({
+        id: wsId,
+        patch: { status: 'draft', handoutLayout },
+      }).unwrap()
       toast.success('Draft saved')
-      navigate(`/teacher-tools/worksheet/${id}`)
+      navigate(`/teacher-tools/worksheet/${wsId}`)
+    } catch {
+      toast.error('Could not save draft')
     } finally {
       setSaveDraftPending(false)
     }
   }
 
   const handlePublish = async () => {
+    const wsId = worksheetId ?? worksheetIdRef.current
+    if (!wsId) {
+      toast.error('Generate first.')
+      return
+    }
     if (totalQuestionsInSessions(sessions) === 0) {
       toast.error('Generate at least one block before publishing.')
       return
     }
     setPublishPending(true)
     try {
-      const payload = buildPayload('published')
-      if (isEdit && worksheetId) {
-        const res = await api.updateWorksheet(worksheetId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY')
-            toast.error('Sample library items cannot be edited. Duplicate from the list first.')
-          else toast.error('Could not save worksheet')
-          return
-        }
-        toast.success('Worksheet updated')
-      } else {
-        await api.createWorksheet({ id: newDemoId('ws'), ...payload })
-        toast.success('Worksheet published')
-      }
+      await patchWorksheet({
+        id: wsId,
+        patch: { status: 'published', handoutLayout },
+      }).unwrap()
+      toast.success(isEdit ? 'Worksheet updated' : 'Worksheet published')
       navigate('/teacher-tools/worksheet')
+    } catch {
+      toast.error('Could not publish')
     } finally {
       setPublishPending(false)
     }
@@ -704,7 +909,10 @@ export default function WorksheetCreate() {
       }),
     )
     const payload: DemoQuiz = {
-      id: isEdit && worksheetId ? worksheetId : newDemoId('ws-preview'),
+      id:
+        worksheetId ??
+        worksheetIdRef.current ??
+        (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ws-preview-${Date.now()}`),
       title: `${title || 'Worksheet'} — Handout`,
       subject,
       grade,
@@ -750,7 +958,11 @@ export default function WorksheetCreate() {
     <div className="space-y-6 pb-10">
       <TeacherToolsPageHeader
         title={isEdit ? 'Edit worksheet' : 'Create worksheet'}
-        subtitle="Configure scope and settings, generate the worksheet, then review and publish."
+        subtitle={
+          isEdit && usageMeta.createdAt
+            ? `Created ${usageMeta.createdAt} · ${usageMeta.usageCount} submission${usageMeta.usageCount === 1 ? '' : 's'}. Configure scope and settings, generate, then review and publish.`
+            : 'Configure scope and settings, generate the worksheet, then review and publish.'
+        }
         breadcrumbs={[
           { label: 'Teacher Tools', to: '/teacher-tools' },
           { label: 'Worksheet', to: '/teacher-tools/worksheet' },
@@ -889,7 +1101,7 @@ export default function WorksheetCreate() {
                 </button>
                 <button
                   type="button"
-                  onClick={addSession}
+                  onClick={() => void addSession()}
                   className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-white px-4 py-2 text-xs font-semibold text-emerald-900 shadow-sm hover:bg-emerald-50"
                 >
                   <FolderPlus className="h-3.5 w-3.5" />
@@ -905,17 +1117,18 @@ export default function WorksheetCreate() {
               <span className="ml-auto text-xs font-medium text-gray-500">{reviewSourceTag}</span>
               <button
                 type="button"
-                onClick={addSession}
+                onClick={() => void addSession()}
                 className="text-xs font-semibold text-emerald-700 hover:text-emerald-600"
               >
                 Add session
               </button>
               <button
                 type="button"
-                onClick={regenerate}
-                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                disabled={regeneratingAll || generating}
+                onClick={() => void regenerate()}
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-500 disabled:opacity-50"
               >
-                Regenerate
+                {regeneratingAll ? 'Regenerating…' : 'Regenerate'}
               </button>
             </div>
             {sessions.length === 0 || totalQs === 0 ? (
@@ -934,7 +1147,8 @@ export default function WorksheetCreate() {
                         <span className="shrink-0">Session</span>
                         <input
                           value={session.title}
-                          onChange={(e) => updateSessionTitle(session.id, e.target.value)}
+                          onChange={(e) => updateSessionTitleLocal(session.id, e.target.value)}
+                          onBlur={(e) => void flushSessionTitle(session.id, e.target.value)}
                           className="w-full min-w-0 rounded-lg border border-gray-200 px-3 py-2 text-sm font-semibold normal-case text-gray-900"
                         />
                       </label>
@@ -949,7 +1163,7 @@ export default function WorksheetCreate() {
                       {sessions.length > 1 ? (
                         <button
                           type="button"
-                          onClick={() => removeSession(session.id)}
+                          onClick={() => void removeSession(session.id)}
                           className="text-xs font-semibold text-red-700 hover:text-red-600"
                         >
                           Remove session
@@ -972,9 +1186,13 @@ export default function WorksheetCreate() {
                                   {TYPE_HEADING[kind]} ({group.length})
                                 </p>
                                 <ul className="space-y-3">
-                                  {group.map(({ b, idx: blockIndex }) => (
+                                  {group.map(({ b, idx: blockIndex }) => {
+                                    const lb = b as LocalWorksheetBlock
+                                    const blockSpinKey = `${session.id}:${lb._id}`
+                                    const blockBusy = regeneratingBlockKey === blockSpinKey
+                                    return (
                                     <li
-                                      key={`${session.id}-${kind}-${blockIndex}`}
+                                      key={`${session.id}-${lb._id || `${kind}-${blockIndex}`}`}
                                       className="rounded-xl border border-gray-100 bg-white p-4 text-sm text-gray-800"
                                     >
                                       {b.type === 'mcq' && 'prompt' in b ? (
@@ -1027,7 +1245,7 @@ export default function WorksheetCreate() {
                                           type="button"
                                           title="Move up"
                                           disabled={blockIndex === 0}
-                                          onClick={() => moveBlockInSession(session.id, blockIndex, -1)}
+                                          onClick={() => void moveBlockInSession(session.id, blockIndex, -1)}
                                           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
                                         >
                                           <ArrowUp className="h-4 w-4" />
@@ -1036,7 +1254,7 @@ export default function WorksheetCreate() {
                                           type="button"
                                           title="Move down"
                                           disabled={blockIndex === session.blocks.length - 1}
-                                          onClick={() => moveBlockInSession(session.id, blockIndex, 1)}
+                                          onClick={() => void moveBlockInSession(session.id, blockIndex, 1)}
                                           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200 disabled:opacity-30"
                                         >
                                           <ArrowDown className="h-4 w-4" />
@@ -1051,24 +1269,26 @@ export default function WorksheetCreate() {
                                         </button>
                                         <button
                                           type="button"
-                                          title="Regenerate"
-                                          onClick={() => regenerateBlock(session.id, blockIndex)}
-                                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100"
+                                          title="Regenerate this question"
+                                          disabled={blockBusy || regeneratingAll || generating}
+                                          onClick={() => void handleRegenerateBlock(session.id, blockIndex)}
+                                          className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 disabled:opacity-40"
                                         >
-                                          <RefreshCw className="h-4 w-4" />
+                                          <RefreshCw className={`h-4 w-4 ${blockBusy ? 'animate-spin' : ''}`} />
                                         </button>
                                         <button
                                           type="button"
                                           title="Remove"
                                           disabled={totalQs <= 1}
-                                          onClick={() => deleteBlock(session.id, blockIndex)}
+                                          onClick={() => void handleDeleteBlock(session.id, blockIndex)}
                                           className="rounded-lg p-1.5 text-red-700 hover:bg-red-50 disabled:opacity-30"
                                         >
                                           <Trash2 className="h-4 w-4" />
                                         </button>
                                       </div>
                                     </li>
-                                  ))}
+                                    )
+                                  })}
                                 </ul>
                               </div>
                             )
@@ -1092,11 +1312,12 @@ export default function WorksheetCreate() {
             </button>
             <button
               type="button"
-              onClick={regenerate}
-              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"
+              disabled={regeneratingAll || generating || totalQs === 0}
+              onClick={() => void regenerate()}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:opacity-50"
             >
-              <Sparkles className="h-4 w-4" />
-              Regenerate all
+              <Sparkles className={`h-4 w-4 ${regeneratingAll ? 'animate-pulse' : ''}`} />
+              {regeneratingAll ? 'Regenerating…' : 'Regenerate all'}
             </button>
           </div>
 
@@ -1302,19 +1523,29 @@ export default function WorksheetCreate() {
         }
         primaryButtonText="Save"
         handleSave={() => {
-          if (editingRef === null || editForm === null) return
-          const next = buildBlockFromEditForm(editForm, toast)
-          if (!next) return
-          const { sessionId, blockIndex } = editingRef
-          setSessions((prev) =>
-            prev.map((s) =>
-              s.id === sessionId
-                ? { ...s, blocks: s.blocks.map((b, i) => (i === blockIndex ? next : b)) }
-                : s,
-            ),
-          )
-          toast.success('Question updated')
-          closeBlockEditor()
+          void (async () => {
+            if (editingRef === null || editForm === null) return
+            const next = buildBlockFromEditForm(editForm, toast)
+            if (!next) return
+            const { sessionId, blockIndex } = editingRef
+            const session = sessions.find((s) => s.id === sessionId)
+            const blockId = (session?.blocks[blockIndex] as LocalWorksheetBlock | undefined)?._id
+            const wsId = worksheetId ?? worksheetIdRef.current
+            if (!blockId || !wsId) return
+            try {
+              const updated = await patchWorksheetBlockMutation({
+                worksheetId: wsId,
+                sessionId,
+                blockId,
+                patch: localBlockToPatchPayload(next),
+              }).unwrap()
+              setSessions(apiSessionsToLocal(updated.sessions))
+              toast.success('Question updated')
+              closeBlockEditor()
+            } catch {
+              toast.error('Could not update question')
+            }
+          })()
         }}
       >
         {editForm?.t === 'mcq' ? (
@@ -1498,23 +1729,37 @@ export default function WorksheetCreate() {
         }
         primaryButtonText="Add to session"
         handleSave={() => {
-          const sessionId = addQuestionTargetSessionRef.current ?? addingBlockSessionId
-          if (!sessionId) {
-            toast.error('No session selected. Close and use “Add question” on a session again.')
-            return
-          }
-          if (!sessions.some((s) => s.id === sessionId)) {
-            toast.error('That session no longer exists. Close this dialog.')
-            closeAddQuestion()
-            return
-          }
-          const block = buildBlockFromAddDraft(addQuestionDraft, toast)
-          if (!block) return
-          setSessions((prev) =>
-            prev.map((s) => (s.id === sessionId ? { ...s, blocks: [...s.blocks, block] } : s)),
-          )
-          toast.success('Question added to session')
-          closeAddQuestion()
+          void (async () => {
+            const sessionId = addQuestionTargetSessionRef.current ?? addingBlockSessionId
+            if (!sessionId) {
+              toast.error('No session selected. Close and use “Add question” on a session again.')
+              return
+            }
+            if (!sessions.some((s) => s.id === sessionId)) {
+              toast.error('That session no longer exists. Close this dialog.')
+              closeAddQuestion()
+              return
+            }
+            const block = buildBlockFromAddDraft(addQuestionDraft, toast)
+            if (!block) return
+            const wsId = worksheetId ?? worksheetIdRef.current
+            if (!wsId) {
+              toast.error('Generate the worksheet first.')
+              return
+            }
+            try {
+              const updated = await addWorksheetBlockMutation({
+                worksheetId: wsId,
+                sessionId,
+                block: localBlockToCreatePayload(block),
+              }).unwrap()
+              setSessions(apiSessionsToLocal(updated.sessions))
+              toast.success('Question added to session')
+              closeAddQuestion()
+            } catch {
+              toast.error('Could not add question')
+            }
+          })()
         }}
       >
         <div className="space-y-4 py-1">

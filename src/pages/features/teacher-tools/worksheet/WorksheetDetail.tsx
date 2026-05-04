@@ -2,11 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsStatusBadge } from '../components'
 import { Phase2Section, Phase2Badge } from '../components/Phase2Lock'
-import { TEACHER_TOOLS_SEED_WORKSHEET_IDS } from '../demo/teacherToolsDemoData'
 import { analyticsForTopic, getTopicBlueprint } from '../demo/topicAwareGenerators'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
-// @ts-expect-error — JS module
-import { useSnackbar } from '../../../../hooks/useSnackbar'
+import { useGetWorksheetQuery } from '../../../../redux/features/teacherTools/worksheet/worksheetApiSlice'
+import { apiBlockToLocal } from './worksheetApiAdapters'
 
 const tabs = ['Overview', 'Content', 'Responses', 'Analytics', 'Settings'] as const
 
@@ -20,27 +18,24 @@ const BLOCK_LABELS: Record<string, string> = {
 export default function WorksheetDetail() {
   const { worksheetId } = useParams()
   const navigate = useNavigate()
-  const { toast } = useSnackbar()
-  const { api, allWorksheets } = useTeacherToolsDemo()
-  const w = useMemo(() => allWorksheets.find((x) => x.id === worksheetId), [allWorksheets, worksheetId])
+  const { data: w, isLoading, isError } = useGetWorksheetQuery(worksheetId ?? '', { skip: !worksheetId })
   const [tab, setTab] = useState<(typeof tabs)[number]>('Overview')
 
-  const goEdit = async () => {
+  const goEdit = () => {
     if (!worksheetId) return
-    if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(worksheetId)) {
-      const r = await api.duplicateWorksheet(worksheetId)
-      if (r.ok && 'id' in r && r.id) {
-        toast.success('Created an editable copy from the sample library')
-        navigate(`/teacher-tools/worksheet/${r.id}/edit`)
-        return
-      }
-      toast.error('Could not create a copy')
-      return
-    }
     navigate(`/teacher-tools/worksheet/${worksheetId}/edit`)
   }
 
-  if (!w) {
+  const blocksForUi = useMemo(() => {
+    if (!w?.sessions) return []
+    return w.sessions.flatMap((s) => (s.blocks ?? []).map(apiBlockToLocal))
+  }, [w?.sessions])
+
+  if (isLoading && !w) {
+    return <div className="p-6 text-sm text-gray-600">Loading…</div>
+  }
+
+  if (isError || !w) {
     return (
       <div className="space-y-4 p-6">
         <p className="text-sm text-gray-700">Worksheet not found.</p>
@@ -53,13 +48,11 @@ export default function WorksheetDetail() {
 
   const bp = getTopicBlueprint(w.subject, w.topic)
   const an = analyticsForTopic(bp)
-  const persistedBlocks = useMemo(() => (Array.isArray(w.sessions) ? w.sessions.flatMap((s) => s.blocks ?? []) : []), [w.sessions])
-  const blocksForUi = persistedBlocks.length > 0 ? persistedBlocks : bp.blocks
   const blockTypesForUi = useMemo(() => new Set(blocksForUi.map((b) => b.type)).size, [blocksForUi])
   const formatLabel =
-    w.format === 'printable_pdf'
+    w.outputFormat === 'printable_pdf'
       ? 'Print-ready PDF'
-      : w.format === 'both'
+      : w.outputFormat === 'both'
         ? 'Both (print + digital)'
         : 'Interactive digital'
 
@@ -78,7 +71,7 @@ export default function WorksheetDetail() {
             <TeacherToolsStatusBadge kind="content" value={w.status} />
             <button
               type="button"
-              onClick={() => void goEdit()}
+              onClick={() => goEdit()}
               className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800"
             >
               Edit
@@ -125,9 +118,9 @@ export default function WorksheetDetail() {
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Format</p>
               <p className="mt-2 text-lg font-semibold text-gray-900">{formatLabel}</p>
               <p className="mt-1 text-xs text-gray-500">
-                {w.format === 'printable_pdf'
+                {w.outputFormat === 'printable_pdf'
                   ? 'PDF download'
-                  : w.format === 'both'
+                  : w.outputFormat === 'both'
                     ? 'PDF + in-browser'
                     : 'In-browser interaction'}
               </p>
@@ -139,18 +132,18 @@ export default function WorksheetDetail() {
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Times used</p>
-              <p className="mt-2 text-2xl font-semibold text-gray-900">{w.usageCount}</p>
+              <p className="mt-2 text-2xl font-semibold text-gray-900">{w.submissionCount}</p>
               <p className="mt-1 text-xs text-gray-500">
-                {w.usageCount === 0 ? 'Not yet distributed' : 'Student interactions'}
+                {w.submissionCount === 0 ? 'Not yet distributed' : 'Student interactions'}
               </p>
             </div>
             <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Est. mastery</p>
               <p className="mt-2 text-2xl font-semibold text-gray-900">
-                {w.usageCount > 0 ? `${Math.round(an.masteryEstimate * 100)}%` : 'N/A'}
+                {w.submissionCount > 0 ? `${Math.round(an.masteryEstimate * 100)}%` : 'N/A'}
               </p>
               <p className="mt-1 text-xs text-gray-500">
-                {w.usageCount > 0 ? 'Based on response patterns' : 'Available after first use'}
+                {w.submissionCount > 0 ? 'Based on response patterns' : 'Available after first use'}
               </p>
             </div>
           </div>
@@ -210,10 +203,16 @@ export default function WorksheetDetail() {
                       {'left' in b && (
                         <div className="mt-1 grid grid-cols-2 gap-2 text-xs">
                           <ul className="space-y-1">
-                            {b.left.map((l, j) => <li key={j} className="font-medium">{l}</li>)}
+                            {b.left.map((l, j) => (
+                              <li key={j} className="font-medium">
+                                {l}
+                              </li>
+                            ))}
                           </ul>
                           <ul className="space-y-1 text-gray-500">
-                            {b.right.map((r, j) => <li key={j}>{r}</li>)}
+                            {b.right.map((r, j) => (
+                              <li key={j}>{r}</li>
+                            ))}
                           </ul>
                         </div>
                       )}

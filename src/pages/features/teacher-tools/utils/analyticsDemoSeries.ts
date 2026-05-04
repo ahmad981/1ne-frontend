@@ -90,7 +90,10 @@ export function assignmentSubmissionBars(a: DemoAssignment, range: '7d' | '30d' 
   })
 }
 
-export function worksheetClassMasteryBars(w: DemoWorksheet, range: '7d' | '30d' | 'all') {
+export function worksheetClassMasteryBars(
+  w: Pick<DemoWorksheet, 'id' | 'topic' | 'classes'>,
+  range: '7d' | '30d' | 'all',
+) {
   const classKeys = w.classes.length ? w.classes : ['g8c', 'g6b', 'g5a']
   const labels = classKeys.map((key) => demoClasses.find((c) => c.key === key)?.label ?? key)
   const h = djb2(`${w.id}|classes|${range}|${labels.join('|')}`)

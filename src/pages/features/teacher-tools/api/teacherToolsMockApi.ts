@@ -4,7 +4,6 @@ import {
   demoAssignments,
   demoExams,
   demoQuizzes,
-  demoWorksheets,
   type DemoAssignment,
   type DemoExam,
   type DemoQuiz,
@@ -12,7 +11,6 @@ import {
   TEACHER_TOOLS_SEED_ASSIGNMENT_IDS,
   TEACHER_TOOLS_SEED_EXAM_IDS,
   TEACHER_TOOLS_SEED_QUIZ_IDS,
-  TEACHER_TOOLS_SEED_WORKSHEET_IDS,
 } from '../demo/teacherToolsDemoData'
 
 /** Latency tuned so lists and writes feel like network calls (replace with real fetch later). */
@@ -51,6 +49,7 @@ export interface TeacherToolsMockApi {
   deleteAssignment: (id: string) => Promise<MutationResult>
   duplicateAssignment: (id: string) => Promise<MutationResult<{ id: string }>>
 
+  /** Extras-only stubs; `TeacherToolsDemoProvider` overrides with RTK + real API. */
   listWorksheets: () => Promise<DemoWorksheet[]>
   getWorksheet: (id: string) => Promise<DemoWorksheet | undefined>
   createWorksheet: (w: DemoWorksheet) => Promise<void>
@@ -183,14 +182,10 @@ export function createTeacherToolsMockApi(opts: {
       })
     },
 
-    listWorksheets: () =>
-      withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...demoWorksheets, ...getExtras().extraWorksheets]),
+    listWorksheets: () => withLatency(TEACHER_TOOLS_LIST_DELAY_MS, () => [...getExtras().extraWorksheets]),
 
     getWorksheet: (id) =>
-      withLatency(200, () => {
-        const merged = [...demoWorksheets, ...getExtras().extraWorksheets]
-        return merged.find((w) => w.id === id)
-      }),
+      withLatency(200, () => getExtras().extraWorksheets.find((w) => w.id === id)),
 
     createWorksheet: async (w) => {
       await withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => undefined)
@@ -199,13 +194,11 @@ export function createTeacherToolsMockApi(opts: {
 
     updateWorksheet: async (id, patch) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id))
-          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
-        if (!getExtras().extraWorksheets.some((w) => w.id === id))
+        if (!getExtras().extraWorksheets.some((x) => x.id === id))
           return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
         setExtras((e) => ({
           ...e,
-          extraWorksheets: e.extraWorksheets.map((w) => (w.id === id ? { ...w, ...patch } : w)),
+          extraWorksheets: e.extraWorksheets.map((x) => (x.id === id ? { ...x, ...patch } : x)),
         }))
         return { ok: true as const } as MutationResult
       })
@@ -213,19 +206,16 @@ export function createTeacherToolsMockApi(opts: {
 
     deleteWorksheet: async (id) => {
       return withLatency(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        if (TEACHER_TOOLS_SEED_WORKSHEET_IDS.has(id))
-          return { ok: false as const, error: 'READ_ONLY' as const } as MutationResult
-        if (!getExtras().extraWorksheets.some((w) => w.id === id))
+        if (!getExtras().extraWorksheets.some((x) => x.id === id))
           return { ok: false as const, error: 'NOT_FOUND' } as MutationResult
-        setExtras((e) => ({ ...e, extraWorksheets: e.extraWorksheets.filter((w) => w.id !== id) }))
+        setExtras((e) => ({ ...e, extraWorksheets: e.extraWorksheets.filter((x) => x.id !== id) }))
         return { ok: true as const } as MutationResult
       })
     },
 
     duplicateWorksheet: async (id) => {
       return withLatency<MutationResult<{ id: string }>>(TEACHER_TOOLS_WRITE_DELAY_MS, () => {
-        const merged = [...demoWorksheets, ...getExtras().extraWorksheets]
-        const found = merged.find((w) => w.id === id)
+        const found = getExtras().extraWorksheets.find((w) => w.id === id)
         if (!found) return { ok: false as const, error: 'NOT_FOUND' }
         const copy: DemoWorksheet = {
           ...found,

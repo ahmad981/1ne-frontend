@@ -9,18 +9,12 @@ import {
   type ReactNode,
 } from 'react'
 import { createTeacherToolsMockApi, type TeacherToolsMockApi, type TeacherToolsSessionExtras } from './api/teacherToolsMockApi'
-import {
-  demoExams,
-  demoWorksheets,
-  type DemoAssignment,
-  type DemoExam,
-  type DemoQuiz,
-  type DemoWorksheet,
-} from './demo/teacherToolsDemoData'
+import { demoExams, type DemoAssignment, type DemoExam, type DemoQuiz, type DemoWorksheet } from './demo/teacherToolsDemoData'
 // @ts-expect-error — JS module
 import { store } from '../../../redux/store'
 import { quizApiSlice } from '../../../redux/features/teacherTools/quiz/quizApiSlice'
 import { assignmentApiSlice } from '../../../redux/features/teacherTools/assignment/assignmentApiSlice'
+import { worksheetApiSlice } from '../../../redux/features/teacherTools/worksheet/worksheetApiSlice'
 import {
   adaptApiItemToDemoQuiz,
   adaptDemoQuizPatchToApiPatch,
@@ -31,6 +25,11 @@ import {
   adaptDemoAssignmentPatchToApiPatch,
   adaptDemoAssignmentToCreatePayload,
 } from '../../../api/assignmentApiAdapters'
+import {
+  adaptDemoWorksheetPatchToApiPatch,
+  adaptDemoWorksheetToCreatePayload,
+  worksheetApiItemToDemoWorksheet,
+} from './worksheet/worksheetApiAdapters'
 
 /** Untyped JS store — RTK Query `initiate` thunks are not on the inferred dispatch union. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,6 +88,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
   extrasRef.current = extras
   const [quizItems, setQuizItems] = useState<DemoQuiz[]>([])
   const [assignmentItems, setAssignmentItems] = useState<DemoAssignment[]>([])
+  const [worksheetItems, setWorksheetItems] = useState<DemoWorksheet[]>([])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -276,12 +276,99 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
         }
       },
 
-      listWorksheets: mockApi.listWorksheets,
-      getWorksheet: mockApi.getWorksheet,
-      createWorksheet: mockApi.createWorksheet,
-      updateWorksheet: mockApi.updateWorksheet,
-      deleteWorksheet: mockApi.deleteWorksheet,
-      duplicateWorksheet: mockApi.duplicateWorksheet,
+      listWorksheets: async () => {
+        const res = await appDispatch(
+          worksheetApiSlice.endpoints.listWorksheets.initiate({ page_size: 200 }, { forceRefetch: true }),
+        ).unwrap()
+        const mapped = res.items.map(worksheetApiItemToDemoWorksheet)
+        setWorksheetItems(mapped)
+        return [...mapped, ...extrasRef.current.extraWorksheets]
+      },
+
+      getWorksheet: async (id: string) => {
+        const extra = extrasRef.current.extraWorksheets.find((w) => w.id === id)
+        if (extra) return extra
+        try {
+          const item = await appDispatch(worksheetApiSlice.endpoints.getWorksheet.initiate(id)).unwrap()
+          const mapped = worksheetApiItemToDemoWorksheet(item)
+          setWorksheetItems((prev) => {
+            const next = prev.some((w) => w.id === mapped.id)
+              ? prev.map((w) => (w.id === mapped.id ? mapped : w))
+              : [...prev, mapped]
+            return next
+          })
+          return mapped
+        } catch {
+          return undefined
+        }
+      },
+
+      createWorksheet: async (w: DemoWorksheet) => {
+        await appDispatch(
+          worksheetApiSlice.endpoints.createWorksheet.initiate(adaptDemoWorksheetToCreatePayload(w)),
+        ).unwrap()
+        await appDispatch(
+          worksheetApiSlice.endpoints.listWorksheets.initiate({ page_size: 200 }, { forceRefetch: true }),
+        )
+          .unwrap()
+          .then((r: import('../../../api/worksheetApi').WorksheetListResponse) => {
+            setWorksheetItems(r.items.map(worksheetApiItemToDemoWorksheet))
+          })
+      },
+
+      updateWorksheet: async (id: string, patch: Partial<DemoWorksheet>) => {
+        try {
+          await appDispatch(
+            worksheetApiSlice.endpoints.patchWorksheet.initiate({
+              id,
+              patch: adaptDemoWorksheetPatchToApiPatch(patch),
+            }),
+          ).unwrap()
+          const refreshed = await appDispatch(
+            worksheetApiSlice.endpoints.getWorksheet.initiate(id, { forceRefetch: true }),
+          ).unwrap()
+          const mapped = worksheetApiItemToDemoWorksheet(refreshed)
+          setWorksheetItems((prev) => prev.map((x) => (x.id === id ? mapped : x)))
+          return { ok: true as const }
+        } catch (err: unknown) {
+          const status = (err as { status?: number }).status
+          if (status === 404) return { ok: false as const, error: 'NOT_FOUND' }
+          if (status === 403) return { ok: false as const, error: 'READ_ONLY' }
+          return { ok: false as const, error: String(err) }
+        }
+      },
+
+      deleteWorksheet: async (id: string) => {
+        try {
+          await appDispatch(worksheetApiSlice.endpoints.deleteWorksheet.initiate(id)).unwrap()
+          setWorksheetItems((prev) => prev.filter((w) => w.id !== id))
+          return { ok: true as const }
+        } catch (err: unknown) {
+          const status = (err as { status?: number }).status
+          if (status === 404) return { ok: false as const, error: 'NOT_FOUND' }
+          return { ok: false as const, error: String(err) }
+        }
+      },
+
+      duplicateWorksheet: async (id: string) => {
+        try {
+          const res = await appDispatch(worksheetApiSlice.endpoints.duplicateWorksheet.initiate(id)).unwrap()
+          await appDispatch(
+            worksheetApiSlice.endpoints.listWorksheets.initiate({ page_size: 200 }, { forceRefetch: true }),
+          ).unwrap()
+          const mapped = await appDispatch(
+            worksheetApiSlice.endpoints.getWorksheet.initiate(res.id, { forceRefetch: true }),
+          ).unwrap()
+          setWorksheetItems((prev) =>
+            prev.some((w) => w.id === res.id) ? prev : [...prev, worksheetApiItemToDemoWorksheet(mapped)],
+          )
+          return { ok: true as const, id: res.id }
+        } catch (err: unknown) {
+          const status = (err as { status?: number }).status
+          if (status === 404) return { ok: false as const, error: 'NOT_FOUND' }
+          return { ok: false as const, error: String(err) }
+        }
+      },
 
       listExams: mockApi.listExams,
       getExam: mockApi.getExam,
@@ -296,6 +383,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
   useEffect(() => {
     void api.listQuizzes()
     void api.listAssignments()
+    void api.listWorksheets()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -303,7 +391,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
     const allQuizzes = quizItems
     // Assignments are real-only (no sample library rows) so the UI reflects API truth.
     const allAssignments = [...assignmentItems, ...extras.extraAssignments]
-    const allWorksheets = [...demoWorksheets, ...extras.extraWorksheets]
+    const allWorksheets = [...worksheetItems, ...extras.extraWorksheets]
     const allExams = [...demoExams, ...extras.extraExams]
     return {
       ...extras,
@@ -313,7 +401,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
       allExams,
       api,
     }
-  }, [extras, api, quizItems, assignmentItems])
+  }, [extras, api, quizItems, assignmentItems, worksheetItems])
 
   return <TeacherToolsDemoContext.Provider value={value}>{children}</TeacherToolsDemoContext.Provider>
 }

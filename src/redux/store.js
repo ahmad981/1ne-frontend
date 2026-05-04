@@ -17,6 +17,7 @@ import personalizationReducer from './features/personalization/personalizationSl
 import subscriptionReducer from './features/subscription/subscriptionSlice';
 import { quizApiSlice } from './features/teacherTools/quiz/quizApiSlice';
 import { assignmentApiSlice } from './features/teacherTools/assignment/assignmentApiSlice';
+import { worksheetApiSlice } from './features/teacherTools/worksheet/worksheetApiSlice';
 
 const storage =
   typeof window !== 'undefined'
@@ -60,6 +61,7 @@ const rootReducer = combineReducers({
   subscription: subscriptionReducer,
   [quizApiSlice.reducerPath]: quizApiSlice.reducer,
   [assignmentApiSlice.reducerPath]: assignmentApiSlice.reducer,
+  [worksheetApiSlice.reducerPath]: worksheetApiSlice.reducer,
 });
 
 // Create a persisted reducer
@@ -72,6 +74,7 @@ export const store = configureStore({
     getDefaultMiddleware({ serializableCheck: false }).concat(
       quizApiSlice.middleware,
       assignmentApiSlice.middleware,
+      worksheetApiSlice.middleware,
     ),
 });
 
