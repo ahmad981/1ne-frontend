@@ -54,9 +54,20 @@ export interface YouTubeQuizQuestion {
 }
 
 export interface YouTubeQuizGenerateResponse {
+  id?: string
   title: string
   summary: string
   sections: YouTubeQuizSection[]
+}
+
+export interface YouTubeQuizGenerationDetailResponse extends YouTubeQuizGenerateResponse {
+  video_url: string
+  grade_band: string
+  subject_lens: string
+  learning_focus: string
+  quiz_language: string
+  question_count: number
+  created_at: string
 }
 
 export const generateYouTubeQuiz = (payload: YouTubeQuizGenerateRequest) => {
@@ -70,5 +81,9 @@ export const getLessonStrategies = () => {
   return apiRequest<LessonStrategySummary[]>('/v1/youtube-quiz/lesson-strategies', {
     method: 'GET',
   })
+}
+
+export function getYouTubeQuizGeneration(generationId: string): Promise<YouTubeQuizGenerationDetailResponse> {
+  return apiRequest<YouTubeQuizGenerationDetailResponse>(`/v1/youtube-quiz/generations/${generationId}`)
 }
 

@@ -18,6 +18,8 @@ export interface AssignmentApiItem {
   classes: string[]
   type: string
   dueAt?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
   assignedCount: number
   submitted: number
   pending: number

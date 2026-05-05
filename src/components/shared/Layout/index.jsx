@@ -16,7 +16,7 @@ export const Layout = ({ children }) => {
         }
       >
         <Header />
-        <div className='h-[calc(100vh-70px)] overflow-auto w-full bg-primary/5'>
+        <div className='h-[calc(100vh-70px)] w-full bg-primary/5 overflow-hidden flex flex-col min-h-0'>
           <React.Fragment>{children}</React.Fragment>
         </div>
 

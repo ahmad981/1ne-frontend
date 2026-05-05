@@ -46,6 +46,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapRegionalClimateResult,
@@ -99,6 +100,56 @@ const EnvironmentalScienceGuide = () => {
   const [actionTimeframe, setActionTimeframe] = useState('3 months')
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null)
 
+  const ENV_CAP_TABS: Record<string, TabType> = {
+    global_climate_education: 'climate',
+    sustainability_projects: 'sustainability',
+    ecological_systems: 'ecosystems',
+    regional_climate_analysis: 'regional',
+    environmental_standards: 'standards',
+    sustainability_assessment_tools: 'assessment',
+    environmental_action_planning: 'action-plan',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: ENV_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['climate', 'sustainability', 'ecosystems', 'regional', 'standards', 'projects', 'assessment', 'action-plan']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && ENV_CAP_TABS[cap]
+            ? ENV_CAP_TABS[cap]
+            : 'climate'
+      setActiveTab(tab)
+      const u = userContent?.trim() ?? ''
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setClimateImpact(null)
+        setSustainabilityProjects([])
+        setEcosystemInfo(null)
+        setRegionalAnalysis(null)
+        setEnvironmentalStandards([])
+        setSustainabilityAssessment(null)
+        setActionPlan(null)
+        if (tab === 'climate') setClimateImpact(mapRegionalClimateResult(raw))
+        else if (tab === 'sustainability') setSustainabilityProjects(mapSustainabilityProjectsResult(raw))
+        else if (tab === 'ecosystems') setEcosystemInfo(mapEcosystemResult(raw))
+        else if (tab === 'regional') setRegionalAnalysis(mapRegionalClimateResult(raw))
+        else if (tab === 'standards') setEnvironmentalStandards(mapEnvironmentalStandardsResult(raw))
+        else if (tab === 'assessment') setSustainabilityAssessment(mapSustainabilityAssessmentResult(raw))
+        else if (tab === 'action-plan') {
+          if (u) setActionGoal(u)
+          setActionPlan(mapEnvironmentalActionPlanResult(raw))
+        }
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const regions = getRegions()
   const projectCategories = getProjectCategories()
   const ecosystemTypes = getEcosystemTypes()
@@ -116,9 +167,11 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           select_region: climateRegion,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setClimateImpact(mapRegionalClimateResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Climate impact loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -144,9 +197,11 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           project_category: projectCategoryUiToApi(projectCategory),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setSustainabilityProjects(mapSustainabilityProjectsResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Projects loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -172,9 +227,11 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           ecosystem_type: ecosystemType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEcosystemInfo(mapEcosystemResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Ecosystem profile loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -200,9 +257,11 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           select_region: selectedRegion,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setRegionalAnalysis(mapRegionalClimateResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Regional analysis loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -227,9 +286,11 @@ const EnvironmentalScienceGuide = () => {
           grade_level: gradeLevel,
           region: selectedRegion,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEnvironmentalStandards(mapEnvironmentalStandardsResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -255,9 +316,11 @@ const EnvironmentalScienceGuide = () => {
           region: TEACHING_REGION,
           assessment_category: assessmentCategory,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setSustainabilityAssessment(mapSustainabilityAssessmentResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Assessment generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -286,9 +349,11 @@ const EnvironmentalScienceGuide = () => {
           action_goal: goal,
           timeframe: actionTimeframe,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setActionPlan(mapEnvironmentalActionPlanResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Action plan generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

@@ -1,17 +1,34 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { TeacherToolsPageHeader } from '../components'
 import { demoStudents } from '../demo/teacherToolsDemoData'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 
 export default function ExamResults() {
   const { examId } = useParams()
   const { toast } = useSnackbar()
-  const { allExams } = useTeacherToolsDemo()
-  const e = useMemo(() => allExams.find((x) => x.id === examId), [allExams, examId])
+  const [exam, setExam] = useState<examApi.ExamApiItem | null>(null)
   const [published, setPublished] = useState(true)
+
+  useEffect(() => {
+    if (!examId) return
+    let c = false
+    ;(async () => {
+      try {
+        const ex = await examApi.fetchExam(examId)
+        if (!c) setExam(ex)
+      } catch {
+        if (!c) setExam(null)
+      }
+    })()
+    return () => {
+      c = true
+    }
+  }, [examId])
+
+  const e = exam
 
   if (!e) {
     return (

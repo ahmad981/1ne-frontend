@@ -51,6 +51,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface NGSSInvestigation {
@@ -125,6 +126,41 @@ const STEMInquiryMentor = () => {
   const [engineeringChallenge, setEngineeringChallenge] = useState<EngineeringChallenge | null>(null)
   const [inquiryGuidance, setInquiryGuidance] = useState<InquiryGuidance | null>(null)
 
+  const STEM_CAP_TABS: Record<string, typeof activeTab> = {
+    ngss_investigation: 'investigation',
+    engineering_design: 'engineering',
+    inquiry_guidance: 'inquiry',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: STEM_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid = ['investigation', 'engineering', 'inquiry', 'data', 'assessment', 'alignment'] as const
+      const tab =
+        (valid as readonly string[]).includes(tabKey)
+          ? (tabKey as typeof activeTab)
+          : cap && STEM_CAP_TABS[cap]
+            ? STEM_CAP_TABS[cap]
+            : 'investigation'
+      setActiveTab(tab)
+      if (userContent) setTopic(userContent)
+      try {
+        const data = JSON.parse(assistantContent)
+        setNGSSInvestigation(null)
+        setEngineeringChallenge(null)
+        setInquiryGuidance(null)
+        if (tab === 'investigation') setNGSSInvestigation(data as NGSSInvestigation)
+        if (tab === 'engineering') setEngineeringChallenge(data as EngineeringChallenge)
+        if (tab === 'inquiry') setInquiryGuidance(data as InquiryGuidance)
+      } catch {
+        // keep restore silent
+      }
+    },
+  })
+
   const handleNGSSInvestigation = async () => {
     if (!topic.trim()) {
       toast.error('Please enter a phenomenon or topic')
@@ -145,11 +181,13 @@ const STEMInquiryMentor = () => {
             grade_level: gradeLevel,
             subject: subject,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setNGSSInvestigation(response.result as NGSSInvestigation)
+      pinFromResponse(response.conversation_id)
       toast.success('NGSS investigation generated successfully')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -184,11 +222,13 @@ const STEMInquiryMentor = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setEngineeringChallenge(response.result as EngineeringChallenge)
+      pinFromResponse(response.conversation_id)
       toast.success('Engineering challenge generated successfully')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -223,11 +263,13 @@ const STEMInquiryMentor = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setInquiryGuidance(response.result as InquiryGuidance)
+      pinFromResponse(response.conversation_id)
       toast.success('Inquiry guidance generated successfully')
     } catch (error: any) {
       if (captureApiError(error)) return

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Image,
   Upload,
@@ -12,7 +13,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { ApiError } from '../../api/client'
-import { generatePixGenImage } from '../../api/pixgen'
+import { fetchPixGenGeneration, generatePixGenImage } from '../../api/pixgen'
 import { parseCreditError, type ParsedCreditError } from '../../utils/creditErrors'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
@@ -133,6 +134,8 @@ const BATCH_SIZE = 4
 const BATCH_CONCURRENCY = 2
 
 const PixGen = () => {
+  const [searchParams] = useSearchParams()
+  const generationId = searchParams.get('generation')
   const refreshCreditBalance = useRefreshCreditBalance()
   const [selectedStyle, setSelectedStyle] = useState(stylePresets[0])
   const [selectedRatio, setSelectedRatio] = useState(aspectRatios[1])
@@ -144,6 +147,29 @@ const PixGen = () => {
   const [imageError, setImageError] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
+
+  useEffect(() => {
+    if (!generationId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const gen = await fetchPixGenGeneration(generationId)
+        if (cancelled) return
+        setPrompt(gen.prompt)
+        setSelectedStyle(gen.stylePreset)
+        setSelectedRatio(gen.aspectRatio)
+        if (gen.imageUrl) {
+          setPreviewImage(gen.imageUrl)
+          setImageError(false)
+        }
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [generationId])
 
   const getFriendlyErrorMessage = (error: unknown, fallback: string) => {
     if (error instanceof ApiError) {

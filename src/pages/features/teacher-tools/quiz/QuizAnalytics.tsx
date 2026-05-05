@@ -61,12 +61,24 @@ export default function QuizAnalytics() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <SimpleBarChart
-          title="Score distribution"
-          subtitle={`${quiz.submissionCount} submissions · ${ranges.find((x) => x.id === range)?.label}`}
-          points={scorePoints.map((p) => ({ ...p, max: p.max }))}
-        />
-        <SimpleBarChart title="Question difficulty" subtitle="Miss rate %" points={diffPoints} />
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+            <span className="font-semibold">Preview data</span>
+            <span>— Real results will appear here after students submit.</span>
+          </div>
+          <SimpleBarChart
+            title="Score distribution"
+            subtitle={`${quiz.submissionCount} submissions · ${ranges.find((x) => x.id === range)?.label}`}
+            points={scorePoints.map((p) => ({ ...p, max: p.max }))}
+          />
+        </div>
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+            <span className="font-semibold">Preview data</span>
+            <span>— Real results will appear here after students submit.</span>
+          </div>
+          <SimpleBarChart title="Question difficulty" subtitle="Miss rate %" points={diffPoints} />
+        </div>
       </div>
 
       <Link to={`/teacher-tools/quiz/${quiz.id}`} className="text-sm font-semibold text-primary-600">

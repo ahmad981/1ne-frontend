@@ -17,6 +17,13 @@ export interface PixGenGenerationResponse {
   createdAt: string
 }
 
+/** GET /v1/pixgen/generations/:id — restore saved generation */
+export interface PixGenGenerationDetailResponse extends PixGenGenerationResponse {
+  prompt: string
+  stylePreset: string
+  aspectRatio: string
+}
+
 export interface PixGenBatchResponse {
   items: PixGenGenerationResponse[]
 }
@@ -39,4 +46,8 @@ export async function generatePixGenBatch(
     body: payload,
     timeout: 120000,
   })
+}
+
+export async function fetchPixGenGeneration(generationId: string): Promise<PixGenGenerationDetailResponse> {
+  return apiRequest<PixGenGenerationDetailResponse>(`v1/pixgen/generations/${generationId}`)
 }

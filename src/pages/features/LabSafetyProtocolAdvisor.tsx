@@ -44,6 +44,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapLabSafetyStandardsResult,
@@ -97,6 +98,71 @@ const LabSafetyProtocolAdvisor = () => {
   const [experimentObjective, setExperimentObjective] = useState('')
   const [experimentDesign, setExperimentDesign] = useState<ExperimentDesign | null>(null)
 
+  const LAB_CAP_TABS: Record<string, TabType> = {
+    lab_safety_standards: 'standards',
+    lab_safety_protocols: 'protocols',
+    lab_risk_assessment: 'risk-assessment',
+    lab_chemical_safety: 'chemicals',
+    lab_equipment_safety: 'equipment',
+    lab_emergency_procedures: 'emergency',
+    lab_experiment_design: 'experiment-design',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: LAB_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = [
+        'standards',
+        'protocols',
+        'risk-assessment',
+        'chemicals',
+        'equipment',
+        'emergency',
+        'experiment-design',
+        'compliance',
+      ]
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && LAB_CAP_TABS[cap]
+            ? LAB_CAP_TABS[cap]
+            : 'standards'
+      setActiveTab(tab)
+      const u = userContent?.trim() ?? ''
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setSafetyStandards([])
+        setSafetyProtocol(null)
+        setRiskAssessment(null)
+        setChemicalInfo(null)
+        setEquipmentSafety(null)
+        setEmergencyProcedure(null)
+        setExperimentDesign(null)
+        if (tab === 'standards') setSafetyStandards(mapLabSafetyStandardsResult(raw))
+        else if (tab === 'protocols') setSafetyProtocol(mapLabSafetyProtocolResult(raw))
+        else if (tab === 'risk-assessment') {
+          if (u) setExperimentName(u)
+          setRiskAssessment(mapLabRiskAssessmentResult(raw))
+        } else if (tab === 'chemicals') {
+          if (u) setChemicalName(u)
+          setChemicalInfo(mapLabChemicalResult(raw))
+        } else if (tab === 'equipment') {
+          if (u) setEquipmentName(u)
+          setEquipmentSafety(mapLabEquipmentResult(raw))
+        } else if (tab === 'emergency') setEmergencyProcedure(mapLabEmergencyResult(raw))
+        else if (tab === 'experiment-design') {
+          if (u) setExperimentTitle(u)
+          setExperimentDesign(mapLabExperimentDesignResult(raw))
+        }
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const labTypes = getLabTypes()
   const gradeLevels = getLabGradeLevels()
   const protocolCategories = getProtocolCategories()
@@ -112,9 +178,11 @@ const LabSafetyProtocolAdvisor = () => {
           lab_type: labType,
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setSafetyStandards(mapLabSafetyStandardsResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Safety standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -141,9 +209,11 @@ const LabSafetyProtocolAdvisor = () => {
           grade_level: gradeLevel,
           protocol_category: labProtocolCategoryToParam(protocolCategory),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setSafetyProtocol(mapLabSafetyProtocolResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Protocol generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -169,9 +239,11 @@ const LabSafetyProtocolAdvisor = () => {
           lab_type: labType,
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setRiskAssessment(mapLabRiskAssessmentResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Risk assessment generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -197,9 +269,11 @@ const LabSafetyProtocolAdvisor = () => {
           lab_type: labType,
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setChemicalInfo(mapLabChemicalResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Chemical information loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -225,9 +299,11 @@ const LabSafetyProtocolAdvisor = () => {
           lab_type: labType,
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEquipmentSafety(mapLabEquipmentResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Equipment safety guide loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -253,9 +329,11 @@ const LabSafetyProtocolAdvisor = () => {
           grade_level: gradeLevel,
           emergency_type: emergencyType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEmergencyProcedure(mapLabEmergencyResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Emergency procedure loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -283,9 +361,11 @@ const LabSafetyProtocolAdvisor = () => {
           experiment_title: experimentTitle.trim(),
           experiment_objective: experimentObjective.trim(),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setExperimentDesign(mapLabExperimentDesignResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Experiment design generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

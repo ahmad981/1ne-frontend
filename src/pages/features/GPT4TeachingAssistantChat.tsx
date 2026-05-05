@@ -63,6 +63,8 @@ import ExportDialog from '../../components/premium/ExportDialog'
 import CustomInstructions from '../../components/premium/CustomInstructions'
 import { Standard, MultimodalFile, CustomInstruction as CustomInstructionType } from '../../types/premium'
 import { Message } from './GeneralTeachingAssistantChat'
+import * as chatbotApi from '../../api/chatbots'
+import { useRestoreChatbotConversationFromUrl } from '../../hooks/useRestoreChatbotConversationFromUrl'
 
 interface Conversation {
   id: string
@@ -167,6 +169,47 @@ const GPT4TeachingAssistantChat = () => {
       textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`
     }
   }, [inputValue])
+
+  useRestoreChatbotConversationFromUrl('gpt4-teaching-assistant-current-conversation', async (convId) => {
+    try {
+      const detail = await chatbotApi.getConversation(convId)
+      const loadedMessages: Message[] = detail.messages
+        .filter((m) => m.role === 'user' || m.role === 'assistant')
+        .map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+        }))
+      setMessages(loadedMessages)
+      setCurrentConversationId(convId)
+      setConversations((prev) => {
+        if (prev.some((c) => c.id === convId)) {
+          return prev.map((c) =>
+            c.id === convId
+              ? {
+                  ...c,
+                  messages: loadedMessages,
+                  title: detail.title?.trim() ? detail.title : c.title,
+                  updatedAt: new Date(detail.updated_at),
+                }
+              : c,
+          )
+        }
+        const conv: Conversation = {
+          id: convId,
+          title: detail.title || 'Conversation',
+          messages: loadedMessages,
+          createdAt: new Date(detail.created_at),
+          updatedAt: new Date(detail.updated_at),
+          standards: [],
+        }
+        return [conv, ...prev]
+      })
+    } catch (e) {
+      console.error('Failed to restore conversation from history', e)
+    }
+  })
 
   const generateConversationTitle = (firstMessage: string): string => {
     const words = firstMessage.split(' ').slice(0, 6).join(' ')

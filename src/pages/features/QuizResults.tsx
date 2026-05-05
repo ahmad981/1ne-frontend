@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -11,9 +12,8 @@ import {
   CheckCircle2,
   FileText,
 } from 'lucide-react'
-import { useState } from 'react'
 import { useSnackbar } from '../../hooks/useSnackbar'
-import { YouTubeQuizQuestion, YouTubeQuizSection } from '../../api/youtubeQuiz'
+import { getYouTubeQuizGeneration, YouTubeQuizQuestion, YouTubeQuizSection } from '../../api/youtubeQuiz'
 
 interface QuizPreview {
   title: string
@@ -27,7 +27,56 @@ const QuizResults = () => {
   const navigate = useNavigate()
   const [showAnswers, setShowAnswers] = useState(false)
   const [isWorksheetExporting, setIsWorksheetExporting] = useState(false)
-  const quizData = location.state?.quizData as QuizPreview | null
+  const [quizData, setQuizData] = useState<QuizPreview | null>(
+    (location.state?.quizData as QuizPreview | null) ?? null,
+  )
+  const [loadingRestore, setLoadingRestore] = useState(() => {
+    const fromState = location.state?.quizData as QuizPreview | null
+    const gid = new URLSearchParams(location.search).get('generation')
+    return !fromState && !!gid
+  })
+
+  useEffect(() => {
+    const fromState = location.state?.quizData as QuizPreview | null
+    if (fromState) {
+      setQuizData(fromState)
+      setLoadingRestore(false)
+      return
+    }
+    const gid = new URLSearchParams(location.search).get('generation')
+    if (!gid) {
+      setLoadingRestore(false)
+      return
+    }
+    let cancelled = false
+    setLoadingRestore(true)
+    getYouTubeQuizGeneration(gid)
+      .then((raw) => {
+        if (cancelled) return
+        setQuizData({
+          title: raw.title,
+          summary: raw.summary,
+          sections: raw.sections,
+        })
+      })
+      .catch(() => {
+        if (!cancelled) setQuizData(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRestore(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [location.search, location.key])
+
+  if (loadingRestore) {
+    return (
+      <div className="flex h-96 items-center justify-center">
+        <p className="text-gray-600">Loading quiz…</p>
+      </div>
+    )
+  }
 
   if (!quizData) {
     return (

@@ -1,7 +1,8 @@
-import { ArrowDown, ArrowUp, Pencil, PlusCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Loader2, Pencil, PlusCircle, RefreshCw, Trash2 } from 'lucide-react'
 import type { ExamPaperConfig } from '../config/examPaperConfig'
 import type { ExamLongStub, ExamMcqStub, ExamShortStub } from '../demo/examQuestionStubs'
 import { shortPoolSize } from '../demo/examQuestionStubs'
+import { stripLeadingMcqOptionLabel } from '../utils/mcqOptionDisplay'
 
 type Props = {
   paper: ExamPaperConfig
@@ -26,6 +27,8 @@ type Props = {
   onRegenerateLong: (index: number) => void
   onEditLong: (index: number) => void
   onAddManualLong: () => void
+  /** e.g. `mcq:<uuid>` while that question is regenerating; disables other row actions */
+  regenerateBusyKey?: string | null
 }
 
 function toolbarClass(disabled?: boolean) {
@@ -55,6 +58,7 @@ export function ExamPaperQuestionsReview({
   onRegenerateLong,
   onEditLong,
   onAddManualLong,
+  regenerateBusyKey = null,
 }: Props) {
   const shortStart = paper.objCount + 1
   const longStart = paper.objCount + shortPoolSize(paper) + 1
@@ -67,6 +71,10 @@ export function ExamPaperQuestionsReview({
   const maxMcq = 100
   const maxShort = 20
   const maxLong = 10
+
+  const busy = Boolean(regenerateBusyKey)
+  const rowKey = (q: { id: string; _id?: string }, kind: 'mcq' | 'short' | 'long') =>
+    `${kind}:${(q as { _id?: string })._id ?? q.id}`
 
   return (
     <div className="space-y-8">
@@ -93,8 +101,10 @@ export function ExamPaperQuestionsReview({
         <ul className="divide-y divide-gray-100">
           {mcqs.map((q, index) => {
             const n = index + 1
+            const rk = rowKey(q, 'mcq')
+            const rowRegen = regenerateBusyKey === rk
             return (
-              <li key={q.id} className="px-5 py-4 sm:px-6">
+              <li key={q.id} className="px-5 py-4 sm:px-6" aria-busy={rowRegen}>
                 <div className="flex flex-wrap items-start gap-2 border-b border-gray-50 pb-2 sm:border-0 sm:pb-0">
                   <span className="rounded-full bg-sky-50 px-2 py-0.5 text-xs font-semibold text-sky-900 ring-1 ring-sky-100">
                     Q{n} · {objMarksPer} pt{objMarksPer === 1 ? '' : 's'}
@@ -103,44 +113,56 @@ export function ExamPaperQuestionsReview({
                     <button
                       type="button"
                       title="Move up"
-                      disabled={index === 0}
+                      disabled={busy || index === 0}
                       onClick={() => onReorderMcq(index, index - 1)}
-                      className={toolbarClass(index === 0)}
+                      className={toolbarClass(busy || index === 0)}
                     >
                       <ArrowUp className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       title="Move down"
-                      disabled={index === mcqs.length - 1}
+                      disabled={busy || index === mcqs.length - 1}
                       onClick={() => onReorderMcq(index, index + 1)}
-                      className={toolbarClass(index === mcqs.length - 1)}
+                      className={toolbarClass(busy || index === mcqs.length - 1)}
                     >
                       <ArrowDown className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Edit" onClick={() => onEditMcq(index)} className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100">
+                    <button
+                      type="button"
+                      title="Edit"
+                      disabled={busy}
+                      onClick={() => onEditMcq(index)}
+                      className={`rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100 ${busy ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Regenerate" onClick={() => onRegenerateMcq(index)} className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100">
-                      <RefreshCw className="h-4 w-4" />
+                    <button
+                      type="button"
+                      title={rowRegen ? 'Regenerating…' : 'Regenerate'}
+                      disabled={busy}
+                      onClick={() => onRegenerateMcq(index)}
+                      className={`rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 ${busy && !rowRegen ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
+                      {rowRegen ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
                     </button>
                     <button
                       type="button"
                       title="Remove"
-                      disabled={!canDelMcq}
+                      disabled={busy || !canDelMcq}
                       onClick={() => onDeleteMcq(index)}
-                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${!canDelMcq ? 'cursor-not-allowed opacity-30' : ''}`}
+                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${busy || !canDelMcq ? 'cursor-not-allowed opacity-30' : ''}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-gray-900">{q.stem}</p>
+                <p className={`mt-2 text-sm font-medium leading-relaxed text-gray-900 ${rowRegen ? 'opacity-60' : ''}`}>{q.stem}</p>
                 <ol className="mt-3 grid gap-1.5 text-sm text-gray-800 sm:grid-cols-2">
                   {q.options.map((opt, i) => (
                     <li key={i} className="flex gap-2 leading-snug">
                       <span className="shrink-0 font-semibold tabular-nums text-gray-500">{letters[i] ?? String(i)}.</span>
-                      <span>{opt}</span>
+                      <span>{stripLeadingMcqOptionLabel(opt)}</span>
                     </li>
                   ))}
                 </ol>
@@ -172,8 +194,10 @@ export function ExamPaperQuestionsReview({
         <ul className="divide-y divide-gray-100">
           {shorts.map((q, index) => {
             const n = shortStart + index
+            const rk = rowKey(q, 'short')
+            const rowRegen = regenerateBusyKey === rk
             return (
-              <li key={q.id} className="px-5 py-4 sm:px-6">
+              <li key={q.id} className="px-5 py-4 sm:px-6" aria-busy={rowRegen}>
                 <div className="flex flex-wrap items-start gap-2">
                   <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-950 ring-1 ring-amber-100">
                     Q{n} · {shortMarksPer} marks
@@ -182,39 +206,51 @@ export function ExamPaperQuestionsReview({
                     <button
                       type="button"
                       title="Move up"
-                      disabled={index === 0}
+                      disabled={busy || index === 0}
                       onClick={() => onReorderShort(index, index - 1)}
-                      className={toolbarClass(index === 0)}
+                      className={toolbarClass(busy || index === 0)}
                     >
                       <ArrowUp className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       title="Move down"
-                      disabled={index === shorts.length - 1}
+                      disabled={busy || index === shorts.length - 1}
                       onClick={() => onReorderShort(index, index + 1)}
-                      className={toolbarClass(index === shorts.length - 1)}
+                      className={toolbarClass(busy || index === shorts.length - 1)}
                     >
                       <ArrowDown className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Edit" onClick={() => onEditShort(index)} className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100">
+                    <button
+                      type="button"
+                      title="Edit"
+                      disabled={busy}
+                      onClick={() => onEditShort(index)}
+                      className={`rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100 ${busy ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Regenerate" onClick={() => onRegenerateShort(index)} className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100">
-                      <RefreshCw className="h-4 w-4" />
+                    <button
+                      type="button"
+                      title={rowRegen ? 'Regenerating…' : 'Regenerate'}
+                      disabled={busy}
+                      onClick={() => onRegenerateShort(index)}
+                      className={`rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 ${busy && !rowRegen ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
+                      {rowRegen ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
                     </button>
                     <button
                       type="button"
                       title="Remove"
-                      disabled={!canDelShort}
+                      disabled={busy || !canDelShort}
                       onClick={() => onDeleteShort(index)}
-                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${!canDelShort ? 'cursor-not-allowed opacity-30' : ''}`}
+                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${busy || !canDelShort ? 'cursor-not-allowed opacity-30' : ''}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-gray-900">{q.stem}</p>
+                <p className={`mt-2 text-sm font-medium leading-relaxed text-gray-900 ${rowRegen ? 'opacity-60' : ''}`}>{q.stem}</p>
               </li>
             )
           })}
@@ -243,8 +279,10 @@ export function ExamPaperQuestionsReview({
         <ul className="divide-y divide-gray-100">
           {longs.map((q, index) => {
             const n = longStart + index
+            const rk = rowKey(q, 'long')
+            const rowRegen = regenerateBusyKey === rk
             return (
-              <li key={q.id} className="px-5 py-4 sm:px-6">
+              <li key={q.id} className="px-5 py-4 sm:px-6" aria-busy={rowRegen}>
                 <div className="flex flex-wrap items-start gap-2">
                   <span className="rounded-full bg-violet-50 px-2 py-0.5 text-xs font-semibold text-violet-900 ring-1 ring-violet-100">
                     Q{n} · {longMarksPer} marks
@@ -253,39 +291,51 @@ export function ExamPaperQuestionsReview({
                     <button
                       type="button"
                       title="Move up"
-                      disabled={index === 0}
+                      disabled={busy || index === 0}
                       onClick={() => onReorderLong(index, index - 1)}
-                      className={toolbarClass(index === 0)}
+                      className={toolbarClass(busy || index === 0)}
                     >
                       <ArrowUp className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
                       title="Move down"
-                      disabled={index === longs.length - 1}
+                      disabled={busy || index === longs.length - 1}
                       onClick={() => onReorderLong(index, index + 1)}
-                      className={toolbarClass(index === longs.length - 1)}
+                      className={toolbarClass(busy || index === longs.length - 1)}
                     >
                       <ArrowDown className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Edit" onClick={() => onEditLong(index)} className="rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100">
+                    <button
+                      type="button"
+                      title="Edit"
+                      disabled={busy}
+                      onClick={() => onEditLong(index)}
+                      className={`rounded-lg p-1.5 text-indigo-700 hover:bg-indigo-100 ${busy ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button type="button" title="Regenerate" onClick={() => onRegenerateLong(index)} className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100">
-                      <RefreshCw className="h-4 w-4" />
+                    <button
+                      type="button"
+                      title={rowRegen ? 'Regenerating…' : 'Regenerate'}
+                      disabled={busy}
+                      onClick={() => onRegenerateLong(index)}
+                      className={`rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 ${busy && !rowRegen ? 'cursor-not-allowed opacity-40' : ''}`}
+                    >
+                      {rowRegen ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
                     </button>
                     <button
                       type="button"
                       title="Remove"
-                      disabled={!canDelLong}
+                      disabled={busy || !canDelLong}
                       onClick={() => onDeleteLong(index)}
-                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${!canDelLong ? 'cursor-not-allowed opacity-30' : ''}`}
+                      className={`rounded-lg p-1.5 text-red-700 hover:bg-red-50 ${busy || !canDelLong ? 'cursor-not-allowed opacity-30' : ''}`}
                     >
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-gray-900">{q.stem}</p>
+                <p className={`mt-2 text-sm font-medium leading-relaxed text-gray-900 ${rowRegen ? 'opacity-60' : ''}`}>{q.stem}</p>
                 <ul className="mt-3 space-y-2 border-l-2 border-violet-100 pl-3">
                   {q.subparts.map((sp, si) => (
                     <li key={si} className="text-sm leading-relaxed text-gray-800">

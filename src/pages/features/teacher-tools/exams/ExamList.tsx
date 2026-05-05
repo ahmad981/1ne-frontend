@@ -12,9 +12,9 @@ import {
   type FilterValues,
 } from '../components'
 import { EXAM_STATUS_FILTER_OPTIONS } from '../components/teacherToolsStatusFilterOptions'
-import { demoClasses, demoExams, TEACHER_TOOLS_SEED_EXAM_IDS } from '../demo/teacherToolsDemoData'
+import { demoClasses, TEACHER_TOOLS_SEED_EXAM_IDS } from '../demo/teacherToolsDemoData'
 import { SUBJECTS, GRADES } from '../types'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
 import { formatListLoadError } from '../utils/listLoadError'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
@@ -27,8 +27,8 @@ export default function ExamList() {
   const { toast } = useSnackbar()
   const navigate = useNavigate()
   const location = useLocation()
-  const { api, allExams } = useTeacherToolsDemo()
   const [tab, setTab] = useState<(typeof tabs)[number]>('All')
+  const [rows, setRows] = useState<examApi.ExamApiItem[]>([])
   const [simulateLoadError, setSimulateLoadError] = useState(false)
   const [filters, setFilters] = useState<FilterValues>({
     q: '',
@@ -56,49 +56,56 @@ export default function ExamList() {
     setLiveListUnavailable(false)
     try {
       if (import.meta.env.DEV && simulateLoadError) throw new Error('Simulated load failure')
-      await api.listExams()
+      const statusForTab =
+        tab === 'All'
+          ? filters.status || undefined
+          : tab === 'Draft'
+            ? 'draft'
+            : tab === 'Scheduled'
+              ? 'scheduled'
+              : tab === 'Ongoing'
+                ? 'scheduled'
+                : tab === 'Completed'
+                  ? 'completed'
+                  : tab === 'Archived'
+                    ? 'archived'
+                    : undefined
+      const res = await examApi.fetchExamList({
+        q: filters.q || undefined,
+        subject: filters.subject || undefined,
+        grade: filters.grade || undefined,
+        status: statusForTab,
+        class_key: filters.classKey || undefined,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+        page: 1,
+        page_size: 200,
+      })
+      setRows(res.items)
       setListReady(true)
     } catch (e) {
-      if (import.meta.env.DEV) console.warn('[ExamList] listExams failed', e)
+      if (import.meta.env.DEV) console.warn('[ExamList] fetchExamList failed', e)
       const msg = formatListLoadError(e)
-      if (demoExams.length > 0) {
-        setListReady(true)
-        setLiveListUnavailable(true)
-      } else {
-        setListError(msg)
-        setListReady(false)
-      }
+      setListError(msg)
+      setListReady(false)
+      setLiveListUnavailable(true)
     }
-  }, [api, simulateLoadError])
+  }, [filters.classKey, filters.dateFrom, filters.dateTo, filters.grade, filters.q, filters.status, filters.subject, simulateLoadError, tab])
 
   useEffect(() => {
     void runListLoad()
   }, [runListLoad, refreshKey, location.pathname])
 
   const filtered = useMemo(() => {
-    return allExams.filter((e) => {
-      if (filters.q && !e.title.toLowerCase().includes(filters.q.toLowerCase())) return false
-      if (filters.subject && e.subject !== filters.subject) return false
-      if (filters.grade && e.grade !== filters.grade) return false
-      if (filters.classKey && !e.classes?.includes(filters.classKey)) return false
-      if (tab === 'All' && filters.status && e.status !== filters.status) return false
-      if (tab === 'Scheduled' && e.status !== 'scheduled') return false
-      if (tab === 'Completed' && e.status !== 'completed') return false
-      if (tab === 'Draft' && e.status !== 'draft') return false
-      if (tab === 'Archived' && e.status !== 'archived') return false
+    return rows.filter((e) => {
       if (tab === 'Ongoing') {
         if (e.status !== 'scheduled') return false
         const start = e.scheduleStart ? new Date(e.scheduleStart) : null
         if (!start || start > new Date()) return false
       }
-      if (e.scheduleStart) {
-        const day = e.scheduleStart.slice(0, 10)
-        if (filters.dateFrom && day < filters.dateFrom) return false
-        if (filters.dateTo && day > filters.dateTo) return false
-      }
       return true
     })
-  }, [allExams, filters, tab])
+  }, [rows, tab])
 
   const toggle = (id: string) => {
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]))
@@ -108,11 +115,15 @@ export default function ExamList() {
 
   const goEdit = async (id: string) => {
     if (TEACHER_TOOLS_SEED_EXAM_IDS.has(id)) {
-      const r = await api.duplicateExam(id)
-      if (r.ok && 'id' in r && r.id) {
-        toast.success('Created an editable copy from the sample library')
-        navigate(`/teacher-tools/exams/${r.id}/edit`)
-        return
+      try {
+        const r = await examApi.duplicateExam(id)
+        if (r.ok && r.id) {
+          toast.success('Created an editable copy from the sample library')
+          navigate(`/teacher-tools/exams/${r.id}/edit`)
+          return
+        }
+      } catch {
+        /* fall through */
       }
       toast.error('Could not create a copy')
       return
@@ -124,16 +135,12 @@ export default function ExamList() {
     if (!archiveId) return
     setArchivePending(true)
     try {
-      const res = await api.updateExam(archiveId, { status: 'archived' })
-      if (!res.ok && res.error === 'READ_ONLY') {
-        toast.error('Sample items cannot be archived. Duplicate first.')
-        return
-      }
-      if (res.ok) {
-        toast.success('Exam archived')
-        setArchiveId(null)
-        bump()
-      }
+      await examApi.patchExam(archiveId, { status: 'archived' })
+      toast.success('Exam archived')
+      setArchiveId(null)
+      bump()
+    } catch {
+      toast.error('Could not archive exam')
     } finally {
       setArchivePending(false)
     }
@@ -143,26 +150,27 @@ export default function ExamList() {
     if (!deleteId) return
     setDeletePending(true)
     try {
-      const res = await api.deleteExam(deleteId)
-      if (!res.ok) {
-        if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be deleted.')
-        else toast.error('Could not delete exam')
-        return
-      }
+      await examApi.deleteExam(deleteId)
       toast.success('Exam deleted')
       setDeleteId(null)
       bump()
+    } catch {
+      toast.error('Could not delete exam')
     } finally {
       setDeletePending(false)
     }
   }
 
   const runDuplicate = async (id: string) => {
-    const r = await api.duplicateExam(id)
-    if (r.ok && 'id' in r && r.id) {
-      toast.success('Exam duplicated')
-      bump()
-    } else toast.error('Could not duplicate')
+    try {
+      const r = await examApi.duplicateExam(id)
+      if (r.ok && r.id) {
+        toast.success('Exam duplicated')
+        bump()
+      } else toast.error('Could not duplicate')
+    } catch {
+      toast.error('Could not duplicate')
+    }
   }
 
   return (
@@ -222,7 +230,7 @@ export default function ExamList() {
             setBulkPending(true)
             try {
               for (const id of selected) {
-                await api.duplicateExam(id)
+                await examApi.duplicateExam(id)
               }
               toast.success('Duplicated selected')
               setSelected([])

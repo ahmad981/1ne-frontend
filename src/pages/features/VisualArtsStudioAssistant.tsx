@@ -43,6 +43,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapArtHistoryResult,
@@ -98,6 +99,57 @@ const VisualArtsStudioAssistant = () => {
   const [assessmentProjectType, setAssessmentProjectType] = useState('Mixed Media Project')
   const [assessmentRubric, setAssessmentRubric] = useState<AssessmentRubric | null>(null)
 
+  const VISUAL_CAP_TABS: Record<string, TabType> = {
+    art_history_explorer: 'history',
+    art_technique_guidance: 'technique',
+    portfolio_development: 'portfolio',
+    creative_project_generator: 'projects',
+    visual_literacy_analysis: 'literacy',
+    cultural_connections: 'cultural',
+    art_assessment_builder: 'assessment',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: VISUAL_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['history', 'technique', 'portfolio', 'projects', 'literacy', 'cultural', 'assessment', 'differentiation']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && VISUAL_CAP_TABS[cap]
+            ? VISUAL_CAP_TABS[cap]
+            : 'history'
+      setActiveTab(tab)
+      const u = userContent?.trim() ?? ''
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setArtMovement(null)
+        setTechniqueGuide(null)
+        setPortfolioAssessment(null)
+        setCreativeProject(null)
+        setVisualAnalysis(null)
+        setCulturalConnection(null)
+        setAssessmentRubric(null)
+        if (tab === 'history') setArtMovement(mapArtHistoryResult(raw))
+        else if (tab === 'technique') setTechniqueGuide(mapArtTechniqueResult(raw))
+        else if (tab === 'portfolio') setPortfolioAssessment(mapPortfolioDevelopmentResult(raw))
+        else if (tab === 'projects') setCreativeProject(mapCreativeProjectResult(raw, mediaType))
+        else if (tab === 'literacy') {
+          if (u) setArtworkTitle(u)
+          setVisualAnalysis(mapVisualLiteracyResult(raw))
+        } else if (tab === 'cultural') {
+          if (u) setConnectionArtwork(u)
+          setCulturalConnection(mapCulturalConnectionsResult(raw))
+        } else if (tab === 'assessment') setAssessmentRubric(mapArtAssessmentRubricResult(raw))
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const artMovements = getAvailableArtMovements()
   const mediaTypes = getMediaTypes()
   const culturalRegions = getCulturalRegions()
@@ -115,9 +167,11 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           select_art_movement: selectedMovement,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setArtMovement(mapArtHistoryResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Art movement profile loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -144,9 +198,11 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           select_technique: selectedTechnique,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setTechniqueGuide(mapArtTechniqueResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Technique guide loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -173,9 +229,11 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           portfolio_type: portfolioType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setPortfolioAssessment(mapPortfolioDevelopmentResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Portfolio guidance generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -203,9 +261,11 @@ const VisualArtsStudioAssistant = () => {
           project_theme: projectTheme,
           duration: projectDuration,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCreativeProject(mapCreativeProjectResult(response.result, mediaType))
+      pinFromResponse(response.conversation_id)
       toast.success('Creative project generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -235,9 +295,11 @@ const VisualArtsStudioAssistant = () => {
           artwork_title: title,
           artist_name: artistName.trim(),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setVisualAnalysis(mapVisualLiteracyResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Visual analysis generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -267,9 +329,11 @@ const VisualArtsStudioAssistant = () => {
           artwork_or_theme: artwork,
           theme_focus: connectionTheme,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCulturalConnection(mapCulturalConnectionsResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Cultural connections generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -296,9 +360,11 @@ const VisualArtsStudioAssistant = () => {
           cultural_region: culturalRegion,
           project_type: assessmentProjectType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setAssessmentRubric(mapArtAssessmentRubricResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Rubric generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

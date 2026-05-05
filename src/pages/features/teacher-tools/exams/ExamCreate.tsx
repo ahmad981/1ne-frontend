@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
 import { formatSourceSummary, generateExamSectionStubs } from '../demo/generationFromSources'
 import type { ExamSectionStub } from '../demo/generationFromSources'
 import { GRADES, SUBJECTS } from '../types'
-import { newDemoId } from '../demo/newDemoId'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
+import {
+  hydrateFromApi,
+  type LocalLong,
+  type LocalMcq,
+  type LocalShort,
+} from './examApiAdapters'
 import { downloadExamHandoutPdf } from '../utils/generateExamPdf'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
-import { AlertCircle, Download, Eye, FileJson, Sparkles } from 'lucide-react'
+import { AlertCircle, Download, Eye, FileJson, Loader2, Sparkles } from 'lucide-react'
 import { QuizGeneratingOverlay } from '../quiz/components/QuizGeneratingOverlay'
 import {
   DEFAULT_HANDOUT_LAYOUT,
@@ -34,28 +39,7 @@ import { ExamPaperStructureCard } from './components/ExamPaperStructureCard'
 import { ExamPaperStructureReviewCard } from './components/ExamPaperStructureReviewCard'
 import { ExamPaperQuestionsReview } from './components/ExamPaperQuestionsReview'
 import { ExamPrintPreviewContent } from './components/ExamPrintPreviewContent'
-import {
-  blankLongStub,
-  blankMcqStub,
-  blankShortStub,
-  buildExamLongStubsFromPaper,
-  buildExamMcqStubsFromPaper,
-  buildExamShortStubsFromPaper,
-  freshLongStub,
-  freshMcqStub,
-  freshShortStub,
-  longPoolSize,
-  patchPaperAddOneLong,
-  patchPaperAddOneMcq,
-  patchPaperAddOneShort,
-  patchPaperDeleteOneLong,
-  patchPaperDeleteOneMcq,
-  patchPaperDeleteOneShort,
-  shortPoolSize,
-  type ExamLongStub,
-  type ExamMcqStub,
-  type ExamShortStub,
-} from './demo/examQuestionStubs'
+import { blankLongStub, blankMcqStub, blankShortStub } from './demo/examQuestionStubs'
 import { alignExamBlueprintMarksToTotal } from './utils/alignExamBlueprintMarks'
 
 const BUILD_STEPS = ['Configure & generate', 'Review & schedule']
@@ -68,11 +52,13 @@ function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
 }
 
-function minutesBetween(isoStart: string, isoEnd: string) {
-  const a = new Date(isoStart).getTime()
-  const b = new Date(isoEnd).getTime()
-  if (!Number.isFinite(a) || !Number.isFinite(b) || b <= a) return 60
-  return Math.round((b - a) / 60000)
+function normExamText(s: string) {
+  return s.trim().replace(/\s+/g, ' ')
+}
+
+function sameOptionLists(a: string[], b: string[]) {
+  if (a.length !== b.length) return false
+  return a.every((x, i) => normExamText(x) === normExamText(b[i] ?? ''))
 }
 
 function fmtWindowLine(iso: string) {
@@ -94,7 +80,6 @@ export default function ExamCreate() {
   const { examId } = useParams<{ examId?: string }>()
   const isEdit = location.pathname.endsWith('/edit')
   const { toast } = useSnackbar()
-  const { api } = useTeacherToolsDemo()
 
   const [phase, setPhase] = useState<'build' | 'review'>(isEdit ? 'review' : 'build')
   const [generating, setGenerating] = useState(false)
@@ -134,10 +119,51 @@ export default function ExamCreate() {
   const [publishPending, setPublishPending] = useState(false)
   const [saveDraftPending, setSaveDraftPending] = useState(false)
   const [completionMeta, setCompletionMeta] = useState({ completionPct: 0 })
-  const [examMcqs, setExamMcqs] = useState<ExamMcqStub[]>([])
-  const [examShorts, setExamShorts] = useState<ExamShortStub[]>([])
-  const [examLongs, setExamLongs] = useState<ExamLongStub[]>([])
+  const [examMcqs, setExamMcqs] = useState<LocalMcq[]>([])
+  const [examShorts, setExamShorts] = useState<LocalShort[]>([])
+  const [examLongs, setExamLongs] = useState<LocalLong[]>([])
   const examQsHydratedRef = useRef(false)
+  const [backendExamId, setBackendExamId] = useState<string | null>(null)
+  const effectiveExamId = examId ?? backendExamId
+  /** `mcq:id` | `short:id` | `long:id` | `sections` while regenerating */
+  const [examRegenerateBusy, setExamRegenerateBusy] = useState<string | null>(null)
+  const [scopeHydration, setScopeHydration] = useState<{
+    bookIds: string[]
+    topics: string[]
+    refinement: string
+    without: boolean
+  } | null>(null)
+
+  const applyExamFromApi = useCallback((exam: examApi.ExamApiItem) => {
+    const h = hydrateFromApi(exam)
+    setTitle(h.title)
+    setExamType(h.examType)
+    setTerm(h.term)
+    setSubject(h.subject)
+    setGrade(h.grade)
+    setInternationalStandard(h.internationalStandard as (typeof INTERNATIONAL_STANDARDS)[number])
+    setDurationMinutes(h.durationMinutes)
+    setSectionTargetCount(h.sectionTargetCount)
+    setPaper(h.paper as ExamPaperConfig)
+    setGeneratedSections(h.sections)
+    setExamMcqs(h.mcqs)
+    setExamShorts(h.shorts)
+    setExamLongs(h.longs)
+    setSelectedClasses(h.classes ?? [])
+    setCompletionMeta({ completionPct: h.completionPct })
+    if (h.scheduleStart) {
+      setScheduleStartIso(h.scheduleStart)
+      setScheduleDate(h.scheduleStart.slice(0, 10))
+      setScheduleTime(h.scheduleStart.slice(11, 16))
+    } else {
+      setScheduleStartIso(null)
+    }
+    if (h.handoutLayout) {
+      const next = { ...DEFAULT_HANDOUT_LAYOUT, ...h.handoutLayout }
+      setHandoutLayout(next)
+      setDraftLayout(next)
+    }
+  }, [])
 
   const [editMcqIdx, setEditMcqIdx] = useState<number | null>(null)
   const [editMcqStem, setEditMcqStem] = useState('')
@@ -163,7 +189,10 @@ export default function ExamCreate() {
   const rag = useQuizRagScope({
     subject,
     grade,
-    initialScopeRefinement: loadedTopic,
+    initialSelectedBookIds: scopeHydration?.bookIds,
+    initialScopeTopics: scopeHydration?.topics,
+    initialScopeRefinement: scopeHydration?.refinement ?? loadedTopic,
+    initialGenerateWithoutSources: scopeHydration?.without,
   })
 
   useEffect(() => {
@@ -200,14 +229,6 @@ export default function ExamCreate() {
     })
   }, [paperMarks.grand, phase])
 
-  useEffect(() => {
-    if (!hydrateReady || !isEdit || examQsHydratedRef.current) return
-    examQsHydratedRef.current = true
-    setExamMcqs(buildExamMcqStubsFromPaper(subject, paper))
-    setExamShorts(buildExamShortStubsFromPaper(subject, paper))
-    setExamLongs(buildExamLongStubsFromPaper(subject, paper))
-  }, [hydrateReady, isEdit, subject, paper])
-
   const schedule = useMemo(() => {
     const start = scheduleStartIso ? new Date(scheduleStartIso) : new Date()
     if (!scheduleStartIso) {
@@ -227,43 +248,30 @@ export default function ExamCreate() {
     let cancelled = false
     setHydrateReady(false)
     ;(async () => {
-      const ex = await api.getExam(examId)
-      if (cancelled) return
-      if (!ex) {
+      try {
+        const ex = await examApi.fetchExam(examId)
+        if (cancelled) return
+        setScopeHydration({
+          bookIds: ex.sourceBookIds ?? [],
+          topics: ex.scopeTopics ?? [],
+          refinement: ex.scopeRefinement ?? '',
+          without: ex.generateWithoutSources,
+        })
+        applyExamFromApi(ex)
+        examQsHydratedRef.current = true
+        setHydrateReady(true)
+      } catch {
+        if (cancelled) return
         toast.error('Exam not found')
         navigate('/teacher-tools/exams')
-        return
       }
-      setTitle(ex.title)
-      setExamType(ex.examType)
-      setTerm(ex.term)
-      setSubject(ex.subject)
-      setGrade(ex.grade)
-      setDurationMinutes(minutesBetween(ex.scheduleStart, ex.scheduleEnd))
-      setScheduleStartIso(ex.scheduleStart)
-      setScheduleDate(ex.scheduleStart.slice(0, 10))
-      setScheduleTime(ex.scheduleStart.slice(11, 16))
-      setSelectedClasses(ex.classes ?? [])
-      setCompletionMeta({ completionPct: ex.completionPct })
-      if (ex.paper) setPaper(ex.paper)
-      if (Array.isArray(ex.sections)) setGeneratedSections(ex.sections)
-      if (ex.handoutLayout) {
-        const next = { ...DEFAULT_HANDOUT_LAYOUT, ...ex.handoutLayout }
-        setHandoutLayout(next)
-        setDraftLayout(next)
-      }
-      if (Array.isArray(ex.mcqs) && Array.isArray(ex.shorts) && Array.isArray(ex.longs)) {
-        examQsHydratedRef.current = true
-        setExamMcqs(ex.mcqs)
-        setExamShorts(ex.shorts)
-        setExamLongs(ex.longs)
-      }
-      setHydrateReady(true)
     })()
-    return () => { cancelled = true }
-  }, [api, examId, isEdit, navigate, toast])
+    return () => {
+      cancelled = true
+    }
+  }, [applyExamFromApi, examId, isEdit, navigate, toast])
 
-  const runGeneration = () => {
+  const runGeneration = async () => {
     const errs: string[] = []
     const ragV = validateRagExamBuild({
       title,
@@ -284,81 +292,146 @@ export default function ExamCreate() {
     setGenerationError(null)
     setGenProgress(0.15)
     setGenerating(true)
-    const steps = window.setInterval(() => {
-      setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.12))
-    }, 450)
-    window.setTimeout(() => {
-      try {
-        const generated = generateExamSectionStubs(rag.getGenerationContext())
-        const seeded = generated.slice(0, sectionTargetCount)
-        while (seeded.length < sectionTargetCount) {
-          seeded.push({
-            id: `auto-${seeded.length + 1}`,
-            title: `${internationalStandard} section ${seeded.length + 1}`,
-            marks: 10,
-            description: 'Higher-order reasoning with international benchmark expectations.',
-          })
-        }
-        const grand = deriveExamPaperMarks(paper).grand
-        setGeneratedSections(alignExamBlueprintMarksToTotal(seeded, grand))
-        setExamMcqs(buildExamMcqStubsFromPaper(subject, paper))
-        setExamShorts(buildExamShortStubsFromPaper(subject, paper))
-        setExamLongs(buildExamLongStubsFromPaper(subject, paper))
-        setPhase('review')
-        toast.success('Exam generated — review below.')
-      } catch {
-        setGenerationError('Generation failed (demo). Please retry with updated inputs.')
-        toast.error('Could not generate the exam.')
-      } finally {
-        window.clearInterval(steps)
-        setGenerating(false)
-        setGenProgress(1)
+    const progressTimer = window.setInterval(() => {
+      setGenProgress((p) => Math.min(0.92, p + Math.random() * 0.08))
+    }, 400)
+    try {
+      let id = effectiveExamId
+      const classes = selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)]
+      if (!id) {
+        const created = await examApi.createExam({
+          title: title.trim() || 'Untitled exam',
+          subject,
+          grade,
+          examType,
+          term,
+          internationalStandard,
+          durationMinutes,
+          scheduleStart: null,
+          scheduleEnd: null,
+          classes,
+          status: 'draft',
+          sectionTargetCount,
+          sourceBookIds: rag.selectedBookIds,
+          scopeTopics: rag.selectedTopics,
+          scopeRefinement: rag.scopeRefinement || undefined,
+          generateWithoutSources: rag.generateWithoutSources,
+          paper,
+          handoutLayout,
+        })
+        id = created.id
+        setBackendExamId(id)
+      } else {
+        await examApi.patchExam(id, {
+          paper,
+          sectionTargetCount,
+          examType,
+          term,
+          internationalStandard,
+          durationMinutes,
+          sourceBookIds: rag.selectedBookIds,
+          scopeTopics: rag.selectedTopics,
+          scopeRefinement: rag.scopeRefinement || undefined,
+          generateWithoutSources: rag.generateWithoutSources,
+          handoutLayout,
+        })
       }
-    }, 1200 + Math.random() * 800)
-  }
-
-  const regenerateSections = () => {
-    const generated = generateExamSectionStubs(rag.getGenerationContext())
-    const seeded = generated.slice(0, sectionTargetCount)
-    while (seeded.length < sectionTargetCount) {
-      seeded.push({
-        id: `auto-${seeded.length + 1}-${Date.now()}`,
-        title: `${internationalStandard} section ${seeded.length + 1}`,
-        marks: 10,
-        description: 'Higher-order reasoning with international benchmark expectations.',
-      })
+      const gen = await examApi.generateExam(id, { regenerateScope: 'all' }, crypto.randomUUID())
+      applyExamFromApi(gen.exam)
+      setPhase('review')
+      if (gen.warnings?.length) toast.success(`Exam generated (${gen.warnings.length} notice${gen.warnings.length === 1 ? '' : 's'})`)
+      else toast.success('Exam generated — review below.')
+    } catch (e) {
+      console.warn('[ExamCreate] generate failed', e)
+      setGenerationError('Generation failed. Check sources and paper settings, then retry.')
+      toast.error('Could not generate the exam.')
+    } finally {
+      window.clearInterval(progressTimer)
+      setGenerating(false)
+      setGenProgress(1)
     }
-    const grand = deriveExamPaperMarks(paper).grand
-    setGeneratedSections(alignExamBlueprintMarksToTotal(seeded, grand))
-    setExamMcqs(buildExamMcqStubsFromPaper(subject, paper))
-    setExamShorts(buildExamShortStubsFromPaper(subject, paper))
-    setExamLongs(buildExamLongStubsFromPaper(subject, paper))
-    toast.success('Exam regenerated')
   }
 
-  const reorderMcq = (from: number, to: number) => {
-    setExamMcqs((prev) => {
-      if (to < 0 || to >= prev.length) return prev
-      const next = [...prev]
-      const [x] = next.splice(from, 1)
-      next.splice(to, 0, x!)
-      return next
-    })
+  const regenerateSections = async () => {
+    if (!effectiveExamId) {
+      toast.error('Generate the exam first.')
+      return
+    }
+    setExamRegenerateBusy('sections')
+    try {
+      const gen = await examApi.generateExam(effectiveExamId, { regenerateScope: 'all' }, crypto.randomUUID())
+      applyExamFromApi(gen.exam)
+      toast.success('Exam regenerated')
+    } catch {
+      toast.error('Regeneration failed')
+    } finally {
+      setExamRegenerateBusy(null)
+    }
   }
-  const deleteMcq = (index: number) => {
-    setPaper((p) => patchPaperDeleteOneMcq(p))
-    setExamMcqs((prev) => prev.filter((_, i) => i !== index))
+
+  const reorderMcq = async (from: number, to: number) => {
+    if (!effectiveExamId) return
+    if (to < 0 || to >= examMcqs.length) return
+    const next = [...examMcqs]
+    const [x] = next.splice(from, 1)
+    next.splice(to, 0, x!)
+    const order = next.map((q, i) => ({ id: q._id, sort_order: i }))
+    try {
+      const updated = await examApi.reorderMcqs(effectiveExamId, order)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not reorder')
+    }
   }
-  const regenerateMcq = (index: number) => {
-    setExamMcqs((prev) =>
-      prev.map((s, i) => (i === index ? freshMcqStub(subject, index + 1 + Math.floor(Math.random() * 40), paper) : s)),
-    )
+  const deleteMcq = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examMcqs[index]
+    if (!q) return
+    try {
+      const updated = await examApi.deleteMcq(effectiveExamId, q._id)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not delete question')
+    }
   }
-  const addManualMcq = () => {
-    const next = patchPaperAddOneMcq(paper)
-    if (next.objCount === paper.objCount) return
-    setPaper(next)
-    setExamMcqs((prev) => [...prev, blankMcqStub(next)])
+  const regenerateMcq = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examMcqs[index]
+    if (!q) return
+    const prevStem = q.stem
+    const prevOpts = [...q.options]
+    setExamRegenerateBusy(`mcq:${q._id}`)
+    try {
+      const updated = await examApi.regenerateMcqApi(effectiveExamId, q._id)
+      const next = updated.mcqs.find((m) => m.id === q._id)
+      applyExamFromApi(updated)
+      if (next && normExamText(prevStem) === normExamText(next.stem) && sameOptionLists(prevOpts, next.options)) {
+        toast.warning('The model returned the same question. Try again or edit it manually.')
+      } else {
+        toast.success('Question regenerated')
+      }
+    } catch {
+      toast.error('Regeneration failed')
+    } finally {
+      setExamRegenerateBusy(null)
+    }
+  }
+  const addManualMcq = async () => {
+    if (!effectiveExamId) {
+      toast.error('Generate the exam shell first (click Generate).')
+      return
+    }
+    const stub = blankMcqStub(paper)
+    try {
+      const updated = await examApi.addMcq(effectiveExamId, {
+        stem: stub.stem,
+        options: stub.options,
+        marksPer: paper.objMarksPer,
+      })
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not add question')
+    }
   }
   const openEditMcq = (index: number) => {
     const q = examMcqs[index]
@@ -368,27 +441,64 @@ export default function ExamCreate() {
     setEditMcqOptionsText(q.options.join('\n'))
   }
 
-  const reorderShort = (from: number, to: number) => {
-    setExamShorts((prev) => {
-      if (to < 0 || to >= prev.length) return prev
-      const next = [...prev]
-      const [x] = next.splice(from, 1)
-      next.splice(to, 0, x!)
-      return next
-    })
+  const reorderShort = async (from: number, to: number) => {
+    if (!effectiveExamId) return
+    if (to < 0 || to >= examShorts.length) return
+    const next = [...examShorts]
+    const [x] = next.splice(from, 1)
+    next.splice(to, 0, x!)
+    const order = next.map((q, i) => ({ id: q._id, sort_order: i }))
+    try {
+      const updated = await examApi.reorderShorts(effectiveExamId, order)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not reorder')
+    }
   }
-  const deleteShort = (index: number) => {
-    setPaper((p) => patchPaperDeleteOneShort(p))
-    setExamShorts((prev) => prev.filter((_, i) => i !== index))
+  const deleteShort = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examShorts[index]
+    if (!q) return
+    try {
+      const updated = await examApi.deleteShort(effectiveExamId, q._id)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not delete question')
+    }
   }
-  const regenerateShort = (index: number) => {
-    setExamShorts((prev) => prev.map((s, i) => (i === index ? freshShortStub(subject, index + i) : s)))
+  const regenerateShort = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examShorts[index]
+    if (!q) return
+    const prevStem = q.stem
+    setExamRegenerateBusy(`short:${q._id}`)
+    try {
+      const updated = await examApi.regenerateShortApi(effectiveExamId, q._id)
+      const next = updated.shorts.find((s) => s.id === q._id)
+      applyExamFromApi(updated)
+      if (next && normExamText(prevStem) === normExamText(next.stem)) {
+        toast.warning('The model returned the same question. Try again or edit it manually.')
+      } else {
+        toast.success('Question regenerated')
+      }
+    } catch {
+      toast.error('Regeneration failed')
+    } finally {
+      setExamRegenerateBusy(null)
+    }
   }
-  const addManualShort = () => {
-    const next = patchPaperAddOneShort(paper)
-    if (shortPoolSize(next) === shortPoolSize(paper)) return
-    setPaper(next)
-    setExamShorts((prev) => [...prev, blankShortStub()])
+  const addManualShort = async () => {
+    if (!effectiveExamId) {
+      toast.error('Generate the exam shell first.')
+      return
+    }
+    const stub = blankShortStub()
+    try {
+      const updated = await examApi.addShort(effectiveExamId, { stem: stub.stem, marksPer: paper.shortMarksPer })
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not add question')
+    }
   }
   const openEditShort = (index: number) => {
     const q = examShorts[index]
@@ -397,27 +507,73 @@ export default function ExamCreate() {
     setEditShortStem(q.stem)
   }
 
-  const reorderLong = (from: number, to: number) => {
-    setExamLongs((prev) => {
-      if (to < 0 || to >= prev.length) return prev
-      const next = [...prev]
-      const [x] = next.splice(from, 1)
-      next.splice(to, 0, x!)
-      return next
-    })
+  const reorderLong = async (from: number, to: number) => {
+    if (!effectiveExamId) return
+    if (to < 0 || to >= examLongs.length) return
+    const next = [...examLongs]
+    const [x] = next.splice(from, 1)
+    next.splice(to, 0, x!)
+    const order = next.map((q, i) => ({ id: q._id, sort_order: i }))
+    try {
+      const updated = await examApi.reorderLongs(effectiveExamId, order)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not reorder')
+    }
   }
-  const deleteLong = (index: number) => {
-    setPaper((p) => patchPaperDeleteOneLong(p))
-    setExamLongs((prev) => prev.filter((_, i) => i !== index))
+  const deleteLong = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examLongs[index]
+    if (!q) return
+    try {
+      const updated = await examApi.deleteLong(effectiveExamId, q._id)
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not delete question')
+    }
   }
-  const regenerateLong = (index: number) => {
-    setExamLongs((prev) => prev.map((s, i) => (i === index ? freshLongStub(subject, index + i, paper) : s)))
+  const regenerateLong = async (index: number) => {
+    if (!effectiveExamId) return
+    const q = examLongs[index]
+    if (!q) return
+    const prevStem = q.stem
+    const prevSub = [...q.subparts]
+    setExamRegenerateBusy(`long:${q._id}`)
+    try {
+      const updated = await examApi.regenerateLongApi(effectiveExamId, q._id)
+      const next = updated.longs.find((lg) => lg.id === q._id)
+      applyExamFromApi(updated)
+      if (
+        next &&
+        normExamText(prevStem) === normExamText(next.stem) &&
+        sameOptionLists(prevSub, next.subparts)
+      ) {
+        toast.warning('The model returned the same question. Try again or edit it manually.')
+      } else {
+        toast.success('Question regenerated')
+      }
+    } catch {
+      toast.error('Regeneration failed')
+    } finally {
+      setExamRegenerateBusy(null)
+    }
   }
-  const addManualLong = () => {
-    const next = patchPaperAddOneLong(paper)
-    if (longPoolSize(next) === longPoolSize(paper)) return
-    setPaper(next)
-    setExamLongs((prev) => [...prev, blankLongStub(next)])
+  const addManualLong = async () => {
+    if (!effectiveExamId) {
+      toast.error('Generate the exam shell first.')
+      return
+    }
+    const stub = blankLongStub(paper)
+    try {
+      const updated = await examApi.addLong(effectiveExamId, {
+        stem: stub.stem,
+        subparts: stub.subparts,
+        marksPer: paper.longMarksPer,
+      })
+      applyExamFromApi(updated)
+    } catch {
+      toast.error('Could not add question')
+    }
   }
   const openEditLong = (index: number) => {
     const q = examLongs[index]
@@ -427,82 +583,68 @@ export default function ExamCreate() {
     setEditLongSubpartsText(q.subparts.join('\n'))
   }
 
-  const buildPayload = (status: 'draft' | 'scheduled') => {
-    const ctx = rag.getGenerationContext()
-    const totalMarks = deriveExamPaperMarks(paper).grand
+  const buildPatchPayload = (status: 'draft' | 'scheduled'): examApi.ExamPatchPayload => {
     const classes = selectedClasses.length > 0 ? selectedClasses : [classKeyForGrade(grade)]
     return {
       title: title.trim() || 'Untitled exam',
       subject,
       grade,
       term,
-      classes,
       examType,
+      internationalStandard,
       durationMinutes,
-      totalMarks,
       scheduleStart: schedule.start,
       scheduleEnd: schedule.end,
+      classes,
       status,
       completionPct: isEdit ? completionMeta.completionPct : 0,
-      sourceSummary: formatSourceSummary(ctx),
+      sectionTargetCount,
+      sourceBookIds: rag.selectedBookIds,
+      scopeTopics: rag.selectedTopics,
+      scopeRefinement: rag.scopeRefinement || undefined,
+      generateWithoutSources: rag.generateWithoutSources,
       paper,
-      sections,
-      mcqs: examMcqs,
-      shorts: examShorts,
-      longs: examLongs,
       handoutLayout,
     }
   }
 
   const handleSaveDraft = async () => {
-    if (sections.length === 0) {
+    if (phase !== 'review' && examMcqs.length === 0) {
       toast.error('Generate the exam before saving a draft.')
+      return
+    }
+    if (!effectiveExamId) {
+      toast.error('Generate the exam first, then save.')
       return
     }
     setSaveDraftPending(true)
     try {
-      const payload = buildPayload('draft')
-      if (isEdit && examId) {
-        const res = await api.updateExam(examId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited.')
-          else toast.error('Could not save draft')
-          return
-        }
-        toast.success('Draft saved')
-        navigate(`/teacher-tools/exams/${examId}`)
-        return
-      }
-      const id = newDemoId('exam')
-      await api.createExam({ id, ...payload })
+      await examApi.patchExam(effectiveExamId, buildPatchPayload('draft'))
       toast.success('Draft saved')
-      navigate(`/teacher-tools/exams/${id}`)
+      navigate(`/teacher-tools/exams/${effectiveExamId}`)
+    } catch {
+      toast.error('Could not save draft')
     } finally {
       setSaveDraftPending(false)
     }
   }
 
   const handlePublish = async () => {
-    if (sections.length === 0) {
+    if (phase !== 'review' && examMcqs.length === 0) {
       toast.error('Generate the exam before scheduling.')
+      return
+    }
+    if (!effectiveExamId) {
+      toast.error('Generate the exam first.')
       return
     }
     setPublishPending(true)
     try {
-      const payload = buildPayload('scheduled')
-      if (isEdit && examId) {
-        const res = await api.updateExam(examId, payload)
-        if (!res.ok) {
-          if (res.error === 'READ_ONLY') toast.error('Sample library items cannot be edited. Duplicate from the list first.')
-          else toast.error('Could not save exam')
-          return
-        }
-        toast.success('Exam updated')
-      } else {
-        await api.createExam({ id: newDemoId('exam'), ...payload })
-        toast.success('Exam scheduled')
-      }
+      await examApi.patchExam(effectiveExamId, buildPatchPayload('scheduled'))
+      toast.success(isEdit ? 'Exam updated' : 'Exam scheduled')
       navigate('/teacher-tools/exams')
+    } catch {
+      toast.error('Could not save exam')
     } finally {
       setPublishPending(false)
     }
@@ -796,13 +938,26 @@ export default function ExamCreate() {
             onRegenerateLong={regenerateLong}
             onEditLong={openEditLong}
             onAddManualLong={addManualLong}
+            regenerateBusyKey={examRegenerateBusy}
           />
 
           <ExamPaperStructureReviewCard paper={paper} onEdit={() => setPhase('build')} />
 
           <div className="flex flex-wrap items-center gap-2 border-t border-gray-200 pt-6">
             <button type="button" onClick={() => setPhase('build')} className="rounded-full border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-800 hover:bg-gray-50">← Edit requirements</button>
-            <button type="button" onClick={regenerateSections} className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100"><Sparkles className="h-4 w-4" />Regenerate all</button>
+            <button
+              type="button"
+              disabled={examRegenerateBusy !== null}
+              onClick={() => void regenerateSections()}
+              className="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-900 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {examRegenerateBusy === 'sections' ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="h-4 w-4" aria-hidden />
+              )}
+              {examRegenerateBusy === 'sections' ? 'Regenerating…' : 'Regenerate all'}
+            </button>
           </div>
 
           {/* Publish panel */}
@@ -940,16 +1095,26 @@ export default function ExamCreate() {
         title="Edit MCQ"
         primaryButtonText="Save"
         handleSave={() => {
-          if (editMcqIdx === null) return
-          const need = paper.objOptions
-          const lines = editMcqOptionsText.split('\n').map((l) => l.trim()).filter(Boolean)
-          const opts = [...lines]
-          while (opts.length < need) opts.push(`Option ${String.fromCharCode(65 + opts.length)}`)
-          const final = opts.slice(0, need)
-          setExamMcqs((prev) =>
-            prev.map((s, i) => (i === editMcqIdx ? { ...s, stem: editMcqStem.trim() || s.stem, options: final } : s)),
-          )
-          setEditMcqIdx(null)
+          void (async () => {
+            if (editMcqIdx === null || !effectiveExamId) return
+            const q = examMcqs[editMcqIdx]
+            if (!q) return
+            const need = paper.objOptions
+            const lines = editMcqOptionsText.split('\n').map((l) => l.trim()).filter(Boolean)
+            const opts = [...lines]
+            while (opts.length < need) opts.push(`Option ${String.fromCharCode(65 + opts.length)}`)
+            const final = opts.slice(0, need)
+            try {
+              const updated = await examApi.patchMcq(effectiveExamId, q._id, {
+                stem: editMcqStem.trim() || q.stem,
+                options: final,
+              })
+              applyExamFromApi(updated)
+              setEditMcqIdx(null)
+            } catch {
+              toast.error('Could not save question')
+            }
+          })()
         }}
       >
         <div className="space-y-3 py-2">
@@ -980,11 +1145,18 @@ export default function ExamCreate() {
         title="Edit short question"
         primaryButtonText="Save"
         handleSave={() => {
-          if (editShortIdx === null) return
-          setExamShorts((prev) =>
-            prev.map((s, i) => (i === editShortIdx ? { ...s, stem: editShortStem.trim() || s.stem } : s)),
-          )
-          setEditShortIdx(null)
+          void (async () => {
+            if (editShortIdx === null || !effectiveExamId) return
+            const q = examShorts[editShortIdx]
+            if (!q) return
+            try {
+              const updated = await examApi.patchShort(effectiveExamId, q._id, { stem: editShortStem.trim() || q.stem })
+              applyExamFromApi(updated)
+              setEditShortIdx(null)
+            } catch {
+              toast.error('Could not save question')
+            }
+          })()
         }}
       >
         <div className="space-y-3 py-2">
@@ -1006,17 +1178,27 @@ export default function ExamCreate() {
         title="Edit long question"
         primaryButtonText="Save"
         handleSave={() => {
-          if (editLongIdx === null) return
-          const parts = editLongSubpartsText
-            .split('\n')
-            .map((l) => l.trim())
-            .filter(Boolean)
-          const sub = parts.length > 0 ? parts : ['(a) Enter sub-part…']
-          const capped = sub.slice(0, Math.max(1, paper.longSubparts))
-          setExamLongs((prev) =>
-            prev.map((s, i) => (i === editLongIdx ? { ...s, stem: editLongStem.trim() || s.stem, subparts: capped } : s)),
-          )
-          setEditLongIdx(null)
+          void (async () => {
+            if (editLongIdx === null || !effectiveExamId) return
+            const q = examLongs[editLongIdx]
+            if (!q) return
+            const parts = editLongSubpartsText
+              .split('\n')
+              .map((l) => l.trim())
+              .filter(Boolean)
+            const sub = parts.length > 0 ? parts : ['(a) Enter sub-part…']
+            const capped = sub.slice(0, Math.max(1, paper.longSubparts))
+            try {
+              const updated = await examApi.patchLong(effectiveExamId, q._id, {
+                stem: editLongStem.trim() || q.stem,
+                subparts: capped,
+              })
+              applyExamFromApi(updated)
+              setEditLongIdx(null)
+            } catch {
+              toast.error('Could not save question')
+            }
+          })()
         }}
       >
         <div className="space-y-3 py-2">

@@ -20,6 +20,8 @@ export function adaptApiItemToDemoAssignment(item: AssignmentApiItem): DemoAssig
     classes: item.classes,
     type: item.type,
     dueAt: dueAtForDemo(item.dueAt),
+    createdAt: item.createdAt ?? undefined,
+    updatedAt: item.updatedAt ?? undefined,
     assignedCount: item.assignedCount,
     submitted: item.submitted,
     pending: item.pending,

@@ -34,14 +34,10 @@ export const EXAM_STATUS_FILTER_OPTIONS: StatusFilterOption[] = [
   { value: 'archived', label: 'Archived' },
 ]
 
-/** Overview “activity kind” filter (matches `activityFeed[].type`). */
+/** Overview activity kind filter — matches live activity feed `type` on Teacher Tools overview. */
 export const OVERVIEW_ACTIVITY_STATUS_OPTIONS: StatusFilterOption[] = [
   { value: '', label: 'All activity types' },
-  { value: 'submission', label: 'Submissions & hand-ins' },
-  { value: 'graded', label: 'Grading & scores' },
-  { value: 'schedule', label: 'Scheduling' },
-  { value: 'draft', label: 'Drafts & edits' },
-  { value: 'analytics', label: 'Analytics & opens' },
-  { value: 'template', label: 'Templates' },
-  { value: 'archive', label: 'Archive' },
+  { value: 'created', label: 'Draft saves' },
+  { value: 'published', label: 'Published & live' },
+  { value: 'scheduled', label: 'Scheduled' },
 ]

@@ -48,6 +48,8 @@ export interface DemoQuiz {
   status: ContentStatus
   assignedAt?: string
   dueAt?: string
+  createdAt?: string
+  updatedAt?: string
   submissionCount: number
   avgScore: number
   topic: string
@@ -76,6 +78,8 @@ export interface DemoAssignment {
   classes: string[]
   type: string
   dueAt: string
+  createdAt?: string
+  updatedAt?: string
   assignedCount: number
   submitted: number
   pending: number

@@ -116,6 +116,26 @@ export const fetchTemplates = async (params: TemplateListParams, signal?: AbortS
   }
 }
 
+/** Owner-scoped execution row for History → Open restore (`GET /v1/template-executions/{id}`). */
+export interface TemplateExecutionPublic {
+  id: string
+  template_id: string
+  template_slug: string
+  template_version?: number | null
+  input_data: Record<string, unknown>
+  output_data?: Record<string, unknown> | null
+  model_used?: string | null
+  provider_used?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const fetchTemplateExecution = (executionId: string, signal?: AbortSignal) =>
+  apiRequest<TemplateExecutionPublic>(`v1/template-executions/${executionId}`, {
+    method: 'GET',
+    signal,
+  })
+
 export const fetchTemplateDetail = (slug: string, signal?: AbortSignal) => {
   // Backend endpoint: GET /api/v1/templates/{slug}
   return apiRequest<any>(`/v1/templates/${slug}`, {

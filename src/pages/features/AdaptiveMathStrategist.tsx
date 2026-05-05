@@ -31,6 +31,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapDifferentiatedProblemsResult,
@@ -61,6 +62,43 @@ const AdaptiveMathStrategist = () => {
   const [conceptualUnderstanding, setConceptualUnderstanding] = useState<ConceptualUnderstanding | null>(null)
   const [interventionStrategy, setInterventionStrategy] = useState<InterventionStrategy | null>(null)
 
+  const ADAPTIVE_CAP_TABS: Record<string, 'problems' | 'adaptive' | 'concepts' | 'intervention'> = {
+    differentiated_problems: 'problems',
+    adaptive_learning_path: 'adaptive',
+    conceptual_learning: 'concepts',
+    intervention_strategies: 'intervention',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: ADAPTIVE_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const tab: 'problems' | 'adaptive' | 'concepts' | 'intervention' =
+        tabKey === 'problems' || tabKey === 'adaptive' || tabKey === 'concepts' || tabKey === 'intervention'
+          ? tabKey
+          : cap && ADAPTIVE_CAP_TABS[cap]
+            ? ADAPTIVE_CAP_TABS[cap]
+            : 'problems'
+      setActiveTab(tab)
+      if (userContent?.trim()) setTopic(userContent.trim())
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setProblemSet(null)
+        setAdaptivePath(null)
+        setConceptualUnderstanding(null)
+        setInterventionStrategy(null)
+        if (tab === 'problems') setProblemSet(mapDifferentiatedProblemsResult(raw))
+        else if (tab === 'adaptive') setAdaptivePath(mapAdaptiveLearningPathResult(raw))
+        else if (tab === 'concepts') setConceptualUnderstanding(mapConceptualLearningResult(raw))
+        else setInterventionStrategy(mapInterventionStrategiesResult(raw))
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const handleGenerateProblems = async () => {
     if (!topic.trim()) return
     setIsGenerating(true)
@@ -76,9 +114,11 @@ const AdaptiveMathStrategist = () => {
           ...(standard.trim() ? { standard: standard.trim() } : {}),
           number_of_problems: n,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setProblemSet(mapDifferentiatedProblemsResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Problem set generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -107,9 +147,11 @@ const AdaptiveMathStrategist = () => {
           student_level: studentLevel,
           current_topic: currentTopic,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setAdaptivePath(mapAdaptiveLearningPathResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Learning path generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -135,9 +177,11 @@ const AdaptiveMathStrategist = () => {
           math_concept: concept,
           grade_level: String(gradeLevel),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setConceptualUnderstanding(mapConceptualLearningResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Concept analysis ready')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -158,9 +202,11 @@ const AdaptiveMathStrategist = () => {
         input: ' ',
         input_type: 'text',
         parameters: {},
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setInterventionStrategy(mapInterventionStrategiesResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Intervention strategies generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

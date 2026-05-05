@@ -44,6 +44,7 @@ import {
   Pencil,
   Plus,
   PlusCircle,
+  Loader2,
   Printer,
   RefreshCw,
   Sparkles,
@@ -1274,7 +1275,11 @@ export default function WorksheetCreate() {
                                           onClick={() => void handleRegenerateBlock(session.id, blockIndex)}
                                           className="rounded-lg p-1.5 text-amber-800 hover:bg-amber-100 disabled:opacity-40"
                                         >
-                                          <RefreshCw className={`h-4 w-4 ${blockBusy ? 'animate-spin' : ''}`} />
+                                          {blockBusy ? (
+                                            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                                          ) : (
+                                            <RefreshCw className="h-4 w-4" aria-hidden />
+                                          )}
                                         </button>
                                         <button
                                           type="button"

@@ -48,6 +48,7 @@ import {
   mapMarketingStandardsResponseToUI,
 } from '../../utils/marketingAdapters'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 const MARKETING_STRATEGIST_SLUG = 'marketing-branding-strategist'
@@ -89,6 +90,68 @@ const MarketingBrandingStrategist = () => {
   const gradeLevels = getGradeLevels()
   const marketingTopics = getMarketingTopics()
 
+  const MARKETING_CAP_TABS: Record<string, TabType> = {
+    marketing_concepts: 'marketing-concepts',
+    branding_strategies: 'branding',
+    digital_marketing_channels: 'digital-marketing',
+    market_research_methods: 'market-research',
+    international_marketing_standards: 'standards',
+    compaign: 'campaigns', // backend typo must match seed
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: MARKETING_STRATEGIST_SLUG,
+    activeTab,
+    capabilityKeyToTab: MARKETING_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['marketing-concepts', 'branding', 'digital-marketing', 'market-research', 'campaigns', 'standards', 'resources']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && MARKETING_CAP_TABS[cap]
+            ? MARKETING_CAP_TABS[cap]
+            : 'marketing-concepts'
+
+      setActiveTab(tab)
+      if (userContent) {
+        // Most calls use gradeLevel as input. Keep UI aligned.
+        setGradeLevel(userContent)
+      }
+
+      try {
+        const data = JSON.parse(assistantContent) as Record<string, unknown>
+        setMarketingConcepts([])
+        setSelectedConcept(null)
+        setBrandingStrategies([])
+        setSelectedStrategy(null)
+        setDigitalChannels([])
+        setSelectedChannel(null)
+        setResearchMethods([])
+        setSelectedMethod(null)
+        setMarketingStandards([])
+        setSelectedStandard(null)
+        setGeneratedCampaign(null)
+
+        if (tab === 'marketing-concepts') {
+          setMarketingConcepts(mapMarketingConceptsResponseToUI(data, gradeLevel))
+        } else if (tab === 'branding') {
+          setBrandingStrategies(mapBrandingStrategiesResponseToUI(data))
+        } else if (tab === 'digital-marketing') {
+          setDigitalChannels(mapDigitalMarketingChannelsResponseToUI(data))
+        } else if (tab === 'market-research') {
+          setResearchMethods(mapMarketResearchMethodsResponseToUI(data))
+        } else if (tab === 'standards') {
+          setMarketingStandards(mapMarketingStandardsResponseToUI(data))
+        } else if (tab === 'campaigns') {
+          setGeneratedCampaign(mapMarketingCampaignResponseToUI(data))
+        }
+      } catch {
+        // keep restore silent
+      }
+    },
+  })
+
   // Load Marketing Concepts (backend)
   const handleLoadMarketingConcepts = async () => {
     setIsGenerating(true)
@@ -98,10 +161,12 @@ const MarketingBrandingStrategist = () => {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const concepts = mapMarketingConceptsResponseToUI(response.result as Record<string, unknown>, gradeLevel)
       setMarketingConcepts(concepts)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Marketing concepts:', e)
@@ -119,10 +184,12 @@ const MarketingBrandingStrategist = () => {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const strategies = mapBrandingStrategiesResponseToUI(response.result as Record<string, unknown>)
       setBrandingStrategies(strategies)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Branding strategies:', e)
@@ -140,10 +207,12 @@ const MarketingBrandingStrategist = () => {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const channels = mapDigitalMarketingChannelsResponseToUI(response.result as Record<string, unknown>)
       setDigitalChannels(channels)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Digital marketing channels:', e)
@@ -161,10 +230,12 @@ const MarketingBrandingStrategist = () => {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const methods = mapMarketResearchMethodsResponseToUI(response.result as Record<string, unknown>)
       setResearchMethods(methods)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Market research methods:', e)
@@ -182,10 +253,12 @@ const MarketingBrandingStrategist = () => {
         input: gradeLevel,
         input_type: 'text',
         parameters: { grade_level: gradeLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const standards = mapMarketingStandardsResponseToUI(response.result as Record<string, unknown>)
       setMarketingStandards(standards)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Marketing standards:', e)
@@ -210,10 +283,12 @@ const MarketingBrandingStrategist = () => {
           target_audience: targetAudience.trim(),
           primary_objective: objective.trim(),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const campaign = mapMarketingCampaignResponseToUI(response.result as Record<string, unknown>)
       setGeneratedCampaign(campaign)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Marketing campaign:', e)

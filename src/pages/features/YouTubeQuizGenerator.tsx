@@ -29,6 +29,7 @@ import { QuickStartVideoSources } from './youtube-quiz/QuickStartVideoSources'
 import { AICapabilityPreview } from './youtube-quiz/AICapabilityPreview'
 
 interface QuizPreview {
+  id?: string
   title: string
   summary: string
   sections: YouTubeQuizSection[]
@@ -248,9 +249,8 @@ const YouTubeQuizGenerator = () => {
 
   const handlePreview = () => {
     if (!hasGenerated || !quizPreview) return
-    
-    // Navigate to results page with the generated quiz data
-    navigate('/youtube-quiz/results', {
+    const qs = quizPreview.id ? `?generation=${quizPreview.id}` : ''
+    navigate(`/youtube-quiz/results${qs}`, {
       state: { quizData: quizPreview },
     })
   }
@@ -278,6 +278,7 @@ const YouTubeQuizGenerator = () => {
       })
 
       const generatedQuiz: QuizPreview = {
+        id: response.id,
         title: response.title,
         summary: response.summary,
         sections: response.sections,
@@ -290,7 +291,8 @@ const YouTubeQuizGenerator = () => {
 
       // Navigate to results page after generation
       setTimeout(() => {
-        navigate('/youtube-quiz/results', {
+        const qs = generatedQuiz.id ? `?generation=${generatedQuiz.id}` : ''
+        navigate(`/youtube-quiz/results${qs}`, {
           state: { quizData: generatedQuiz },
         })
       }, 500)

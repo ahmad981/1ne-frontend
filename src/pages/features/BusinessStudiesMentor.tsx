@@ -49,6 +49,7 @@ import {
   mapCrossCulturalGuideResponseToUI,
 } from '../../utils/businessAdapters'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 const BUSINESS_MENTOR_SLUG = 'business-studies-mentor'
@@ -92,6 +93,72 @@ const BusinessStudiesMentor = () => {
   const regions = getBusinessRegions()
   const industries = getIndustries()
 
+  const BUSINESS_CAP_TABS: Record<string, TabType> = {
+    international_standards: 'standards',
+    entrepreneurship_framework: 'entrepreneurship',
+    economic_concepts: 'economics',
+    financial_literacy_module: 'financial',
+    business_scenarios: 'scenarios',
+    trade_agreements: 'trade',
+    cross_cultural_guide: 'cultural',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: BUSINESS_MENTOR_SLUG,
+    activeTab,
+    capabilityKeyToTab: BUSINESS_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['standards', 'entrepreneurship', 'economics', 'financial', 'scenarios', 'trade', 'cultural', 'assessment']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && BUSINESS_CAP_TABS[cap]
+            ? BUSINESS_CAP_TABS[cap]
+            : 'standards'
+
+      setActiveTab(tab)
+      if (userContent) {
+        // Only certain tabs have meaningful input; keep it minimal.
+        if (tab === 'standards') setSelectedStandard(userContent)
+        if (tab === 'economics') setSelectedConcept(userContent)
+        if (tab === 'financial') setFinancialTopic(userContent)
+        if (tab === 'scenarios') setScenarioType(userContent)
+        if (tab === 'cultural') setCulturalRegion(userContent)
+      }
+
+      try {
+        const data = JSON.parse(assistantContent) as Record<string, unknown>
+        setBusinessStandard(null)
+        setEntrepreneurshipFramework([])
+        setEconomicConcept(null)
+        setFinancialModule(null)
+        setBusinessScenario(null)
+        setTradeAgreements([])
+        setCulturalGuide(null)
+
+        if (tab === 'standards') {
+          const standard = mapInternationalStandardsResponseToUI(data, selectedStandard, selectedRegion)
+          setBusinessStandard(standard)
+        } else if (tab === 'entrepreneurship') {
+          setEntrepreneurshipFramework(mapEntrepreneurshipFrameworkResponseToUI(data))
+        } else if (tab === 'economics') {
+          setEconomicConcept(mapEconomicConceptResponseToUI(data))
+        } else if (tab === 'financial') {
+          setFinancialModule(mapFinancialLiteracyModuleResponseToUI(data, financialTopic, gradeLevel))
+        } else if (tab === 'scenarios') {
+          setBusinessScenario(mapBusinessScenarioResponseToUI(data, scenarioType, selectedIndustry, selectedRegion))
+        } else if (tab === 'trade') {
+          setTradeAgreements(mapTradeAgreementsResponseToUI(data))
+        } else if (tab === 'cultural') {
+          setCulturalGuide(mapCrossCulturalGuideResponseToUI(data, culturalRegion))
+        }
+      } catch {
+        // keep restore silent; pages toast elsewhere
+      }
+    },
+  })
+
   // International Standards (backend)
   const handleExploreStandard = async () => {
     setIsGenerating(true)
@@ -101,10 +168,12 @@ const BusinessStudiesMentor = () => {
         input: selectedStandard,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const standard = mapInternationalStandardsResponseToUI(response.result as Record<string, unknown>, selectedStandard, selectedRegion)
       setBusinessStandard(standard)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('International standards:', e)
@@ -122,10 +191,12 @@ const BusinessStudiesMentor = () => {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const framework = mapEntrepreneurshipFrameworkResponseToUI(response.result as Record<string, unknown>)
       setEntrepreneurshipFramework(framework)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Entrepreneurship framework:', e)
@@ -143,10 +214,12 @@ const BusinessStudiesMentor = () => {
         input: selectedConcept,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const concept = mapEconomicConceptResponseToUI(response.result as Record<string, unknown>)
       setEconomicConcept(concept)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Economic concept:', e)
@@ -164,10 +237,12 @@ const BusinessStudiesMentor = () => {
         input: financialTopic,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const module = mapFinancialLiteracyModuleResponseToUI(response.result as Record<string, unknown>, financialTopic, gradeLevel)
       setFinancialModule(module)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Financial literacy module:', e)
@@ -185,10 +260,12 @@ const BusinessStudiesMentor = () => {
         input: scenarioType,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const scenario = mapBusinessScenarioResponseToUI(response.result as Record<string, unknown>, scenarioType, selectedIndustry, selectedRegion)
       setBusinessScenario(scenario)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Business scenario:', e)
@@ -206,10 +283,12 @@ const BusinessStudiesMentor = () => {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const agreements = mapTradeAgreementsResponseToUI(response.result as Record<string, unknown>)
       setTradeAgreements(agreements)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Trade agreements:', e)
@@ -227,10 +306,12 @@ const BusinessStudiesMentor = () => {
         input: culturalRegion,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const guide = mapCrossCulturalGuideResponseToUI(response.result as Record<string, unknown>, culturalRegion)
       setCulturalGuide(guide)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Cross-cultural guide:', e)

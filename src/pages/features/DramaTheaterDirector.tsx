@@ -46,6 +46,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapScriptAnalysisResult,
@@ -101,6 +102,74 @@ const DramaTheaterDirector = () => {
   const [theaterStandards, setTheaterStandards] = useState<TheaterStandard[]>([])
   const [selectedStandard, setSelectedStandard] = useState<TheaterStandard | null>(null)
 
+  const DRAMA_CAP_TABS: Record<string, TabType> = {
+    script_analysis_tools: 'script-analysis',
+    character_development: 'character',
+    stage_direction: 'stage-direction',
+    production_planning: 'production',
+    acting_methods: 'acting-methods',
+    theater_styles: 'theater-styles',
+    theater_standards: 'standards',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: DRAMA_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = [
+        'script-analysis',
+        'character',
+        'stage-direction',
+        'production',
+        'acting-methods',
+        'theater-styles',
+        'standards',
+        'resources',
+      ]
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && DRAMA_CAP_TABS[cap]
+            ? DRAMA_CAP_TABS[cap]
+            : 'script-analysis'
+      setActiveTab(tab)
+      const u = userContent?.trim() ?? ''
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setScriptAnalysis(null)
+        setCharacterProfile(null)
+        setStageDirection(null)
+        setProductionPlan(null)
+        setActingMethods([])
+        setTheaterStyles([])
+        setTheaterStandards([])
+        if (tab === 'script-analysis') {
+          if (u) setPlayTitle(u)
+          setScriptAnalysis(mapScriptAnalysisResult(raw))
+        } else if (tab === 'character') {
+          if (u) setCharacterName(u)
+          setCharacterProfile(mapCharacterProfileResult(raw))
+        } else if (tab === 'stage-direction') {
+          if (u) setSceneName(u)
+          setStageDirection(mapStageDirectionResult(raw))
+        } else if (tab === 'production') {
+          if (u) setProductionTitle(u)
+          setProductionPlan(mapProductionPlanResult(raw))
+        } else if (tab === 'acting-methods') {
+          setActingMethods(mapActingMethodsList(raw))
+        } else if (tab === 'theater-styles') {
+          setTheaterStyles(mapTheaterStylesList(raw))
+        } else if (tab === 'standards') {
+          setTheaterStandards(mapTheaterStandardsList(raw, gradeLevel))
+        }
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const genres = getPlayGenres()
   const stageTypes = getStageTypes()
   const roles = getProductionRoles()
@@ -122,9 +191,11 @@ const DramaTheaterDirector = () => {
           play_title: title,
           playwright: playwright.trim(),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setScriptAnalysis(mapScriptAnalysisResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Script analysis generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -154,9 +225,11 @@ const DramaTheaterDirector = () => {
           character_name: name,
           role: characterRole,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCharacterProfile(mapCharacterProfileResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Character profile generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -185,9 +258,11 @@ const DramaTheaterDirector = () => {
           stage_type: stageType,
           scene_name: scene,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setStageDirection(mapStageDirectionResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Stage direction generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -217,9 +292,11 @@ const DramaTheaterDirector = () => {
           production_title: title,
           duration: productionDuration,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setProductionPlan(mapProductionPlanResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Production plan generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -245,9 +322,11 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setActingMethods(mapActingMethodsList(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Acting methods loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -273,9 +352,11 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setTheaterStyles(mapTheaterStylesList(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Theater styles loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -301,9 +382,11 @@ const DramaTheaterDirector = () => {
           genre: playGenre,
           stage_type: stageType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setTheaterStandards(mapTheaterStandardsList(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Theater standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

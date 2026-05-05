@@ -19,6 +19,8 @@ export function adaptApiItemToDemoQuiz(item: QuizApiItem): DemoQuiz {
     status: item.status as DemoQuiz['status'],
     assignedAt: item.assignedAt ?? undefined,
     dueAt: item.dueAt ?? undefined,
+    createdAt: item.createdAt ?? undefined,
+    updatedAt: item.updatedAt ?? undefined,
     submissionCount: item.submissionCount,
     avgScore: item.avgScore,
     topic: item.topic,

@@ -1,643 +1,325 @@
 import { useState } from 'react'
-import {
-  TrendingUp,
-  TrendingDown,
-  Award,
-  Clock,
-  Target,
-  BarChart3,
-  PieChart,
-  Calendar,
-  BookOpen,
-  CheckCircle2,
-  AlertCircle,
-  ArrowUpRight,
-  ArrowDownRight,
-  Sparkles,
-  Zap,
-  GraduationCap,
-  Users,
-  Star,
-  Activity,
-} from 'lucide-react'
+import dayjs from 'dayjs'
+import isoWeek from 'dayjs/plugin/isoWeek'
+import { BarChart3, CheckCircle, Download, Target, TrendingDown, TrendingUp, Users } from 'lucide-react'
+import ReactApexChart from 'react-apexcharts'
+import type { ApexOptions } from 'apexcharts'
 
-const overallMetrics = {
-  overallProgress: 68,
-  coursesCompleted: 12,
-  coursesInProgress: 5,
-  totalHours: 24.5,
-  certificatesEarned: 2,
-  currentStreak: 5,
-  weeklyGoal: 3,
-  weeklyCompleted: 2,
-  rankPercentile: 35,
+import { useGetAnalyticsQuery, type AnalyticsPeriod } from '../../redux/features/teacherTools/analytics/analyticsApiSlice'
+import { useGetStatsQuery } from '../../redux/features/teacherTools/stats/statsApiSlice'
+import { Link } from 'react-router-dom'
+
+dayjs.extend(isoWeek)
+
+const PERIODS: { label: string; value: AnalyticsPeriod }[] = [
+  { label: '7 days', value: '7d' },
+  { label: '30 days', value: '30d' },
+  { label: '90 days', value: '90d' },
+  { label: '1 year', value: '365d' },
+]
+
+function exportCSV(
+  trend: { date: string; quiz: number; assignment: number; worksheet: number; exam: number; total: number }[],
+  period: AnalyticsPeriod,
+) {
+  const header = ['Date', 'Quiz', 'Assignment', 'Worksheet', 'Exam', 'Total']
+  const rows = trend.map((p) => [p.date, p.quiz, p.assignment, p.worksheet, p.exam, p.total])
+  const csv = [header, ...rows].map((r) => r.join(',')).join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `content-analytics-${period}-${dayjs().format('YYYY-MM-DD')}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
-const monthlyTrend = [
-  { month: 'Oct', completed: 8, hours: 12.5 },
-  { month: 'Nov', completed: 10, hours: 15.2 },
-  { month: 'Dec', completed: 7, hours: 11.8 },
-  { month: 'Jan', completed: 9, hours: 14.3 },
-  { month: 'Feb', completed: 12, hours: 24.5 },
-]
+function ChartSkeleton({ height = 260 }: { height?: number }) {
+  return <div className="animate-pulse rounded-xl bg-gray-100" style={{ height }} />
+}
 
-const skillProgress = [
-  {
-    category: 'Classroom Management',
-    progress: 85,
-    completed: 3,
-    total: 4,
-    trend: '+5%',
-    trendDirection: 'up',
-  },
-  {
-    category: 'Assessment Strategies',
-    progress: 100,
-    completed: 4,
-    total: 4,
-    trend: 'Complete',
-    trendDirection: 'neutral',
-  },
-  {
-    category: 'Differentiation',
-    progress: 45,
-    completed: 2,
-    total: 5,
-    trend: '+12%',
-    trendDirection: 'up',
-  },
-  {
-    category: 'Student Engagement',
-    progress: 30,
-    completed: 1,
-    total: 4,
-    trend: '+8%',
-    trendDirection: 'up',
-  },
-  {
-    category: 'Digital Literacy & AI',
-    progress: 20,
-    completed: 1,
-    total: 6,
-    trend: '+5%',
-    trendDirection: 'up',
-  },
-]
-
-const weeklyActivity = [
-  { day: 'Mon', courses: 2, hours: 3.5 },
-  { day: 'Tue', courses: 1, hours: 2.0 },
-  { day: 'Wed', courses: 3, hours: 4.5 },
-  { day: 'Thu', courses: 2, hours: 3.0 },
-  { day: 'Fri', courses: 1, hours: 1.5 },
-  { day: 'Sat', courses: 0, hours: 0 },
-  { day: 'Sun', courses: 1, hours: 1.5 },
-]
-
-const courseCompletionRate = [
-  { category: 'Completed', value: 12, color: 'bg-green-500' },
-  { category: 'In Progress', value: 5, color: 'bg-blue-500' },
-  { category: 'Not Started', value: 8, color: 'bg-gray-300' },
-]
-
-const performanceInsights = [
-  {
-    title: 'Completion rate improvement',
-    description: 'Your completion rate increased by 12% this month compared to last month.',
-    trend: '+12%',
-    positive: true,
-  },
-  {
-    title: 'Learning velocity',
-    description: 'You\'re completing courses 25% faster than your average pace.',
-    trend: '+25%',
-    positive: true,
-  },
-  {
-    title: 'Skill balance',
-    description: 'Focus on Digital Literacy & AI to improve overall skill balance.',
-    trend: 'Needs attention',
-    positive: false,
-  },
-]
-
-const achievementTimeline = [
-  {
-    date: '2024-02-20',
-    title: 'Assessment Mastery Certificate',
-    type: 'Certificate',
-    description: 'Completed all assessment strategy courses',
-  },
-  {
-    date: '2024-02-19',
-    title: '5-Day Learning Streak',
-    type: 'Milestone',
-    description: 'Consistent daily learning for 5 days',
-  },
-  {
-    date: '2024-02-15',
-    title: '10 Courses Completed',
-    type: 'Milestone',
-    description: 'Reached 10 completed micro-courses',
-  },
-  {
-    date: '2024-02-10',
-    title: 'First Certificate Earned',
-    type: 'Certificate',
-    description: 'Completed Classroom Management track',
-  },
-]
-
-const comparisonMetrics = {
-  yourAverage: 2.4,
-  peerAverage: 2.1,
-  yourCompletion: 68,
-  peerCompletion: 62,
+function KPISkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="card animate-pulse space-y-2">
+          <div className="h-3 w-20 bg-gray-200 rounded" />
+          <div className="h-8 w-12 bg-gray-200 rounded" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 const Analytics = () => {
-  const [selectedPeriod, setSelectedPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month')
+  const [period, setPeriod] = useState<AnalyticsPeriod>('30d')
 
-  const maxCourses = Math.max(...weeklyActivity.map((d) => d.courses))
-  const maxHours = Math.max(...weeklyActivity.map((d) => d.hours))
+  const { data, isLoading, isFetching } = useGetAnalyticsQuery(period)
+  const { data: stats } = useGetStatsQuery()
+
+  const trendLabels = (data?.trend ?? []).map((p) =>
+    data?.bucket_size === 'day' ? dayjs(p.date).format('MMM D') : `W${dayjs(p.date).isoWeek()}`,
+  )
+
+  const trendOptions: ApexOptions = {
+    chart: {
+      type: 'bar',
+      stacked: true,
+      toolbar: { show: false },
+      fontFamily: 'inherit',
+      animations: { enabled: !isFetching },
+    },
+    colors: ['#3B82F6', '#10B981', '#F59E0B', '#8B5CF6'],
+    xaxis: { categories: trendLabels, labels: { style: { fontSize: '11px' } } },
+    yaxis: { labels: { formatter: (v: number) => String(Math.round(v)) } },
+    legend: { position: 'top', horizontalAlign: 'left', fontSize: '12px' },
+    dataLabels: { enabled: false },
+    grid: { borderColor: '#F3F4F6' },
+    plotOptions: { bar: { borderRadius: 3 } },
+    tooltip: { y: { formatter: (v: number) => `${v} item${v !== 1 ? 's' : ''}` } },
+  }
+
+  const trendSeries = [
+    { name: 'Quiz', data: (data?.trend ?? []).map((p) => p.quiz) },
+    { name: 'Assignment', data: (data?.trend ?? []).map((p) => p.assignment) },
+    { name: 'Worksheet', data: (data?.trend ?? []).map((p) => p.worksheet) },
+    { name: 'Exam', data: (data?.trend ?? []).map((p) => p.exam) },
+  ]
+
+  const gradeLabels = (data?.by_grade ?? []).map((g) => g.label)
+  const gradeValues = (data?.by_grade ?? []).map((g) => g.count)
+  const gradeOptions: ApexOptions = {
+    chart: { type: 'donut', fontFamily: 'inherit' },
+    labels: gradeLabels,
+    colors: ['#6366F1', '#3B82F6', '#0EA5E9', '#06B6D4', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6'],
+    legend: { position: 'bottom', fontSize: '12px' },
+    dataLabels: { enabled: gradeValues.length > 0 },
+    plotOptions: { pie: { donut: { size: '60%' } } },
+  }
+
+  const isEmpty =
+    !data ||
+    (data.velocity.this_period === 0 &&
+      data.velocity.prev_period === 0 &&
+      data.by_subject.length === 0 &&
+      data.by_grade.length === 0)
+
+  const vel = data?.velocity
 
   return (
-    <div className="space-y-10">
-      {/* Header */}
-      <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-8 py-12 text-white shadow-xl">
-        <div className="flex flex-col gap-8 xl:flex-row xl:items-center xl:justify-between">
-          <div className="max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/20 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/90">
-              <BarChart3 className="h-4 w-4" /> Performance Analytics
-            </div>
-            <h1 className="text-4xl font-semibold leading-tight">Your professional learning insights</h1>
-            <p className="text-base text-white/80">
-              Deep dive into your progress, trends, and performance metrics to understand your growth journey and
-              identify opportunities for improvement.
-            </p>
-          </div>
-
-          <div className="grid w-full max-w-md gap-4 rounded-2xl bg-white/10 p-6 backdrop-blur">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Overall progress</p>
-              <p className="mt-2 text-3xl font-semibold">{overallMetrics.overallProgress}%</p>
-              <p className="text-xs text-white/70">Across all learning areas</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Rank percentile</p>
-              <p className="mt-2 text-3xl font-semibold">Top {overallMetrics.rankPercentile}%</p>
-              <p className="text-xs text-white/70">Above average performance</p>
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-white/70">Learning streak</p>
-              <p className="mt-2 text-3xl font-semibold">{overallMetrics.currentStreak} days</p>
-              <p className="text-xs text-white/70">Keep the momentum!</p>
-            </div>
-          </div>
+    <div className="space-y-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Content Analytics</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Your content creation activity and patterns over time.</p>
         </div>
-      </section>
-
-      {/* Period Selector */}
-      <section className="flex items-center justify-between rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-5 w-5 text-gray-500" />
-          <p className="text-sm font-semibold text-gray-900">Time period</p>
-        </div>
-        <div className="flex gap-2">
-          {(['week', 'month', 'quarter', 'year'] as const).map((period) => (
+        <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+          {PERIODS.map((p) => (
             <button
-              key={period}
-              onClick={() => setSelectedPeriod(period)}
-              className={`rounded-full px-4 py-2 text-xs font-semibold uppercase tracking-wide transition ${
-                selectedPeriod === period
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                period === p.value ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              {period}
+              {p.label}
             </button>
           ))}
         </div>
-      </section>
+      </div>
 
-      {/* Key Metrics Grid */}
-      <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Courses completed</p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900">{overallMetrics.coursesCompleted}</p>
-              <p className="mt-1 text-xs text-gray-500">{overallMetrics.coursesInProgress} in progress</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-100 text-green-600">
-              <CheckCircle2 className="h-6 w-6" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs">
-            <TrendingUp className="h-4 w-4 text-green-600" />
-            <span className="text-green-600">+3 this month</span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Total PD hours</p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900">{overallMetrics.totalHours}</p>
-              <p className="mt-1 text-xs text-gray-500">This month</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-              <Clock className="h-6 w-6" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs">
-            <TrendingUp className="h-4 w-4 text-blue-600" />
-            <span className="text-blue-600">+10.2 hrs vs last month</span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Certificates earned</p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900">{overallMetrics.certificatesEarned}</p>
-              <p className="mt-1 text-xs text-gray-500">Ready for portfolios</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-amber-100 text-amber-600">
-              <Award className="h-6 w-6" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center gap-2 text-xs">
-            <Star className="h-4 w-4 text-amber-600" />
-            <span className="text-amber-600">2 new this quarter</span>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Weekly goal progress</p>
-              <p className="mt-2 text-3xl font-semibold text-gray-900">
-                {overallMetrics.weeklyCompleted}/{overallMetrics.weeklyGoal}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">Courses this week</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
-              <Target className="h-6 w-6" />
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-              <div
-                className="h-full bg-purple-500 transition-all"
-                style={{
-                  width: `${(overallMetrics.weeklyCompleted / overallMetrics.weeklyGoal) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Charts Section */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        {/* Monthly Trend Chart */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Monthly progress trend</h3>
-              <p className="mt-1 text-sm text-gray-600">Courses completed and hours logged over time</p>
-            </div>
-            <BarChart3 className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6">
-            <div className="flex items-end justify-between gap-2">
-              {monthlyTrend.map((data, idx) => (
-                <div key={idx} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex w-full items-end justify-center gap-1">
-                    <div
-                      className="w-full rounded-t-lg bg-indigo-500 transition hover:bg-indigo-600"
-                      style={{ height: `${(data.completed / 12) * 120}px` }}
-                    />
-                    <div
-                      className="w-full rounded-t-lg bg-purple-400 transition opacity-70"
-                      style={{ height: `${(data.hours / 24.5) * 120}px` }}
-                    />
-                  </div>
-                  <p className="text-xs font-semibold text-gray-500">{data.month}</p>
-                  <p className="text-xs text-gray-400">{data.completed} courses</p>
+      {isLoading ? (
+        <KPISkeleton />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            {
+              label: `Created (${period})`,
+              value: data?.velocity.this_period ?? 0,
+              sub:
+                vel && vel.prev_period > 0
+                  ? `${vel.change_pct > 0 ? '+' : ''}${vel.change_pct.toFixed(0)}% vs prev period`
+                  : '',
+              icon: TrendingUp,
+              color: 'text-blue-600 bg-blue-100',
+            },
+            {
+              label: 'Published',
+              value: data?.total_published ?? stats?.summary.total_published ?? 0,
+              sub: 'total across all tools',
+              icon: CheckCircle,
+              color: 'text-green-600 bg-green-100',
+            },
+            {
+              label: 'Active Classes',
+              value: data?.active_class_keys ?? 0,
+              sub: 'distinct class keys',
+              icon: Users,
+              color: 'text-violet-600 bg-violet-100',
+            },
+            {
+              label: 'Avg Quiz Score',
+              value: data?.avg_quiz_score != null ? `${data.avg_quiz_score}%` : '—',
+              sub: data?.avg_quiz_score != null ? 'across published quizzes' : 'no quiz data yet',
+              icon: Target,
+              color: 'text-amber-600 bg-amber-100',
+            },
+          ].map(({ label, value, sub, icon: Icon, color }) => (
+            <div key={label} className="card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">{label}</p>
+                  <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
+                  {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
                 </div>
-              ))}
-            </div>
-            <div className="mt-4 flex items-center justify-center gap-4 text-xs text-gray-500">
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-indigo-500" />
-                <span>Courses</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-purple-400" />
-                <span>Hours</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Weekly Activity Chart */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Weekly activity breakdown</h3>
-              <p className="mt-1 text-sm text-gray-600">Daily learning patterns this week</p>
-            </div>
-            <Activity className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6">
-            <div className="flex items-end justify-between gap-2">
-              {weeklyActivity.map((day, idx) => (
-                <div key={idx} className="flex flex-1 flex-col items-center gap-2">
-                  <div className="flex w-full items-end justify-center gap-1">
-                    <div
-                      className="w-full rounded-t-lg bg-indigo-500 transition hover:bg-indigo-600"
-                      style={{ height: `${(day.courses / maxCourses) * 100}px` }}
-                    />
-                    <div
-                      className="w-full rounded-t-lg bg-pink-400 transition opacity-70"
-                      style={{ height: `${(day.hours / maxHours) * 100}px` }}
-                    />
-                  </div>
-                  <p className="text-xs font-semibold text-gray-500">{day.day}</p>
-                  <p className="text-xs text-gray-400">{day.courses} courses</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Course Completion Pie */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Course status distribution</h3>
-              <p className="mt-1 text-sm text-gray-600">Breakdown of all enrolled courses</p>
-            </div>
-            <PieChart className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6 flex items-center justify-center">
-            <div className="relative h-48 w-48">
-              <svg className="h-48 w-48 -rotate-90 transform">
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="80"
-                  fill="none"
-                  stroke="#e5e7eb"
-                  strokeWidth="16"
-                />
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="80"
-                  fill="none"
-                  stroke="#10b981"
-                  strokeWidth="16"
-                  strokeDasharray={`${(12 / 25) * 502.4} 502.4`}
-                />
-                <circle
-                  cx="96"
-                  cy="96"
-                  r="80"
-                  fill="none"
-                  stroke="#3b82f6"
-                  strokeWidth="16"
-                  strokeDasharray={`${(5 / 25) * 502.4} 502.4`}
-                  strokeDashoffset={`-${(12 / 25) * 502.4}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <p className="text-2xl font-semibold text-gray-900">25</p>
-                <p className="text-xs text-gray-500">Total courses</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-6 space-y-2">
-            {courseCompletionRate.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`h-3 w-3 rounded ${item.color}`} />
-                  <span className="text-sm text-gray-600">{item.category}</span>
-                </div>
-                <span className="text-sm font-semibold text-gray-900">{item.value}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Skill Progress */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Skill area progress</h3>
-              <p className="mt-1 text-sm text-gray-600">Detailed breakdown by competency</p>
-            </div>
-            <Target className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6 space-y-4">
-            {skillProgress.map((skill, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-semibold text-gray-900">{skill.category}</span>
-                  <div className="flex items-center gap-2">
-                    {skill.trendDirection === 'up' && (
-                      <div className="flex items-center gap-1 text-xs text-green-600">
-                        <ArrowUpRight className="h-3 w-3" />
-                        {skill.trend}
-                      </div>
-                    )}
-                    {skill.trendDirection === 'neutral' && (
-                      <span className="text-xs text-gray-500">{skill.trend}</span>
-                    )}
-                    <span className="text-xs font-semibold text-gray-600">
-                      {skill.completed}/{skill.total}
-                    </span>
-                  </div>
-                </div>
-                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                  <div
-                    className={`h-full transition-all ${
-                      skill.progress === 100
-                        ? 'bg-green-500'
-                        : skill.progress >= 50
-                          ? 'bg-blue-500'
-                          : skill.progress >= 30
-                            ? 'bg-amber-500'
-                            : 'bg-red-500'
-                    }`}
-                    style={{ width: `${skill.progress}%` }}
-                  />
+                <div className={`h-11 w-11 rounded-xl flex items-center justify-center ${color}`}>
+                  <Icon className="h-5 w-5" />
                 </div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-      </section>
+      )}
 
-      {/* Performance Insights */}
-      <section className="grid gap-6 lg:grid-cols-3">
-        {performanceInsights.map((insight, idx) => (
-          <div
-            key={idx}
-            className={`rounded-2xl border p-6 ${
-              insight.positive
-                ? 'border-green-200 bg-green-50'
-                : 'border-amber-200 bg-amber-50'
-            }`}
+      {!isLoading && isEmpty && (
+        <div className="card text-center py-16">
+          <BarChart3 className="h-12 w-12 text-gray-200 mx-auto mb-4" />
+          <h3 className="font-semibold text-gray-900">No content yet</h3>
+          <p className="text-sm text-gray-500 mt-1">Create quizzes, assignments, or worksheets to see your analytics here.</p>
+          <Link
+            to="/teacher-tools/quiz/create"
+            className="mt-4 inline-block rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white hover:bg-primary-700"
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <h4 className="text-sm font-semibold text-gray-900">{insight.title}</h4>
-                <p className="mt-2 text-xs text-gray-600">{insight.description}</p>
-              </div>
-              {insight.positive ? (
-                <TrendingUp className="h-5 w-5 text-green-600" />
-              ) : (
-                <AlertCircle className="h-5 w-5 text-amber-600" />
-              )}
-            </div>
-            <div className="mt-4">
-              <span
-                className={`text-lg font-semibold ${
-                  insight.positive ? 'text-green-700' : 'text-amber-700'
-                }`}
-              >
-                {insight.trend}
-              </span>
-            </div>
-          </div>
-        ))}
-      </section>
-
-      {/* Comparison & Achievement Timeline */}
-      <section className="grid gap-6 lg:grid-cols-2">
-        {/* Peer Comparison */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900">Peer comparison</h3>
-              <p className="mt-1 text-sm text-gray-600">How you compare to other educators</p>
-            </div>
-            <Users className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6 space-y-6">
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Weekly learning hours</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {comparisonMetrics.yourAverage} hrs/week
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full bg-indigo-500 transition-all"
-                  style={{ width: `${(comparisonMetrics.yourAverage / 5) * 100}%` }}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Peer average: {comparisonMetrics.peerAverage} hrs/week
-              </p>
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Completion rate</span>
-                <span className="text-sm font-semibold text-gray-900">
-                  {comparisonMetrics.yourCompletion}%
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200">
-                <div
-                  className="h-full bg-green-500 transition-all"
-                  style={{ width: `${comparisonMetrics.yourCompletion}%` }}
-                />
-              </div>
-              <p className="mt-1 text-xs text-gray-500">
-                Peer average: {comparisonMetrics.peerCompletion}%
-              </p>
-            </div>
-            <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-              <div className="flex items-center gap-2">
-                <Star className="h-4 w-4 text-green-600" />
-                <p className="text-xs font-semibold text-green-900">Above average performance</p>
-              </div>
-              <p className="mt-1 text-xs text-green-700">
-                You're performing better than {100 - overallMetrics.rankPercentile}% of educators in your network.
-              </p>
-            </div>
-          </div>
+            Create your first quiz
+          </Link>
         </div>
+      )}
 
-        {/* Achievement Timeline */}
-        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between">
+      {!isEmpty && (
+        <div className={`card transition-opacity ${isFetching ? 'opacity-60' : ''}`}>
+          <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-900">Achievement timeline</h3>
-              <p className="mt-1 text-sm text-gray-600">Your milestones and certificates</p>
+              <h2 className="font-semibold text-gray-900">Creation trend</h2>
+              <p className="text-xs text-gray-400">Items created per {data?.bucket_size ?? 'day'}</p>
             </div>
-            <Award className="h-5 w-5 text-indigo-500" />
-          </div>
-          <div className="mt-6 space-y-4">
-            {achievementTimeline.map((achievement, idx) => (
-              <div key={idx} className="flex gap-4">
-                <div className="flex flex-col items-center">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-indigo-600">
-                    {achievement.type === 'Certificate' ? (
-                      <Award className="h-5 w-5" />
-                    ) : (
-                      <Star className="h-5 w-5" />
-                    )}
-                  </div>
-                  {idx < achievementTimeline.length - 1 && (
-                    <div className="mt-2 h-full w-0.5 bg-gray-200" />
-                  )}
-                </div>
-                <div className="flex-1 pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
-                      {achievement.type}
-                    </span>
-                    <span className="text-xs text-gray-500">{achievement.date}</span>
-                  </div>
-                  <h4 className="mt-2 text-sm font-semibold text-gray-900">{achievement.title}</h4>
-                  <p className="mt-1 text-xs text-gray-600">{achievement.description}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Export & Actions */}
-      <section className="rounded-3xl border border-gray-200 bg-gradient-to-br from-gray-50 to-white p-6 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">Export analytics report</h3>
-            <p className="mt-1 text-sm text-gray-600">
-              Download a comprehensive PDF report of your performance metrics for appraisals, portfolios, or personal
-              tracking.
-            </p>
-          </div>
-          <div className="flex gap-3">
-            <button className="rounded-full border border-gray-200 bg-white px-6 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50">
-              Export PDF
-            </button>
-            <button className="rounded-full bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500">
-              Share report
+            <button
+              onClick={() => data && exportCSV(data.trend, period)}
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
             </button>
           </div>
+          {isLoading ? (
+            <ChartSkeleton height={260} />
+          ) : (data?.trend.length ?? 0) === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-16">No items created in this period.</p>
+          ) : (
+            <ReactApexChart type="bar" height={260} options={trendOptions} series={trendSeries} />
+          )}
         </div>
-      </section>
+      )}
+
+      {!isEmpty && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <h2 className="font-semibold text-gray-900 mb-4">Subject coverage</h2>
+            {isLoading ? (
+              <ChartSkeleton height={200} />
+            ) : (data?.by_subject.length ?? 0) === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No subject data yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {data!.by_subject.map(({ label, count }) => {
+                  const max = data!.by_subject[0].count || 1
+                  const pct = Math.round((count / max) * 100)
+                  return (
+                    <li key={label}>
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="text-gray-700 font-medium">{label}</span>
+                        <span className="text-gray-500">{count}</span>
+                      </div>
+                      <div className="h-2 rounded-full bg-gray-100">
+                        <div className="h-2 rounded-full bg-primary-500 transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </div>
+
+          <div className="card">
+            <h2 className="font-semibold text-gray-900 mb-4">Grade distribution</h2>
+            {isLoading ? (
+              <ChartSkeleton height={200} />
+            ) : gradeValues.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-10">No grade data yet.</p>
+            ) : (
+              <ReactApexChart type="donut" height={220} options={gradeOptions} series={gradeValues} />
+            )}
+          </div>
+        </div>
+      )}
+
+      {!isEmpty && data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="card">
+            <h2 className="font-semibold text-gray-900 mb-1">Content velocity</h2>
+            <p className="text-xs text-gray-400 mb-4">This period vs the one before it.</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <p className="text-5xl font-bold text-gray-900">{data.velocity.this_period}</p>
+                <p className="text-sm text-gray-500 mt-1">items created this {period}</p>
+              </div>
+              <div>
+                {data.velocity.change_pct > 0 ? (
+                  <div className="flex items-center gap-1 text-green-600">
+                    <TrendingUp className="h-5 w-5" />
+                    <span className="text-lg font-semibold">+{data.velocity.change_pct.toFixed(0)}%</span>
+                  </div>
+                ) : data.velocity.change_pct < 0 ? (
+                  <div className="flex items-center gap-1 text-red-500">
+                    <TrendingDown className="h-5 w-5" />
+                    <span className="text-lg font-semibold">{data.velocity.change_pct.toFixed(0)}%</span>
+                  </div>
+                ) : (
+                  <span className="text-sm text-gray-400">Same as previous period</span>
+                )}
+                <p className="text-xs text-gray-400 mt-1">Previous: {data.velocity.prev_period} items</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="font-semibold text-gray-900 mb-4">Content pipeline</h2>
+            <div className="space-y-3">
+              {[
+                { label: 'Draft', value: data.total_draft, colour: 'bg-gray-400' },
+                { label: 'Published', value: data.total_published, colour: 'bg-green-500' },
+                { label: 'Archived', value: data.total_archived, colour: 'bg-gray-200' },
+              ].map(({ label, value, colour }) => {
+                const total = data.total_draft + data.total_published + data.total_archived || 1
+                return (
+                  <div key={label}>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-gray-600">{label}</span>
+                      <span className="font-medium text-gray-900">{value}</span>
+                    </div>
+                    <div className="h-2 rounded-full bg-gray-100">
+                      <div className={`h-2 rounded-full ${colour}`} style={{ width: `${(value / total) * 100}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
 
 export default Analytics
-
 

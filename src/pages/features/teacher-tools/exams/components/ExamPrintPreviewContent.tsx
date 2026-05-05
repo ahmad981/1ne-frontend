@@ -5,6 +5,7 @@ import { deriveExamPaperMarks } from '../config/examPaperConfig'
 import type { ExamLongStub, ExamMcqStub, ExamShortStub } from '../demo/examQuestionStubs'
 import { longPoolSize, shortPoolSize } from '../demo/examQuestionStubs'
 import { getDemoLongBlock, getDemoMcq, getDemoShortStem } from '../demo/examReviewDemoContent'
+import { stripLeadingMcqOptionLabel } from '../utils/mcqOptionDisplay'
 
 type Props = {
   title: string
@@ -93,7 +94,8 @@ export function ExamPrintPreviewContent({
                 <div className="mt-2.5 grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-gray-800 print:grid-cols-2">
                   {letters.map((L, idx) => (
                     <p key={L} className="leading-snug">
-                      <span className="font-medium tabular-nums">{L})</span> {q.options[idx] ?? '—'}
+                      <span className="font-medium tabular-nums">{L})</span>{' '}
+                      {stripLeadingMcqOptionLabel(q.options[idx] ?? '—')}
                     </p>
                   ))}
                 </div>
@@ -116,7 +118,8 @@ export function ExamPrintPreviewContent({
                   <div className="mt-2.5 grid grid-cols-2 gap-x-8 gap-y-1 text-sm text-gray-800 print:grid-cols-2">
                     {letters.map((L, idx) => (
                       <p key={L} className="leading-snug">
-                        <span className="font-medium tabular-nums">{L})</span> {mcq.options[idx] ?? `—`}
+                        <span className="font-medium tabular-nums">{L})</span>{' '}
+                        {stripLeadingMcqOptionLabel(mcq.options[idx] ?? `—`)}
                       </p>
                     ))}
                   </div>

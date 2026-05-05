@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from 'react'
 import { createTeacherToolsMockApi, type TeacherToolsMockApi, type TeacherToolsSessionExtras } from './api/teacherToolsMockApi'
-import { demoExams, type DemoAssignment, type DemoExam, type DemoQuiz, type DemoWorksheet } from './demo/teacherToolsDemoData'
+import { type DemoAssignment, type DemoExam, type DemoQuiz, type DemoWorksheet } from './demo/teacherToolsDemoData'
+import * as examApi from '../../../api/examApi'
 // @ts-expect-error — JS module
 import { store } from '../../../redux/store'
 import { quizApiSlice } from '../../../redux/features/teacherTools/quiz/quizApiSlice'
@@ -40,6 +41,31 @@ const LEGACY_STORAGE_KEY = 'teacherToolsDemo_v1'
 const PERSIST_VERSION = 1
 
 export type TeacherToolsDemoExtras = TeacherToolsSessionExtras
+
+function examApiItemToDemoExam(item: examApi.ExamApiItem): DemoExam {
+  return {
+    id: item.id,
+    title: item.title,
+    subject: item.subject,
+    grade: item.grade,
+    term: item.term,
+    classes: item.classes,
+    examType: item.examType,
+    durationMinutes: item.durationMinutes,
+    totalMarks: item.totalMarks,
+    scheduleStart: item.scheduleStart ?? '',
+    scheduleEnd: item.scheduleEnd ?? '',
+    status: item.status,
+    completionPct: item.completionPct,
+    sourceSummary: item.sourceSummary ?? undefined,
+    paper: item.paper as unknown as DemoExam['paper'],
+    sections: item.sections as unknown as DemoExam['sections'],
+    mcqs: item.mcqs as unknown as DemoExam['mcqs'],
+    shorts: item.shorts as unknown as DemoExam['shorts'],
+    longs: item.longs as unknown as DemoExam['longs'],
+    handoutLayout: item.handoutLayout as DemoExam['handoutLayout'],
+  }
+}
 
 function emptyExtras(): TeacherToolsDemoExtras {
   return {
@@ -89,6 +115,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
   const [quizItems, setQuizItems] = useState<DemoQuiz[]>([])
   const [assignmentItems, setAssignmentItems] = useState<DemoAssignment[]>([])
   const [worksheetItems, setWorksheetItems] = useState<DemoWorksheet[]>([])
+  const [examItems, setExamItems] = useState<DemoExam[]>([])
 
   useEffect(() => {
     const t = window.setTimeout(() => {
@@ -370,12 +397,6 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
         }
       },
 
-      listExams: mockApi.listExams,
-      getExam: mockApi.getExam,
-      createExam: mockApi.createExam,
-      updateExam: mockApi.updateExam,
-      deleteExam: mockApi.deleteExam,
-      duplicateExam: mockApi.duplicateExam,
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -387,12 +408,27 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await examApi.fetchExamList({ page: 1, page_size: 200 })
+        const mapped = res.items.map(examApiItemToDemoExam)
+        if (!cancelled) setExamItems(mapped)
+      } catch {
+        if (!cancelled) setExamItems([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const value = useMemo<TeacherToolsDemoContextValue>(() => {
     const allQuizzes = quizItems
-    // Assignments are real-only (no sample library rows) so the UI reflects API truth.
-    const allAssignments = [...assignmentItems, ...extras.extraAssignments]
-    const allWorksheets = [...worksheetItems, ...extras.extraWorksheets]
-    const allExams = [...demoExams, ...extras.extraExams]
+    const allAssignments = assignmentItems
+    const allWorksheets = worksheetItems
+    const allExams = examItems
     return {
       ...extras,
       allQuizzes,
@@ -401,7 +437,7 @@ export function TeacherToolsDemoProvider({ children }: { children: ReactNode }) 
       allExams,
       api,
     }
-  }, [extras, api, quizItems, assignmentItems, worksheetItems])
+  }, [extras, api, quizItems, assignmentItems, worksheetItems, examItems])
 
   return <TeacherToolsDemoContext.Provider value={value}>{children}</TeacherToolsDemoContext.Provider>
 }

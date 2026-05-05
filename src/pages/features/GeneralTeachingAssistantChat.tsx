@@ -7,6 +7,7 @@ import * as subscriptionApi from '../../api/subscriptions'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
+import { useRestoreChatbotConversationFromUrl } from '../../hooks/useRestoreChatbotConversationFromUrl'
 import {
   ArrowLeft,
   Send,
@@ -80,6 +81,10 @@ interface Conversation {
 const GeneralTeachingAssistantChat = () => {
   const navigate = useNavigate()
   const [messages, setMessages] = useState<Message[]>([])
+  /** Pagination for loading older messages (scroll-up). */
+  const [olderLoading, setOlderLoading] = useState(false)
+  const [hasMoreOlder, setHasMoreOlder] = useState(false)
+  const [nextBeforeCursor, setNextBeforeCursor] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   // CRITICAL: Separate state for streaming content (like templates use formattedContent)
@@ -122,6 +127,11 @@ const GeneralTeachingAssistantChat = () => {
   const { toast } = useSnackbar()
   const refreshCreditBalance = useRefreshCreditBalance()
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesScrollContainerRef = useRef<HTMLDivElement>(null)
+  /** When true, skip auto scroll-to-bottom (used after prepending older messages). */
+  const skipScrollToBottomRef = useRef(false)
+  /** Avoid immediate "load older" on mount when scrollTop is 0 but user hasn't scrolled up yet. */
+  const userScrolledAwayFromBottomRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -175,31 +185,136 @@ const GeneralTeachingAssistantChat = () => {
     }
   }, [])
 
+  type LoadConversationMessagesOpts = {
+    /** Full reload of the latest page (default true). */
+    reset?: boolean
+    /** Cursor from prior response — load older messages and prepend. */
+    before?: string | null
+  }
+
+  // Lazy-load messages (chunked): latest page first; scroll-up loads older via `before`.
+  const loadConversationMessages = async (
+    conversationId: string,
+    opts: LoadConversationMessagesOpts = {},
+  ) => {
+    const reset = opts.reset !== false
+    const before = opts.before ?? null
+    try {
+      if (before) {
+        setOlderLoading(true)
+      } else if (reset) {
+        userScrolledAwayFromBottomRef.current = false
+        setMessages([])
+        setHasMoreOlder(false)
+        setNextBeforeCursor(null)
+      }
+
+      const page = await chatbotApi.listConversationMessages(conversationId, {
+        limit: 50,
+        before: before || undefined,
+      })
+
+      const loadedMessages: Message[] = page.items
+        .filter((msg) => msg.role === 'user' || msg.role === 'assistant')
+        .map((msg) => ({
+          id: msg.id,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date(msg.created_at),
+        }))
+
+      if (before) {
+        skipScrollToBottomRef.current = true
+        const el = messagesScrollContainerRef.current
+        const prevScrollHeight = el?.scrollHeight ?? 0
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id))
+          const merged = loadedMessages.filter((m) => !existingIds.has(m.id))
+          return [...merged, ...prev]
+        })
+        setHasMoreOlder(page.has_more)
+        setNextBeforeCursor(page.next_before)
+        requestAnimationFrame(() => {
+          const el2 = messagesScrollContainerRef.current
+          if (el2) {
+            el2.scrollTop = el2.scrollHeight - prevScrollHeight
+          }
+          skipScrollToBottomRef.current = false
+          setOlderLoading(false)
+        })
+      } else {
+        setMessages(loadedMessages)
+        setHasMoreOlder(page.has_more)
+        setNextBeforeCursor(page.next_before)
+
+        let convTitle = 'Untitled Conversation'
+        let createdAt = new Date()
+        let updatedAt = new Date()
+        try {
+          const detail = await chatbotApi.getConversation(conversationId)
+          convTitle = detail.title || convTitle
+          createdAt = new Date(detail.created_at)
+          updatedAt = new Date(detail.updated_at)
+        } catch {
+          /* ignore — title stays default */
+        }
+
+        setConversations((prev) => {
+          const existingConv = prev.find((c) => c.id === conversationId)
+          if (existingConv) {
+            return prev.map((conv) =>
+              conv.id === conversationId
+                ? {
+                    ...conv,
+                    messages: undefined,
+                    title: convTitle !== 'Untitled Conversation' ? convTitle : conv.title,
+                    updatedAt,
+                  }
+                : conv,
+            )
+          }
+          return [
+            {
+              id: conversationId,
+              title: convTitle,
+              messages: undefined,
+              message_count: loadedMessages.length,
+              createdAt,
+              updatedAt,
+            },
+            ...prev,
+          ]
+        })
+
+      }
+    } catch (error) {
+      console.error(`Error loading conversation messages ${conversationId}:`, error)
+      toast.error('Failed to load conversation messages')
+      setOlderLoading(false)
+    }
+  }
+
   // Load conversations list from API on mount (metadata only - ChatGPT-like approach)
   useEffect(() => {
     const loadConversations = async () => {
       try {
-        // Only load conversation list (metadata) - no messages
         const apiConversations = await chatbotApi.listConversations(CHATBOT_SLUG)
-        
-        // Convert to component format (metadata only, no messages)
+
         const formattedConversations: Conversation[] = apiConversations.map((conv) => ({
           id: conv.id,
           title: conv.title || 'Untitled Conversation',
-          messages: undefined, // Lazy loaded when selected
+          messages: undefined,
           message_count: conv.message_count,
           createdAt: new Date(conv.created_at),
           updatedAt: new Date(conv.updated_at),
         }))
-        
+
         setConversations(formattedConversations)
-        
-        // If there's a saved current conversation ID, load it
+
         const savedCurrentId = localStorage.getItem('general-teaching-assistant-current-conversation')
         if (savedCurrentId && formattedConversations.some((c) => c.id === savedCurrentId)) {
           setCurrentConversationId(savedCurrentId)
-          // Lazy load messages for this conversation
-          loadConversationMessages(savedCurrentId)
+          void loadConversationMessages(savedCurrentId, { reset: true })
         }
       } catch (error) {
         console.error('Error loading conversations:', error)
@@ -207,50 +322,44 @@ const GeneralTeachingAssistantChat = () => {
       }
     }
 
-    loadConversations()
+    void loadConversations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only; loadConversationMessages updates every render
   }, [])
 
-  // Helper to lazy-load messages for a conversation
-  const loadConversationMessages = async (conversationId: string) => {
-    try {
-      const detail = await chatbotApi.getConversation(conversationId)
-      const loadedMessages: Message[] = detail.messages.map((msg) => ({
-        id: msg.id,
-        role: msg.role as 'user' | 'assistant',
-        content: msg.content,
-        timestamp: new Date(msg.created_at),
-      }))
-      setMessages(loadedMessages)
-      
-      // Update conversation in list with messages (cache for current session only)
-      setConversations((prev) => {
-        const existingConv = prev.find((c) => c.id === conversationId)
-        if (existingConv) {
-          return prev.map((conv) =>
-            conv.id === conversationId
-              ? { ...conv, messages: loadedMessages, message_count: loadedMessages.length }
-              : conv
-          )
-        } else {
-          // Conversation not in list yet (new conversation) - add it
-          return [
-            {
-              id: conversationId,
-              title: detail.title || 'Untitled Conversation',
-              messages: loadedMessages,
-              message_count: loadedMessages.length,
-              createdAt: new Date(detail.created_at),
-              updatedAt: new Date(detail.updated_at),
-            },
-            ...prev,
-          ]
-        }
-      })
-    } catch (error) {
-      console.error(`Error loading conversation messages ${conversationId}:`, error)
-      toast.error('Failed to load conversation messages')
-    }
+  const paginationScrollRef = useRef({
+    olderLoading,
+    hasMoreOlder,
+    nextBeforeCursor,
+    currentConversationId: null as string | null,
+  })
+  paginationScrollRef.current = {
+    olderLoading,
+    hasMoreOlder,
+    nextBeforeCursor,
+    currentConversationId,
   }
+
+  const handleMessagesScroll = () => {
+    const el = messagesScrollContainerRef.current
+    const st = paginationScrollRef.current
+    if (!el || st.olderLoading) return
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (distanceFromBottom > 200) {
+      userScrolledAwayFromBottomRef.current = true
+    }
+    if (!userScrolledAwayFromBottomRef.current) return
+    if (el.scrollTop > 100) return
+    if (!st.hasMoreOlder || !st.nextBeforeCursor || !st.currentConversationId) return
+    void loadConversationMessages(st.currentConversationId, {
+      reset: false,
+      before: st.nextBeforeCursor,
+    })
+  }
+
+  useRestoreChatbotConversationFromUrl('general-teaching-assistant-current-conversation', (id) => {
+    setCurrentConversationId(id)
+    return loadConversationMessages(id, { reset: true })
+  })
 
   // Clean up old localStorage data (one-time migration)
   useEffect(() => {
@@ -276,6 +385,9 @@ const GeneralTeachingAssistantChat = () => {
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     try {
+      if (skipScrollToBottomRef.current) {
+        return
+      }
       // Use requestAnimationFrame to ensure DOM is ready
       const scrollTimeout = setTimeout(() => {
         try {
@@ -378,6 +490,10 @@ const GeneralTeachingAssistantChat = () => {
   const createNewConversation = () => {
     setCurrentConversationId(null)
     setMessages([])
+    setHasMoreOlder(false)
+    setNextBeforeCursor(null)
+    setOlderLoading(false)
+    userScrolledAwayFromBottomRef.current = false
     setInputValue('')
     localStorage.removeItem('general-teaching-assistant-current-conversation')
   }
@@ -437,6 +553,26 @@ const GeneralTeachingAssistantChat = () => {
     setCreditErrorReason(undefined)
 
     try {
+      const getFriendlySendError = (err: unknown): string => {
+        const raw =
+          (typeof err === 'object' && err !== null && 'detail' in err && typeof (err as any).detail === 'string'
+            ? (err as any).detail
+            : undefined) ||
+          (err instanceof Error ? err.message : undefined) ||
+          ''
+        const normalized = raw.toLowerCase()
+        if (normalized.includes('database error') || normalized.includes('undefinedcolumn')) {
+          return 'Sorry — we’re having trouble on our side right now. Please try again in a moment.'
+        }
+        if (normalized.includes('networkerror') || normalized.includes('failed to fetch')) {
+          return 'Sorry — I couldn’t reach the server. Please check your connection and try again.'
+        }
+        if (normalized.includes('rate limit') || normalized.includes('too many requests')) {
+          return 'You’re sending messages a bit too fast. Please wait a moment and try again.'
+        }
+        return 'Sorry — something went wrong while generating a response. Please try again.'
+      }
+
       const userMessage: Message = {
         id: `msg-${Date.now()}`,
         role: 'user',
@@ -660,7 +796,18 @@ const GeneralTeachingAssistantChat = () => {
           setThinkingState(null)
           setStreamingContent('')
           setStreamingMessageId(null)
-          toast.error(streamError?.detail || streamError?.message || 'Failed to stream response. Please try again.')
+          // Ensure we don't leave an empty assistant placeholder in the thread
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMessageId))
+          // Show a professional in-thread failure message instead of raw backend errors
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `err-${Date.now()}`,
+              role: 'assistant',
+              content: getFriendlySendError(streamError),
+              timestamp: new Date(),
+            },
+          ])
           return
         }
 
@@ -1256,7 +1403,6 @@ const GeneralTeachingAssistantChat = () => {
       }
     }
     // Empty dependency array - cleanup only on unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // DEPRECATED: This function is no longer used - we use real API calls now
@@ -1519,16 +1665,7 @@ What would you like help with today? Feel free to ask me anything about teaching
     setCurrentConversationId(conversationId)
     localStorage.setItem('general-teaching-assistant-current-conversation', conversationId)
     setShowHistory(false)
-    
-    // Check if messages are already cached in current session
-    const conversation = conversations.find((conv) => conv.id === conversationId)
-    if (conversation?.messages) {
-      // Use cached messages if available
-      setMessages(conversation.messages)
-    } else {
-      // Lazy load messages from API (ChatGPT-like approach)
-      await loadConversationMessages(conversationId)
-    }
+    await loadConversationMessages(conversationId, { reset: true })
   }
 
   const deleteConversation = async (conversationId: string, e: React.MouseEvent) => {
@@ -1624,9 +1761,9 @@ What would you like help with today? Feel free to ask me anything about teaching
   }
 
   return (
-    <div className="flex h-screen flex-col bg-gradient-to-b from-gray-50 to-white">
+    <div className="flex flex-1 min-h-0 h-full flex-col overflow-hidden bg-gradient-to-b from-gray-50 to-white">
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-3 shadow-sm z-10">
+      <div className="sticky top-0 z-20 border-b border-gray-200 bg-white/90 px-4 py-2 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <button
@@ -1639,8 +1776,8 @@ What would you like help with today? Feel free to ask me anything about teaching
               <Bot className="h-5 w-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">General Teaching Assistant</h1>
-              <p className="text-xs text-gray-500">Your versatile AI companion for teaching</p>
+              <h1 className="text-base font-semibold text-gray-900 leading-tight">General Teaching Assistant</h1>
+              <p className="text-[11px] text-gray-500 leading-tight">Your versatile AI companion for teaching</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -1760,11 +1897,26 @@ What would you like help with today? Feel free to ask me anything about teaching
       </div>
 
       {/* Main Content Area - Centered Layout */}
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="relative flex flex-1 min-h-0 overflow-hidden">
         {/* Messages Area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-y-auto">
-            <div className="mx-auto max-w-4xl px-4 py-8">
+        <div className="flex min-w-0 flex-1 flex-col min-h-0">
+          <div
+            ref={messagesScrollContainerRef}
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            onScroll={handleMessagesScroll}
+          >
+            {messages.length > 0 && (
+              <div className="sticky top-0 z-10 border-b border-transparent">
+                <div className="mx-auto max-w-4xl px-4 pt-3">
+                  <div className="rounded-full bg-white/90 px-3 py-1 text-center text-[11px] text-gray-500 shadow-sm ring-1 ring-gray-200 backdrop-blur supports-[backdrop-filter]:bg-white/80">
+                    {olderLoading && <span>Loading older messages…</span>}
+                    {!olderLoading && !hasMoreOlder && <span className="text-gray-400">Beginning of conversation</span>}
+                    {!olderLoading && hasMoreOlder && <span className="text-gray-400">Scroll up to load older messages</span>}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div className="mx-auto max-w-4xl px-4 py-6">
               {messages.length === 0 ? (
                 <div className="flex flex-col items-center justify-center min-h-[60vh]">
                   {/* Character Avatar Section */}
@@ -2092,7 +2244,7 @@ What would you like help with today? Feel free to ask me anything about teaching
           </div>
 
           {/* Input Area - Redesigned */}
-          <div className="border-t border-gray-200 bg-white">
+          <div className="border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
             <div className="mx-auto max-w-4xl px-4 py-4">
               {/* Attached Files Display */}
               {attachedFiles.length > 0 && (

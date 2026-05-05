@@ -4,6 +4,7 @@ import {
   questionGapPxToMm,
   type HandoutLayoutOpts,
 } from '../quiz/config/handoutLayoutConfig'
+import { stripLeadingMcqOptionLabel } from '../exams/utils/mcqOptionDisplay'
 
 const PAGE_H_MM = 297
 const MARGIN = 14
@@ -164,7 +165,7 @@ export function downloadExamHandoutPdf(input: ExamHandoutPdfInput, filename?: st
       doc.setFontSize(9.5)
       for (let i = 0; i < q.options.length; i += 1) {
         const lab = letters[i] ?? String(i + 1)
-        const line = `${lab}. ${q.options[i]}`
+        const line = `${lab}. ${stripLeadingMcqOptionLabel(q.options[i])}`
         y = ensureY(doc, y, 5)
         doc.text(line, MARGIN + 4, y)
         y += 4.8

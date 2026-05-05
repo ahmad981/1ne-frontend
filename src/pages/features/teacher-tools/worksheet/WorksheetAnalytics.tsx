@@ -66,11 +66,17 @@ export default function WorksheetAnalytics() {
         ))}
       </div>
 
-      <SimpleBarChart
-        title="Topic mastery by class"
-        subtitle={`Deterministic bars · ${rangeNote}`}
-        points={classPoints}
-      />
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          <span className="font-semibold">Preview data</span>
+          <span>— Real results will appear here after students submit.</span>
+        </div>
+        <SimpleBarChart
+          title="Topic mastery by class"
+          subtitle={`Deterministic bars · ${rangeNote}`}
+          points={classPoints}
+        />
+      </div>
       <Link to={`/teacher-tools/worksheet/${w.id}`} className="text-sm font-semibold text-primary-600">
         ← Back
       </Link>

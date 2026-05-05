@@ -46,6 +46,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapMusicTheoryResult,
@@ -98,6 +99,52 @@ const MusicPerformanceCoach = () => {
   const [musicStandards, setMusicStandards] = useState<MusicStandard[]>([])
   const [selectedStandard, setSelectedStandard] = useState<MusicStandard | null>(null)
 
+  const MUSIC_CAP_TABS: Record<string, TabType> = {
+    music_theory: 'theory',
+    music_composition: 'composition',
+    performance_techniques: 'performance',
+    ensemble_coordination: 'ensemble',
+    music_pedagogy: 'pedagogy',
+    music_games: 'games',
+    music_standards: 'standards',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: MUSIC_CAP_TABS,
+    onRestore: async ({ tabKey, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['theory', 'composition', 'performance', 'ensemble', 'pedagogy', 'games', 'standards', 'resources']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && MUSIC_CAP_TABS[cap]
+            ? MUSIC_CAP_TABS[cap]
+            : 'theory'
+      setActiveTab(tab)
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setMusicTheoryInfo(null)
+        setCompositionGuide(null)
+        setTechniqueInfo(null)
+        setEnsembleGuide(null)
+        setPedagogicalMethods([])
+        setMusicGames([])
+        setMusicStandards([])
+        if (tab === 'theory') setMusicTheoryInfo(mapMusicTheoryResult(raw))
+        else if (tab === 'composition') setCompositionGuide(mapMusicCompositionResult(raw, selectedStyle, gradeLevel))
+        else if (tab === 'performance') setTechniqueInfo(mapPerformanceTechniqueResult(raw, performanceTechnique))
+        else if (tab === 'ensemble') setEnsembleGuide(mapEnsembleResult(raw))
+        else if (tab === 'pedagogy') setPedagogicalMethods(mapMusicPedagogyList(raw))
+        else if (tab === 'games') setMusicGames(mapMusicGamesList(raw))
+        else if (tab === 'standards') setMusicStandards(mapMusicStandardsList(raw, gradeLevel))
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const instruments = getInstruments()
   const styles = getMusicStyles()
   const ensembleTypes = getEnsembleTypes()
@@ -117,9 +164,11 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           theory_concept: theoryConcept,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setMusicTheoryInfo(mapMusicTheoryResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Music theory loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -146,9 +195,11 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           composition_type: compositionType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCompositionGuide(mapMusicCompositionResult(response.result, selectedStyle, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Composition guide loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -175,9 +226,11 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           technique: performanceTechnique,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setTechniqueInfo(mapPerformanceTechniqueResult(response.result, performanceTechnique))
+      pinFromResponse(response.conversation_id)
       toast.success('Performance techniques loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -204,9 +257,11 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           ensemble_type: ensembleType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEnsembleGuide(mapEnsembleResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Ensemble guide loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -232,9 +287,11 @@ const MusicPerformanceCoach = () => {
           instrument: selectedInstrument,
           style: selectedStyle,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setPedagogicalMethods(mapMusicPedagogyList(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Pedagogy methods loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -261,9 +318,11 @@ const MusicPerformanceCoach = () => {
           style: selectedStyle,
           game_category: gameCategory.toLowerCase(),
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setMusicGames(mapMusicGamesList(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Music games loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -289,9 +348,11 @@ const MusicPerformanceCoach = () => {
           instrument: selectedInstrument,
           style: selectedStyle,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setMusicStandards(mapMusicStandardsList(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Music standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

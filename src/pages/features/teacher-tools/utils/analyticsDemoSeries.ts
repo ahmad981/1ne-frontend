@@ -1,12 +1,10 @@
 import {
   demoClasses,
   type DemoAssignment,
-  type DemoExam,
   type DemoQuiz,
   type DemoWorksheet,
 } from '../demo/teacherToolsDemoData'
 import { djb2 } from '../demo/generationFromSources'
-import type { FilterValues } from '../components'
 
 export function scoreDistributionForQuiz(quiz: DemoQuiz, range: '7d' | '30d' | 'all') {
   const h = djb2(`${quiz.id}|${range}|${quiz.submissionCount}`)
@@ -33,47 +31,6 @@ export function questionDifficultyForQuiz(quiz: DemoQuiz) {
     const colorClass = v > 20 ? 'bg-rose-500' : v > 12 ? 'bg-amber-400' : 'bg-emerald-400'
     return { label: `Q${i + 1}`, value: v, max: 100, colorClass }
   })
-}
-
-export function unifiedToolPoints(filters: FilterValues) {
-  const key = `${filters.q}|${filters.subject}|${filters.grade}|${filters.classKey}|${filters.status}`
-  const twist = (label: string, base: number) => {
-    const x = djb2(key + label) % 25
-    let v = base + x - 12
-    if (filters.subject === 'Mathematics' && (label === 'Quiz' || label === 'Sheet')) v += 14
-    if (filters.subject === 'English' && label === 'Assign') v += 12
-    if (filters.subject === 'Biology' && (label === 'Sheet' || label === 'Exam')) v += 10
-    if (filters.grade === 'Grade 8' && label === 'Quiz') v += 8
-    if (filters.q && !label.toLowerCase().includes(filters.q.toLowerCase().slice(0, 2))) v -= 5
-    return Math.max(8, Math.min(95, v))
-  }
-  const raw = [
-    { label: 'Quiz', value: twist('Quiz', 44) },
-    { label: 'Assign', value: twist('Assign', 38) },
-    { label: 'Sheet', value: twist('Sheet', 31) },
-    { label: 'Exam', value: twist('Exam', 16) },
-  ]
-  const max = Math.max(...raw.map((r) => r.value), 1)
-  return raw.map((r) => ({ ...r, max }))
-}
-
-export function unifiedStatCards(filters: FilterValues) {
-  const key = `${filters.subject}|${filters.grade}|${filters.classKey}`
-  const n = (base: number, tag: string) => {
-    const x = djb2(key + tag) % 18
-    return Math.max(8, base + x - 6)
-  }
-  return [
-    { label: 'Content created', value: String(n(118, 'c')) },
-    { label: 'Pending grading', value: String(n(14, 'p')) },
-    { label: 'Avg class performance', value: `${n(76, 'a')}%` },
-    { label: 'Review workload', value: n(14, 'r') > 12 ? 'High' : n(14, 'r') > 8 ? 'Medium' : 'Low' },
-  ]
-}
-
-export function unifiedWeeklyPublishes(filters: FilterValues) {
-  const v = 2.8 + (djb2(`${filters.subject}|${filters.grade}`) % 20) / 10
-  return Math.round(v * 10) / 10
 }
 
 export function assignmentSubmissionBars(a: DemoAssignment, range: '7d' | '30d' | 'all') {
@@ -108,7 +65,10 @@ export function worksheetClassMasteryBars(
   })
 }
 
-export function examSectionPerformanceBars(e: DemoExam, range: '7d' | '30d' | 'all') {
+export function examSectionPerformanceBars(
+  e: { id: string; subject: string; examType: string },
+  range: '7d' | '30d' | 'all',
+) {
   const h = djb2(`${e.id}|${e.subject}|${e.examType}|${range}`)
   const scale = range === '7d' ? 0.9 : range === '30d' ? 0.97 : 1
   const labels = ['Sec A', 'Sec B', 'Sec C', 'Short answ.']

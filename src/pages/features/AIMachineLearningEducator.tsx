@@ -38,6 +38,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapAiConceptsResult,
@@ -77,6 +78,57 @@ const AIMachineLearningEducator = () => {
   const [aiStandards, setAiStandards] = useState<AIStandard[]>([])
   const [selectedStandard, setSelectedStandard] = useState<AIStandard | null>(null)
 
+  const AI_ML_CAP_TABS: Record<string, TabType> = {
+    ai_concepts: 'ai-concepts',
+    ethical_ai: 'ethical-ai',
+    ml_projects: 'ml-projects',
+    ai_standards: 'standards',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: AI_ML_CAP_TABS,
+    onRestore: async ({ tabKey, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const tab: TabType =
+        tabKey === 'ai-concepts' ||
+        tabKey === 'ethical-ai' ||
+        tabKey === 'ml-projects' ||
+        tabKey === 'standards' ||
+        tabKey === 'resources'
+          ? tabKey
+          : cap && AI_ML_CAP_TABS[cap]
+            ? AI_ML_CAP_TABS[cap]
+            : 'ai-concepts'
+      setActiveTab(tab)
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setAiConcepts([])
+        setEthicalPrinciples([])
+        setEthicsFrameworks([])
+        setMlProjects([])
+        setAiStandards([])
+        if (tab === 'ai-concepts') setAiConcepts(mapAiConceptsResult(raw, gradeLevel))
+        else if (tab === 'ethical-ai') {
+          try {
+            setEthicalPrinciples(mapEthicalAiToPrinciples(raw))
+          } catch {
+            /* ignore */
+          }
+          try {
+            setEthicsFrameworks(mapEthicalAiToFrameworks(raw))
+          } catch {
+            /* ignore */
+          }
+        } else if (tab === 'ml-projects') setMlProjects(mapMlProjectsResult(raw, gradeLevel))
+        else if (tab === 'standards') setAiStandards(mapAiStandardsResult(raw, gradeLevel))
+      } catch {
+        toast.info('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const gradeLevels = getGradeLevels()
   const difficultyLevels = getDifficultyLevels()
 
@@ -91,9 +143,11 @@ const AIMachineLearningEducator = () => {
           grade_level: gradeLevel,
           difficulty,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setAiConcepts(mapAiConceptsResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('AI concepts loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -118,9 +172,11 @@ const AIMachineLearningEducator = () => {
           grade_level: gradeLevel,
           difficulty,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEthicalPrinciples(mapEthicalAiToPrinciples(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Ethical principles loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -145,9 +201,11 @@ const AIMachineLearningEducator = () => {
           grade_level: gradeLevel,
           difficulty,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setEthicsFrameworks(mapEthicalAiToFrameworks(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Ethics frameworks loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -172,9 +230,11 @@ const AIMachineLearningEducator = () => {
           grade_level: gradeLevel,
           difficulty,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setMlProjects(mapMlProjectsResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('ML projects loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -199,9 +259,11 @@ const AIMachineLearningEducator = () => {
           grade_level: gradeLevel,
           difficulty,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setAiStandards(mapAiStandardsResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

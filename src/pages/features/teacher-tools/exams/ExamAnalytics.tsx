@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { SimpleBarChart, TeacherToolsPageHeader } from '../components'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
 import { examSectionPerformanceBars } from '../utils/analyticsDemoSeries'
 
 const ranges = [
@@ -12,9 +12,26 @@ const ranges = [
 
 export default function ExamAnalytics() {
   const { examId } = useParams()
-  const { allExams } = useTeacherToolsDemo()
-  const e = useMemo(() => allExams.find((x) => x.id === examId), [allExams, examId])
+  const [exam, setExam] = useState<examApi.ExamApiItem | null>(null)
   const [range, setRange] = useState<(typeof ranges)[number]['id']>('30d')
+
+  useEffect(() => {
+    if (!examId) return
+    let c = false
+    ;(async () => {
+      try {
+        const ex = await examApi.fetchExam(examId)
+        if (!c) setExam(ex)
+      } catch {
+        if (!c) setExam(null)
+      }
+    })()
+    return () => {
+      c = true
+    }
+  }, [examId])
+
+  const e = exam
 
   const sectionPoints = useMemo(() => (e ? examSectionPerformanceBars(e, range) : []), [e, range])
 
@@ -56,11 +73,17 @@ export default function ExamAnalytics() {
         ))}
       </div>
 
-      <SimpleBarChart
-        title="Section performance"
-        subtitle={`By blueprint section · ${ranges.find((x) => x.id === range)?.label}`}
-        points={sectionPoints}
-      />
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          <span className="font-semibold">Preview data</span>
+          <span>— Real results will appear here after students submit.</span>
+        </div>
+        <SimpleBarChart
+          title="Section performance"
+          subtitle={`By blueprint section · ${ranges.find((x) => x.id === range)?.label}`}
+          points={sectionPoints}
+        />
+      </div>
       <Link to={`/teacher-tools/exams/${e.id}`} className="text-sm font-semibold text-primary-600">← Back</Link>
     </div>
   )

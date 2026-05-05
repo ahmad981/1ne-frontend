@@ -1,332 +1,284 @@
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import dayjs from 'dayjs'
+import relativeTime from 'dayjs/plugin/relativeTime'
 import {
-  Sparkles,
-  PenTool,
-  FileCheck2,
-  FlaskConical,
+  Flame,
+  Layers,
+  TrendingUp,
+  FileEdit,
+  CheckCircle,
   FileText,
   MessageSquare,
   Youtube,
   Image,
   BookOpen,
   History,
-  PenSquare,
-  HeartHandshake,
-  BarChart3,
-  CalendarDays,
-  Lightbulb,
+  ArrowRight,
+  AlertCircle,
 } from 'lucide-react'
 
+import { useDashboardData, type DashboardItem } from '../hooks/useDashboardData'
+
+dayjs.extend(relativeTime)
+
+// ── Tool icon & colour map ────────────────────────────────────────────────────
+const TOOL_META = {
+  quiz: { label: 'Quiz', colour: 'blue' },
+  assignment: { label: 'Assignment', colour: 'green' },
+  worksheet: { label: 'Worksheet', colour: 'orange' },
+  exam: { label: 'Exam', colour: 'purple' },
+} as const
+
+function ToolBadge({ tool }: { tool: DashboardItem['tool'] }) {
+  const meta = TOOL_META[tool]
+  const colours: Record<string, string> = {
+    blue: 'bg-blue-100 text-blue-700',
+    green: 'bg-green-100 text-green-700',
+    orange: 'bg-orange-100 text-orange-700',
+    purple: 'bg-purple-100 text-purple-700',
+  }
+  return (
+    <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${colours[meta.colour]}`}>
+      {meta.label}
+    </span>
+  )
+}
+
+function StatusPill({ status }: { status: string }) {
+  const map: Record<string, string> = {
+    draft: 'bg-gray-100 text-gray-600',
+    published: 'bg-green-100 text-green-700',
+    scheduled: 'bg-blue-100 text-blue-700',
+    archived: 'bg-gray-100 text-gray-400',
+  }
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${map[status] ?? map.draft}`}>{status}</span>
+}
+
+function DaysUntil({ dueAt }: { dueAt: string }) {
+  const d = dayjs(dueAt).diff(dayjs(), 'day')
+  const colour = d <= 1 ? 'text-red-600' : d <= 3 ? 'text-amber-600' : 'text-gray-500'
+  return <span className={`text-xs font-medium ${colour}`}>{d === 0 ? 'today' : `${d}d`}</span>
+}
+
+function KPISkeleton() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="card animate-pulse">
+          <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
+          <div className="h-8 w-12 bg-gray-200 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const featureWorkflows = [
+  { path: '/templates', icon: FileText, title: 'Templates Library', color: 'bg-blue-500' },
+  { path: '/chatbots', icon: MessageSquare, title: 'Specialized Chatbots', color: 'bg-green-500' },
+  { path: '/youtube-quiz', icon: Youtube, title: 'YouTube Quiz Generator', color: 'bg-red-500' },
+  { path: '/pixgen', icon: Image, title: 'PixGen (AI Media Studio)', color: 'bg-purple-500' },
+  { path: '/learning-hub', icon: BookOpen, title: 'Professional Learning Hub', color: 'bg-orange-500' },
+  { path: '/history', icon: History, title: 'History & Personalisation', color: 'bg-indigo-500' },
+]
+
 const DashboardHome = () => {
-  const quickActions = [
-    {
-      label: 'Plan a Lesson',
-      description: 'Generate a standards-aligned lesson outline in minutes.',
-      icon: PenTool,
-      path: '/templates/general-lesson-planner',
-    },
-    {
-      label: 'Create an Assessment',
-      description: 'Build formative or summative checks for understanding.',
-      icon: FileCheck2,
-      path: '/templates/summative-assessment-builder',
-    },
-    {
-      label: 'Design a STEM Lab',
-      description: 'Craft hands-on STEM experiences tailored to your class.',
-      icon: FlaskConical,
-      path: '/templates/experiment-idea-generator',
-    },
-  ]
+  const { greeting, stats, statsLoading, recentActivity, upcomingDeadlines, draftItems, streak, thisWeekCount } =
+    useDashboardData()
 
-  const featureWorkflows = [
-    {
-      path: '/templates',
-      icon: FileText,
-      title: 'Templates Library',
-      description: 'Access a wide range of teaching templates and resources.',
-      color: 'bg-blue-500',
-    },
-    {
-      path: '/chatbots',
-      icon: MessageSquare,
-      title: 'Specialized Chatbots',
-      description: 'Interact with AI chatbots designed for specific teaching needs.',
-      color: 'bg-green-500',
-    },
-    {
-      path: '/youtube-quiz',
-      icon: Youtube,
-      title: 'YouTube Quiz Generator',
-      description: 'Create engaging quizzes from YouTube videos automatically.',
-      color: 'bg-red-500',
-    },
-    {
-      path: '/pixgen',
-      icon: Image,
-      title: 'PixGen (AI Media Studio)',
-      description: 'Generate and edit images with AI-powered tools.',
-      color: 'bg-purple-500',
-    },
-    {
-      path: '/learning-hub',
-      icon: BookOpen,
-      title: 'Professional Learning Hub',
-      description: 'Access professional development resources and courses.',
-      color: 'bg-orange-500',
-    },
-    {
-      path: '/history',
-      icon: History,
-      title: 'History & Personalization',
-      description: 'View your activity history and personalize your experience.',
-      color: 'bg-indigo-500',
-    },
-  ]
-
-  const recommendedTemplates = [
-    {
-      title: 'Homework Assignment Creator',
-      description: 'Differentiate take-home practice with voice and choice.',
-      icon: PenSquare,
-      path: '/templates/activity-planner',
-    },
-    {
-      title: 'Activities for SEL',
-      description: 'Support social-emotional growth with ready-to-use routines.',
-      icon: HeartHandshake,
-      path: '/templates',
-    },
-    {
-      title: 'Data & Statistics Scenario Builder',
-      description: 'Bring data literacy to life with authentic case studies.',
-      icon: BarChart3,
-      path: '/templates/data-statistics-scenario-builder',
-    },
-  ]
-
-  const insightHighlights = [
-    {
-      title: 'Upcoming PD: AI in the Classroom',
-      description: 'Join our live webinar this Thursday at 4 PM to explore AI-driven lesson design.',
-      icon: CalendarDays,
-    },
-    {
-      title: 'Teaching Tip of the Week',
-      description: 'Use exit tickets generated by the Formative Assessment tool to close every lesson with evidence.',
-      icon: Lightbulb,
-    },
-    {
-      title: 'Team Update',
-      description: 'The templates library now includes 10 new cross-curricular units recommended by coaches.',
-      icon: BookOpen,
-    },
-  ]
+  const heroCTA = useMemo(() => {
+    if (upcomingDeadlines.length > 0) {
+      const first = upcomingDeadlines[0]
+      return { label: `Due soon: ${first.title}`, path: first.path }
+    }
+    if (draftItems.length > 0) {
+      return { label: `Continue: ${draftItems[0].title}`, path: draftItems[0].path }
+    }
+    return { label: 'Create your first quiz', path: '/teacher-tools/quiz/create' }
+  }, [upcomingDeadlines, draftItems])
 
   return (
-    <div className="space-y-10">
-      {/* Hero Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 via-primary-500 to-indigo-500 p-8 text-white shadow-lg">
-          <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))]" />
-          <div className="relative z-10 max-w-2xl space-y-4">
-            <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-sm font-medium">
-              <Sparkles className="h-4 w-4" />
-              AI-Enhanced Planning Hub
-            </div>
-            <h1 className="text-3xl font-bold lg:text-4xl">Welcome back—let’s build something great for your learners.</h1>
+    <div className="space-y-8">
+      {/* ── Hero ─────────────────────────────────────────────────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-primary-600 via-primary-500 to-indigo-500 p-8 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top,_var(--tw-gradient-stops))]" />
+        <div className="relative z-10 flex items-start justify-between">
+          <div className="space-y-3 max-w-xl">
+            <p className="text-white/60 text-sm">{dayjs().format('dddd, MMMM D')}</p>
+            <h1 className="text-3xl font-bold">{greeting}</h1>
             <p className="text-white/80">
-              Jump back into your planning flow with quick actions, recommended templates, and insights curated
-              from educators using the Teacher Assistant platform.
+              {(stats?.summary.total_active ?? 0) > 0
+                ? `You have ${stats?.summary.total_active} active content items across all tools.`
+                : 'Your workspace is ready. Build your first piece of content to get started.'}
             </p>
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap gap-3 pt-1">
               <Link
-                to="/templates"
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-primary-600 shadow-sm transition hover:bg-primary-50"
+                to={heroCTA.path}
+                className="inline-flex items-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-semibold text-primary-600 shadow-sm hover:bg-primary-50"
               >
-                Browse Templates
+                {heroCTA.label} <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
-                to="/chatbots"
-                className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                to="/teacher-tools"
+                className="inline-flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
               >
-                Ask a Teaching Coach
+                Teacher Tools overview
               </Link>
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-4">
-          <div className="card bg-white/60">
-            <p className="text-sm text-gray-500">Active Projects</p>
-            <p className="text-3xl font-semibold text-gray-900">4</p>
-            <p className="mt-2 text-sm text-gray-600">You’re collaborating on lesson plans across science and humanities this week.</p>
-          </div>
-          <div className="card bg-white/60">
-            <p className="text-sm text-gray-500">Suggested Next Step</p>
-            <p className="mt-2 text-sm text-gray-700">
-              Finish the assessment for your <span className="font-medium">Grade 8 Forces & Motion</span> unit and share it with your team.
-            </p>
-          </div>
+          {streak > 1 && (
+            <div className="hidden lg:flex items-center gap-2 rounded-2xl bg-white/15 px-4 py-3 text-white">
+              <Flame className="h-6 w-6 text-orange-300" />
+              <div>
+                <p className="text-2xl font-bold leading-none">{streak}</p>
+                <p className="text-xs text-white/70">day streak</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Quick Metrics */}
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Templates Created</p>
-              <p className="text-2xl font-semibold text-gray-900">12</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-blue-100">
-              <FileText className="h-6 w-6 text-blue-600" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">+3 this week</p>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Chat Sessions</p>
-              <p className="text-2xl font-semibold text-gray-900">18</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-green-100">
-              <MessageSquare className="h-6 w-6 text-green-600" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">Mostly focused on feedback strategies</p>
-        </div>
-
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Quizzes Generated</p>
-              <p className="text-2xl font-semibold text-gray-900">6</p>
-            </div>
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-red-100">
-              <Youtube className="h-6 w-6 text-red-600" />
-            </div>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">Two linked to the Space Exploration playlist</p>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900">Quick actions</h2>
-          <Link to="/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
-            View all workflows
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {quickActions.map((action) => {
-            const Icon = action.icon
-            return (
-              <Link
-                key={action.label}
-                to={action.path}
-                className="card group border border-primary-100/60 hover:border-primary-200 hover:shadow-md transition"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary-50 text-primary-600 group-hover:bg-primary-100">
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-900 group-hover:text-primary-600">
-                      {action.label}
-                    </p>
-                    <p className="mt-1 text-sm text-gray-600">{action.description}</p>
-                  </div>
+      {/* ── KPI row ──────────────────────────────────────────────────────── */}
+      {statsLoading ? (
+        <KPISkeleton />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            { label: 'Total Content', value: stats?.summary.total_active ?? 0, icon: Layers, color: 'text-blue-600 bg-blue-100' },
+            { label: 'This Week', value: thisWeekCount, icon: TrendingUp, color: 'text-green-600 bg-green-100' },
+            { label: 'Draft Backlog', value: stats?.summary.total_draft ?? 0, icon: FileEdit, color: 'text-amber-600 bg-amber-100' },
+            { label: 'Published', value: stats?.summary.total_published ?? 0, icon: CheckCircle, color: 'text-emerald-600 bg-emerald-100' },
+          ].map(({ label, value, icon: Icon, color }) => (
+            <div key={label} className="card">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">{label}</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-1">{value}</p>
                 </div>
-              </Link>
-            )
-          })}
+                <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${color}`}>
+                  <Icon className="h-6 w-6" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
-      </section>
+      )}
 
-      {/* Core Workflows */}
+      {/* ── Activity + Sidebar ───────────────────────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-6">
+        <div className="space-y-6">
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" /> Upcoming deadlines
+              </h2>
+              <Link to="/teacher-tools" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
+                View all
+              </Link>
+            </div>
+            {upcomingDeadlines.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">No deadlines in the next 7 days.</p>
+            ) : (
+              <ul className="space-y-2">
+                {upcomingDeadlines.map((item) => (
+                  <li key={item.id}>
+                    <Link to={item.path} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-gray-50">
+                      <ToolBadge tool={item.tool} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.subject} · {item.grade}
+                        </p>
+                      </div>
+                      <DaysUntil dueAt={item.dueAt!} />
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900">Recent activity</h2>
+            </div>
+            {recentActivity.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">No activity yet.</p>
+                <Link to="/teacher-tools/quiz/create" className="mt-3 inline-block text-sm font-semibold text-primary-600 hover:text-primary-500">
+                  Create your first quiz →
+                </Link>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {recentActivity.map((item) => (
+                  <li key={item.id}>
+                    <Link to={item.path} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-gray-50">
+                      <ToolBadge tool={item.tool} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {item.subject} · {item.grade}
+                        </p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <StatusPill status={item.status} />
+                        <p className="text-xs text-gray-400 mt-0.5">{dayjs(item.updatedAt || item.createdAt).fromNow()}</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-6">
+          <div className="card">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <FileEdit className="h-4 w-4 text-gray-500" /> Drafts to finish
+              </h2>
+              <Link to="/teacher-tools" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
+                All
+              </Link>
+            </div>
+            {draftItems.length === 0 ? (
+              <p className="text-sm text-gray-500 py-4 text-center">No drafts — you're all caught up!</p>
+            ) : (
+              <ul className="space-y-2">
+                {draftItems.map((item) => (
+                  <li key={item.id}>
+                    <Link to={item.path} className="flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition">
+                      <ToolBadge tool={item.tool} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{item.title}</p>
+                        <p className="text-xs text-gray-400">{dayjs(item.updatedAt || item.createdAt).fromNow()}</p>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Core workflows (navigation, no data needed) ───────────────────── */}
       <section>
         <h2 className="text-xl font-semibold text-gray-900 mb-4">Core workflows</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {featureWorkflows.map((feature) => {
-            const Icon = feature.icon
-            return (
-              <Link
-                key={feature.path}
-                to={feature.path}
-                className="card hover:shadow-md transition-shadow duration-200 group"
-              >
-                <div className="flex items-start space-x-4">
-                  <div
-                    className={`${feature.color} w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-200`}
-                  >
-                    <Icon className="w-6 h-6 text-white" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1 group-hover:text-primary-600 transition-colors">
-                      {feature.title}
-                    </h3>
-                    <p className="text-sm text-gray-600">{feature.description}</p>
-                  </div>
+          {featureWorkflows.map(({ path, icon: Icon, title, color }) => (
+            <Link key={path} to={path} className="card hover:shadow-md transition-shadow group">
+              <div className="flex items-center gap-4">
+                <div className={`${color} w-11 h-11 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                  <Icon className="w-5 h-5 text-white" />
                 </div>
-              </Link>
-            )
-          })}
-        </div>
-      </section>
-
-      {/* Recommendations & Insights */}
-      <section className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <div className="card">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recommended for you</h2>
-            <Link to="/templates" className="text-sm font-semibold text-primary-600 hover:text-primary-500">
-              Browse more
+                <p className="font-semibold text-gray-900 group-hover:text-primary-600 transition-colors">{title}</p>
+              </div>
             </Link>
-          </div>
-          <div className="space-y-4">
-            {recommendedTemplates.map((template) => {
-              const Icon = template.icon
-              return (
-                <Link
-                  key={template.title}
-                  to={template.path}
-                  className="flex items-start gap-4 rounded-lg border border-gray-100 px-4 py-3 transition hover:border-primary-200 hover:bg-primary-50/40"
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-50 text-primary-600">
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{template.title}</p>
-                    <p className="text-sm text-gray-600">{template.description}</p>
-                  </div>
-                </Link>
-              )
-            })}
-          </div>
-        </div>
-
-        <div className="card space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Insights & updates</h2>
-          <div className="space-y-4">
-            {insightHighlights.map((insight) => {
-              const Icon = insight.icon
-              return (
-                <div key={insight.title} className="flex gap-3 rounded-lg bg-gray-50 px-4 py-3">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-primary-600 shadow">
-                    <Icon className="h-4 w-4" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{insight.title}</p>
-                    <p className="text-sm text-gray-600">{insight.description}</p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
+          ))}
         </div>
       </section>
     </div>
@@ -334,5 +286,3 @@ const DashboardHome = () => {
 }
 
 export default DashboardHome
-
-

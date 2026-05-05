@@ -26,6 +26,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface TextAnalysis {
@@ -77,6 +78,40 @@ const LiteracyLabCoach = () => {
   const [guidedReading, setGuidedReading] = useState<GuidedReadingStrategy | null>(null)
   const [writingFeedback, setWritingFeedback] = useState<WritingFeedback | null>(null)
 
+  const LITERACY_CAP_TABS: Record<string, 'analyze' | 'guided' | 'writing'> = {
+    text_complexity: 'analyze',
+    guided_reading: 'guided',
+    writing_feedback: 'writing',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: LITERACY_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const tab: 'analyze' | 'guided' | 'writing' =
+        tabKey === 'analyze' || tabKey === 'guided' || tabKey === 'writing'
+          ? tabKey
+          : cap && LITERACY_CAP_TABS[cap]
+            ? LITERACY_CAP_TABS[cap]
+            : 'analyze'
+      setActiveTab(tab)
+      if (userContent) setTextInput(userContent)
+      try {
+        const data = JSON.parse(assistantContent)
+        setAnalysis(null)
+        setGuidedReading(null)
+        setWritingFeedback(null)
+        if (tab === 'analyze') setAnalysis(data as TextAnalysis)
+        else if (tab === 'guided') setGuidedReading(data as GuidedReadingStrategy)
+        else setWritingFeedback(data as WritingFeedback)
+      } catch {
+        toast.info('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const handleTextAnalysis = async () => {
     if (!textInput.trim()) {
       toast.error('Please enter text to analyze')
@@ -97,12 +132,14 @@ const LiteracyLabCoach = () => {
             grade_level: gradeLevel,
             subject: subject,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       // Response should match TextAnalysis interface
       setAnalysis(response.result as TextAnalysis)
+      pinFromResponse(response.conversation_id)
       toast.success('Text analysis completed')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -138,11 +175,13 @@ const LiteracyLabCoach = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setGuidedReading(response.result as GuidedReadingStrategy)
+      pinFromResponse(response.conversation_id)
       toast.success('Guided reading strategies generated')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -177,11 +216,13 @@ const LiteracyLabCoach = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setWritingFeedback(response.result as WritingFeedback)
+      pinFromResponse(response.conversation_id)
       toast.success('Writing feedback generated')
     } catch (error: any) {
       if (captureApiError(error)) return

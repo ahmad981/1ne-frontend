@@ -1,679 +1,689 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useDispatch } from 'react-redux'
 import {
-  History as HistoryIcon,
-  Clock,
-  TrendingUp,
-  FileText,
-  Calendar,
-  Filter,
-  Search,
-  Star,
-  Copy,
-  Edit,
-  Share2,
-  Pin,
-  PinOff,
-  BookOpen,
-  CheckCircle2,
   AlertCircle,
-  BarChart3,
-  X,
-  Download,
-  Eye,
-  Sparkles,
-  Zap,
-  Layers,
-  MessageSquare,
-  GraduationCap,
-  Grid3x3,
+  History as HistoryIcon,
+  LayoutGrid,
   List,
+  Search,
+  Sparkles,
+  Trash2,
 } from 'lucide-react'
 
-interface HistoryItem {
-  id: string
-  title: string
-  type: 'Lesson Plan' | 'Assessment' | 'Activity' | 'Communication' | 'PD Resource'
-  subject: string
-  class: string
-  createdDate: string
-  lastUsed: string
-  templateUsed: string
-  status: 'Draft' | 'Used in class' | 'Shared/Exported'
-  pinned: boolean
-  performanceHint?: 'Effective' | 'Needs improvement'
-  usageCount: number
-  color: string
+import { clearHistory, type HistoryItem, type HistorySourceType } from '../../api/historyApi'
+import { apiRequest } from '../../api/client'
+import * as examApi from '../../api/examApi'
+import {
+  useGetHistoryQuotaQuery,
+  useGetHistoryStatsQuery,
+  useListHistoryQuery,
+  useTogglePinMutation,
+} from '../../redux/features/history/historyApiSlice'
+import { historyApiSlice } from '../../redux/features/history/historyApiSlice'
+import { useDuplicateAssignmentMutation } from '../../redux/features/teacherTools/assignment/assignmentApiSlice'
+import { useDuplicateQuizMutation } from '../../redux/features/teacherTools/quiz/quizApiSlice'
+import { useDuplicateWorksheetMutation } from '../../redux/features/teacherTools/worksheet/worksheetApiSlice'
+import { TeacherToolsBulkActionBar } from './teacher-tools/components'
+import { CustomModal } from '../../components/shared/CustomModal'
+import { useSnackbar } from '../../hooks/useSnackbar'
+
+import { HistoryCard } from './history/HistoryCard'
+import { HistoryDetailPanel } from './history/HistoryDetailPanel'
+import { DELETE_PATH_MAP, getItemRoute } from './history/historyRouting'
+
+const SOURCE_LABELS: Record<HistorySourceType, string> = {
+  quiz: 'Quiz',
+  assignment: 'Assignment',
+  worksheet: 'Worksheet',
+  exam: 'Exam',
+  chatbot_conversation: 'Chatbot',
+  pixgen_generation: 'PixGen',
+  youtube_quiz: 'YouTube Quiz',
+  template_execution: 'Template',
 }
 
-const historyItems: HistoryItem[] = [
-  {
-    id: '1',
-    title: 'Photosynthesis Lab – 6B',
-    type: 'Lesson Plan',
-    subject: 'Science',
-    class: '6B',
-    createdDate: '2024-02-27',
-    lastUsed: '2 days ago',
-    templateUsed: 'Science Experiment Idea Generator',
-    status: 'Used in class',
-    pinned: true,
-    performanceHint: 'Effective',
-    usageCount: 3,
-    color: 'blue',
-  },
-  {
-    id: '2',
-    title: 'Fractions Assessment – Grade 5',
-    type: 'Assessment',
-    subject: 'Mathematics',
-    class: '5A',
-    createdDate: '2024-02-25',
-    lastUsed: '1 week ago',
-    templateUsed: 'Formative Assessment Generator',
-    status: 'Used in class',
-    pinned: false,
-    performanceHint: 'Effective',
-    usageCount: 2,
-    color: 'green',
-  },
-  {
-    id: '3',
-    title: 'Water Cycle Activity',
-    type: 'Activity',
-    subject: 'Science',
-    class: '4B',
-    createdDate: '2024-02-20',
-    lastUsed: '2 weeks ago',
-    templateUsed: 'STEM Activity Generator',
-    status: 'Used in class',
-    pinned: false,
-    usageCount: 1,
-    color: 'purple',
-  },
-  {
-    id: '4',
-    title: 'Parent Newsletter – March',
-    type: 'Communication',
-    subject: 'General',
-    class: 'All Classes',
-    createdDate: '2024-02-15',
-    lastUsed: '3 weeks ago',
-    templateUsed: 'Newsletter Article Generator',
-    status: 'Shared/Exported',
-    pinned: true,
-    usageCount: 1,
-    color: 'orange',
-  },
-  {
-    id: '5',
-    title: 'Differentiation Strategies Workshop',
-    type: 'PD Resource',
-    subject: 'Professional Development',
-    class: 'N/A',
-    createdDate: '2024-02-10',
-    lastUsed: '1 month ago',
-    templateUsed: 'Professional Learning Hub',
-    status: 'Draft',
-    pinned: false,
-    usageCount: 0,
-    color: 'indigo',
-  },
-  {
-    id: '6',
-    title: 'Grammar Game Builder',
-    type: 'Activity',
-    subject: 'English',
-    class: '7C',
-    createdDate: '2024-02-28',
-    lastUsed: '1 day ago',
-    templateUsed: 'Grammar Game & Quiz Maker',
-    status: 'Used in class',
-    pinned: false,
-    performanceHint: 'Effective',
-    usageCount: 2,
-    color: 'purple',
-  },
+const ALL_SOURCE_TYPES: HistorySourceType[] = [
+  'quiz',
+  'assignment',
+  'worksheet',
+  'exam',
+  'chatbot_conversation',
+  'pixgen_generation',
+  'youtube_quiz',
+  'template_execution',
 ]
 
-const typeColors: Record<string, string> = {
-  'Lesson Plan': 'bg-blue-100 text-blue-700 border-blue-200',
-  Assessment: 'bg-green-100 text-green-700 border-green-200',
-  Activity: 'bg-purple-100 text-purple-700 border-purple-200',
-  Communication: 'bg-orange-100 text-orange-700 border-orange-200',
-  'PD Resource': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+const PAGE_SIZE = 20
+const CHATBOT_GROUP_WINDOW_MS = 30 * 60 * 1000
+
+type GroupedHistoryItem = HistoryItem & {
+  __collapsedIds?: string[]
 }
 
-const statusColors: Record<string, string> = {
-  Draft: 'bg-gray-100 text-gray-600',
-  'Used in class': 'bg-emerald-100 text-emerald-700',
-  'Shared/Exported': 'bg-amber-100 text-amber-700',
-}
+function collapseChatbotHistoryItems(items: HistoryItem[]): GroupedHistoryItem[] {
+  // Collapse consecutive chatbot_conversation items with the same (chatbot_slug, title)
+  // within a 30-minute window.
+  const out: GroupedHistoryItem[] = []
 
-const quickStats = {
-  totalItems: 47,
-  thisWeek: 8,
-  pinned: 3,
-  mostUsed: 'Science Experiment Generator',
+  for (const item of items) {
+    if (item.sourceType !== 'chatbot_conversation') {
+      out.push(item)
+      continue
+    }
+
+    const last = out[out.length - 1]
+    if (!last || last.sourceType !== 'chatbot_conversation') {
+      out.push(item)
+      continue
+    }
+
+    const slugA = String((last.meta as any)?.chatbot_slug ?? '')
+    const slugB = String((item.meta as any)?.chatbot_slug ?? '')
+    if (!slugA || !slugB || slugA !== slugB) {
+      out.push(item)
+      continue
+    }
+
+    if ((last.title ?? '') !== (item.title ?? '')) {
+      out.push(item)
+      continue
+    }
+
+    const tLast = new Date(last.updatedAt ?? last.createdAt).getTime()
+    const tCur = new Date(item.updatedAt ?? item.createdAt).getTime()
+    if (!Number.isFinite(tLast) || !Number.isFinite(tCur) || Math.abs(tLast - tCur) > CHATBOT_GROUP_WINDOW_MS) {
+      out.push(item)
+      continue
+    }
+
+    // Keep the most-recent item as the "card" and stash prior ids for display only.
+    const collapsed = last.__collapsedIds ? [...last.__collapsedIds] : []
+    collapsed.push(last.id)
+    out[out.length - 1] = { ...item, __collapsedIds: collapsed }
+  }
+
+  return out
 }
 
 const History = () => {
+  const navigate = useNavigate()
+  const dispatch = useDispatch()
+  const { toast } = useSnackbar()
+
   const [selectedItem, setSelectedItem] = useState<HistoryItem | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
-  const [selectedFilter, setSelectedFilter] = useState<string>('All')
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedSourceTypes, setSelectedSourceTypes] = useState<HistorySourceType[]>([])
   const [searchQuery, setSearchQuery] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [dateRangePreset, setDateRangePreset] = useState<string>('All')
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
+  const [page, setPage] = useState(1)
 
-  const getDateRange = () => {
-    const today = new Date()
-    const startOfToday = new Date(today)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeletePending, setBulkDeletePending] = useState(false)
+  const [clearHistoryOpen, setClearHistoryOpen] = useState(false)
+  const [clearPending, setClearPending] = useState(false)
+  const [keepPinned, setKeepPinned] = useState(true)
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchQuery), 300)
+    return () => clearTimeout(t)
+  }, [searchQuery])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch, selectedSourceTypes, dateRangePreset, customStartDate, customEndDate])
+
+  const computedDateFrom = useMemo(() => {
+    const now = new Date()
+    const startOfToday = new Date(now)
     startOfToday.setHours(0, 0, 0, 0)
-    const startOfWeek = new Date(today)
-    startOfWeek.setDate(today.getDate() - today.getDay())
+    const startOfWeek = new Date(now)
+    startOfWeek.setDate(now.getDate() - now.getDay())
     startOfWeek.setHours(0, 0, 0, 0)
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
-    const thirtyDaysAgo = new Date(today)
-    thirtyDaysAgo.setDate(today.getDate() - 30)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1)
+    const thirtyDaysAgo = new Date(now)
+    thirtyDaysAgo.setDate(now.getDate() - 30)
     thirtyDaysAgo.setHours(0, 0, 0, 0)
 
     switch (dateRangePreset) {
       case 'Today':
-        return { start: startOfToday, end: new Date() }
+        return startOfToday.toISOString()
       case 'This week':
-        return { start: startOfWeek, end: new Date() }
+        return startOfWeek.toISOString()
       case 'Last 30 days':
-        return { start: thirtyDaysAgo, end: new Date() }
+        return thirtyDaysAgo.toISOString()
       case 'This month':
-        return { start: startOfMonth, end: new Date() }
+        return startOfMonth.toISOString()
       case 'Custom':
-        return {
-          start: customStartDate ? new Date(customStartDate) : null,
-          end: customEndDate ? new Date(customEndDate) : null,
-        }
+        return customStartDate ? new Date(customStartDate).toISOString() : undefined
       default:
-        return { start: null, end: null }
+        return undefined
+    }
+  }, [customStartDate, dateRangePreset])
+
+  const computedDateTo = useMemo(() => {
+    if (dateRangePreset === 'Custom') {
+      return customEndDate ? new Date(customEndDate).toISOString() : undefined
+    }
+    if (dateRangePreset === 'All') return undefined
+    return new Date().toISOString()
+  }, [customEndDate, dateRangePreset])
+
+  const listParams = useMemo(
+    () => ({
+      sourceTypes: selectedSourceTypes.length ? selectedSourceTypes : undefined,
+      q: debouncedSearch || undefined,
+      dateFrom: computedDateFrom,
+      dateTo: computedDateTo,
+      page,
+      pageSize: PAGE_SIZE,
+    }),
+    [computedDateFrom, computedDateTo, debouncedSearch, page, selectedSourceTypes],
+  )
+
+  const { data: historyData, isLoading, isFetching } = useListHistoryQuery(listParams)
+  const { data: stats } = useGetHistoryStatsQuery()
+  const { data: quota } = useGetHistoryQuotaQuery()
+  const [togglePin] = useTogglePinMutation()
+
+  const [duplicateQuiz] = useDuplicateQuizMutation()
+  const [duplicateAssignment] = useDuplicateAssignmentMutation()
+  const [duplicateWorksheet] = useDuplicateWorksheetMutation()
+
+  const items = historyData?.items ?? []
+  const collapsedItems = useMemo(() => collapseChatbotHistoryItems(items), [items])
+  const selectMode = selectedIds.length > 0
+
+  const invalidateHistory = () => {
+    dispatch(
+      historyApiSlice.util.invalidateTags([
+        { type: 'HistoryList', id: 'LIST' },
+        { type: 'HistoryStats', id: 'STATS' },
+        { type: 'HistoryQuota', id: 'QUOTA' },
+      ]),
+    )
+  }
+
+  useEffect(() => {
+    const onChanged = () => invalidateHistory()
+    window.addEventListener('history:changed', onChanged as EventListener)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'history:last_changed') {
+        invalidateHistory()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => {
+      window.removeEventListener('history:changed', onChanged as EventListener)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const selectAllOnPage = () => {
+    setSelectedIds(items.map((i) => i.id))
+  }
+
+  const clearSelection = () => setSelectedIds([])
+
+  const handleTogglePinItem = (item: HistoryItem) => {
+    togglePin({
+      sourceType: item.sourceType,
+      sourceId: item.id,
+      pinned: !item.pinned,
+      listParams,
+    })
+  }
+
+  async function handleDuplicate(item: HistoryItem) {
+    switch (item.sourceType) {
+      case 'quiz': {
+        const result = await duplicateQuiz(item.id).unwrap()
+        navigate(`/teacher-tools/quiz/${result.id}`)
+        return
+      }
+      case 'assignment': {
+        const result = await duplicateAssignment(item.id).unwrap()
+        navigate(`/teacher-tools/assignment/${result.id}`)
+        return
+      }
+      case 'worksheet': {
+        const result = await duplicateWorksheet(item.id).unwrap()
+        navigate(`/teacher-tools/worksheet/${result.id}`)
+        return
+      }
+      case 'exam': {
+        const r = await examApi.duplicateExam(item.id)
+        if (r.ok && r.id) {
+          navigate(`/teacher-tools/exams/${r.id}`)
+        }
+        return
+      }
+      default:
+        navigate(getItemRoute(item))
     }
   }
 
-  const filteredItems = historyItems.filter((item) => {
-    if (selectedFilter !== 'All' && item.type !== selectedFilter) return false
-    if (searchQuery && !item.title.toLowerCase().includes(searchQuery.toLowerCase())) return false
-
-    // Date range filtering
-    if (dateRangePreset !== 'All') {
-      const range = getDateRange()
-      const itemDate = new Date(item.createdDate)
-      if (range.start && itemDate < range.start) return false
-      if (range.end) {
-        const endDate = new Date(range.end)
-        endDate.setHours(23, 59, 59, 999)
-        if (itemDate > endDate) return false
-      }
+  async function handleBulkDelete() {
+    const ids = [...selectedIds]
+    const n = ids.length
+    setBulkDeletePending(true)
+    try {
+      await Promise.allSettled(
+        ids.map((id) => {
+          const row = items.find((i) => i.id === id)
+          if (!row) return Promise.resolve()
+          const path = DELETE_PATH_MAP[row.sourceType](id)
+          return apiRequest(path, { method: 'DELETE' })
+        }),
+      )
+      clearSelection()
+      setBulkDeleteOpen(false)
+      setSelectedItem(null)
+      invalidateHistory()
+      toast.success(`${n} items deleted`)
+    } catch {
+      toast.error('Some items could not be deleted')
+    } finally {
+      setBulkDeletePending(false)
     }
+  }
 
-    return true
-  })
+  const isFiltered =
+    selectedSourceTypes.length > 0 || Boolean(debouncedSearch) || dateRangePreset !== 'All'
 
-  const pinnedItems = historyItems.filter((item) => item.pinned)
-  const recentItems = historyItems.slice(0, 3)
+  async function handleClearHistory() {
+    setClearPending(true)
+    try {
+      await clearHistory({
+        sourceTypes: selectedSourceTypes.length ? selectedSourceTypes : undefined,
+        q: debouncedSearch || undefined,
+        dateFrom: computedDateFrom,
+        dateTo: computedDateTo,
+        keepPinned,
+      })
+      setClearHistoryOpen(false)
+      clearSelection()
+      setSelectedItem(null)
+      invalidateHistory()
+      toast.success('History cleared')
+    } catch {
+      toast.error('Could not clear history')
+    } finally {
+      setClearPending(false)
+    }
+  }
+
+  const quotaShouldShow = quota?.usage?.some((u) => u.warningLevel !== 'ok')
+
+  const totalPages = historyData ? Math.max(1, Math.ceil(historyData.total / PAGE_SIZE)) : 1
 
   return (
     <div className="space-y-8">
-      {/* Hero Section */}
       <section className="overflow-hidden rounded-3xl bg-gradient-to-r from-slate-700 via-slate-800 to-slate-900 px-8 py-12 text-white shadow-xl">
         <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl space-y-4">
             <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1.5 text-xs font-semibold uppercase tracking-wide text-white/90">
               <HistoryIcon className="h-4 w-4" /> Your Teaching Archive
             </div>
-            <h1 className="text-4xl font-semibold leading-tight">Everything you've created, all in one place</h1>
-            <p className="text-base text-white/80">
-              Quickly find, reuse, and improve your best teaching resources. Your personal library of lessons,
-              assessments, and activities.
-            </p>
+            <h1 className="text-4xl font-semibold leading-tight">Everything you’ve created, all in one place</h1>
+            <p className="text-base text-white/80">Find, reuse, and improve your best teaching resources.</p>
           </div>
 
           <div className="grid w-full max-w-sm gap-4 rounded-2xl bg-white/10 p-6 backdrop-blur">
             <div className="flex items-center justify-between">
               <span className="text-sm text-white/70">Total items</span>
-              <span className="text-2xl font-semibold">{quickStats.totalItems}</span>
+              <span className="text-2xl font-semibold">{stats?.total ?? '—'}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-white/70">This week</span>
-              <span className="text-2xl font-semibold">{quickStats.thisWeek}</span>
+              <span className="text-2xl font-semibold">{stats?.thisWeek ?? '—'}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-white/70">Pinned</span>
-              <span className="text-2xl font-semibold">{quickStats.pinned}</span>
+              <span className="text-2xl font-semibold">{stats?.pinned ?? '—'}</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Quick Access Bar */}
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="group cursor-pointer rounded-2xl border-2 border-gray-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Continue working</p>
-              <p className="mt-2 text-sm font-semibold text-gray-900">Last 3 items</p>
+      {quota && quotaShouldShow && (
+        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <p className="text-sm font-semibold text-amber-900">Storage usage</p>
             </div>
-            <Zap className="h-8 w-8 text-blue-500" />
+            <a
+              href="/settings?tab=plan"
+              className="rounded-full bg-amber-600 px-3 py-1 text-xs font-semibold text-white hover:bg-amber-500"
+            >
+              Upgrade for more
+            </a>
           </div>
-          <div className="mt-4 space-y-2">
-            {recentItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className="w-full text-left text-xs text-gray-600 hover:text-blue-600"
-              >
-                {item.title}
-              </button>
-            ))}
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {quota.usage.map((u) => {
+              const pct = Math.min(100, Math.round((u.used / u.limit) * 100))
+              const barColor =
+                u.warningLevel === 'full' ? 'bg-red-500' : u.warningLevel === 'warning' ? 'bg-amber-500' : 'bg-blue-400'
+              return (
+                <div key={u.sourceType}>
+                  <div className="mb-1 flex justify-between text-xs text-gray-600">
+                    <span className="font-medium">{SOURCE_LABELS[u.sourceType]}</span>
+                    <span>
+                      {u.used} / {u.limit}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full rounded-full bg-gray-200">
+                    <div className={`h-1.5 rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              )
+            })}
           </div>
-        </div>
+        </section>
+      )}
 
-        <div className="group cursor-pointer rounded-2xl border-2 border-gray-200 bg-white p-5 transition hover:border-amber-300 hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Pinned items</p>
-              <p className="mt-2 text-sm font-semibold text-gray-900">{pinnedItems.length} saved</p>
+      <div className="flex min-h-[520px] gap-6 xl:grid xl:grid-cols-[1fr_420px]">
+        <div className="min-w-0 space-y-5">
+          <div className="rounded-3xl border-2 border-gray-200 bg-white p-6 shadow-sm">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search your history…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-2xl border-2 border-gray-200 bg-gray-50 py-3 pl-12 pr-4 text-sm font-medium text-gray-800 outline-none transition focus:border-blue-400 focus:bg-white"
+              />
             </div>
-            <Pin className="h-8 w-8 text-amber-500" />
-          </div>
-          <div className="mt-4 space-y-2">
-            {pinnedItems.slice(0, 3).map((item) => (
-              <button
-                key={item.id}
-                onClick={() => setSelectedItem(item)}
-                className="w-full text-left text-xs text-gray-600 hover:text-amber-600"
-              >
-                {item.title}
-              </button>
-            ))}
-          </div>
-        </div>
 
-        <div className="group cursor-pointer rounded-2xl border-2 border-gray-200 bg-white p-5 transition hover:border-green-300 hover:shadow-md">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Most used</p>
-              <p className="mt-2 text-sm font-semibold text-gray-900">This month</p>
-            </div>
-            <TrendingUp className="h-8 w-8 text-green-500" />
-          </div>
-          <div className="mt-4 space-y-2">
-            {historyItems
-              .sort((a, b) => b.usageCount - a.usageCount)
-              .slice(0, 3)
-              .map((item) => (
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedSourceTypes([])}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  selectedSourceTypes.length === 0 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                }`}
+              >
+                All
+              </button>
+              {ALL_SOURCE_TYPES.map((t) => (
                 <button
-                  key={item.id}
-                  onClick={() => setSelectedItem(item)}
-                  className="w-full text-left text-xs text-gray-600 hover:text-green-600"
+                  type="button"
+                  key={t}
+                  onClick={() =>
+                    setSelectedSourceTypes((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]))
+                  }
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    selectedSourceTypes.includes(t) ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'
+                  }`}
                 >
-                  {item.title} ({item.usageCount}x)
+                  {SOURCE_LABELS[t]}
                 </button>
               ))}
-          </div>
-        </div>
-      </section>
+            </div>
 
-      {/* Main Content Area */}
-      <section className="grid gap-6 xl:grid-cols-[1.5fr,1fr]">
-        <div className="space-y-6">
-          {/* Controls Bar */}
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Search your history..."
-                    className="w-64 rounded-full border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-700 focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-100"
-                  />
-                </div>
-                <div className="flex gap-2">
-                  {['All', 'Lesson Plan', 'Assessment', 'Activity', 'Communication', 'PD Resource'].map((filter) => (
-                    <button
-                      key={filter}
-                      onClick={() => setSelectedFilter(filter)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                        selectedFilter === filter
-                          ? 'bg-blue-600 text-white'
-                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                      }`}
-                    >
-                      {filter}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {['All', 'Today', 'This week', 'Last 30 days', 'This month', 'Custom'].map((p) => (
                 <button
-                  onClick={() => setViewMode('grid')}
-                  className={`rounded-lg p-2 transition ${
-                    viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'
+                  type="button"
+                  key={p}
+                  onClick={() => setDateRangePreset(p)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                    dateRangePreset === p ? 'bg-slate-900 text-white' : 'bg-gray-100 text-gray-700'
                   }`}
                 >
-                  <Grid3x3 className="h-4 w-4" />
+                  {p}
+                </button>
+              ))}
+              {dateRangePreset === 'Custom' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={customStartDate}
+                    onChange={(e) => setCustomStartDate(e.target.value)}
+                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs"
+                  />
+                  <span className="text-xs text-gray-500">to</span>
+                  <input
+                    type="date"
+                    value={customEndDate}
+                    onChange={(e) => setCustomEndDate(e.target.value)}
+                    className="rounded-xl border border-gray-200 px-3 py-1 text-xs"
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-4">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('grid')}
+                  className={`rounded-xl p-2 ${viewMode === 'grid' ? 'bg-primary-100 text-primary-700' : 'text-gray-400 hover:bg-gray-100'}`}
+                  aria-label="Grid view"
+                >
+                  <LayoutGrid className="h-4 w-4" />
                 </button>
                 <button
+                  type="button"
                   onClick={() => setViewMode('list')}
-                  className={`rounded-lg p-2 transition ${
-                    viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-400 hover:bg-gray-100'
-                  }`}
+                  className={`rounded-xl p-2 ${viewMode === 'list' ? 'bg-primary-100 text-primary-700' : 'text-gray-400 hover:bg-gray-100'}`}
+                  aria-label="List view"
                 >
                   <List className="h-4 w-4" />
                 </button>
               </div>
-            </div>
-
-            {/* Date Range Filter */}
-            <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <div className="flex items-center gap-3">
-                <Calendar className="h-5 w-5 text-slate-600" />
-                <p className="text-sm font-semibold text-gray-900">Date range</p>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                {['All', 'Today', 'This week', 'Last 30 days', 'This month', 'Custom'].map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setDateRangePreset(preset)}
-                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                      dateRangePreset === preset
-                        ? 'bg-slate-600 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-              {dateRangePreset === 'Custom' && (
-                <div className="mt-4 flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3">
-                  <div className="flex-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">Start date</label>
+              <div className="flex flex-wrap items-center gap-2">
+                {selectMode && viewMode === 'grid' && (
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-600">
                     <input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-100"
+                      type="checkbox"
+                      checked={items.length > 0 && selectedIds.length === items.length}
+                      onChange={(e) => (e.target.checked ? selectAllOnPage() : clearSelection())}
+                      className="h-3.5 w-3.5 rounded border-gray-300 text-primary-600"
                     />
-                  </div>
-                  <div className="flex-1">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-gray-500">End date</label>
-                    <input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="mt-1 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-100"
-                    />
-                  </div>
-                  {(customStartDate || customEndDate) && (
-                    <button
-                      onClick={() => {
-                        setCustomStartDate('')
-                        setCustomEndDate('')
-                      }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  )}
-                </div>
-              )}
+                    Select all
+                  </label>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setClearHistoryOpen(true)}
+                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-gray-500 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Clear history
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Items Display */}
-          {viewMode === 'grid' ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {filteredItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedItem(item)}
-                  className="group cursor-pointer rounded-2xl border-2 border-gray-200 bg-white p-5 transition hover:border-blue-300 hover:shadow-lg"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        {item.pinned && <Pin className="h-4 w-4 text-amber-500" />}
-                        <h3 className="text-base font-semibold text-gray-900 group-hover:text-blue-600">
-                          {item.title}
-                        </h3>
-                      </div>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
-                        <span
-                          className={`rounded-full border px-2.5 py-0.5 text-[10px] font-semibold ${typeColors[item.type]}`}
-                        >
-                          {item.type}
-                        </span>
-                        <span className="text-xs text-gray-500">{item.subject}</span>
-                        <span className="text-xs text-gray-400">•</span>
-                        <span className="text-xs text-gray-500">{item.class}</span>
-                      </div>
-                      <div className="mt-3 flex items-center gap-4 text-xs text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3.5 w-3.5" />
-                          {item.createdDate}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {item.lastUsed}
-                        </div>
-                        {item.usageCount > 0 && (
-                          <div className="flex items-center gap-1">
-                            <TrendingUp className="h-3.5 w-3.5" />
-                            Used {item.usageCount}x
-                          </div>
-                        )}
-                      </div>
-                      {item.performanceHint && (
-                        <div className="mt-3 flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[10px] font-semibold text-green-700">
-                          <Star className="h-3 w-3" />
-                          {item.performanceHint}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2 border-t border-gray-100 pt-4">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Toggle pin
-                      }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-amber-500"
-                    >
-                      {item.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Duplicate
-                      }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-                    >
-                      <Copy className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Edit
-                      }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-                    >
-                      <Edit className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        // Share
-                      }}
-                      className="ml-auto rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-blue-600"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+          <TeacherToolsBulkActionBar selectedCount={selectedIds.length} onClear={clearSelection}>
+            <button
+              type="button"
+              onClick={() => setBulkDeleteOpen(true)}
+              disabled={selectedIds.length === 0}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-500 disabled:opacity-50"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete {selectedIds.length} item{selectedIds.length !== 1 ? 's' : ''}
+            </button>
+          </TeacherToolsBulkActionBar>
+
+          {viewMode === 'list' && items.length > 0 && (
+            <div className="flex items-center gap-3 px-2 py-2 text-xs text-gray-500">
+              <input
+                type="checkbox"
+                checked={items.length > 0 && selectedIds.length === items.length}
+                onChange={(e) => (e.target.checked ? selectAllOnPage() : clearSelection())}
+                className="h-4 w-4 rounded border-gray-300 text-primary-600"
+              />
+              <span>
+                {selectedIds.length > 0 ? `${selectedIds.length} selected` : `${historyData?.total ?? 0} items`}
+              </span>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredItems.map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => setSelectedItem(item)}
-                  className="group flex cursor-pointer items-center justify-between rounded-xl border-2 border-gray-200 bg-white p-4 transition hover:border-blue-300 hover:shadow-md"
-                >
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${typeColors[item.type]}`}>
-                      <FileText className="h-6 w-6" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        {item.pinned && <Pin className="h-3.5 w-3.5 text-amber-500" />}
-                        <h3 className="text-sm font-semibold text-gray-900 group-hover:text-blue-600">
-                          {item.title}
-                        </h3>
-                        {item.performanceHint && (
-                          <div className="flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-                            <Star className="h-3 w-3" />
-                            {item.performanceHint}
-                          </div>
-                        )}
-                      </div>
-                      <div className="mt-1 flex items-center gap-2 text-xs text-gray-500">
-                        <span>{item.type}</span>
-                        <span>•</span>
-                        <span>{item.subject}</span>
-                        <span>•</span>
-                        <span>{item.class}</span>
-                        <span>•</span>
-                        <span>{item.lastUsed}</span>
-                        {item.usageCount > 0 && (
-                          <>
-                            <span>•</span>
-                            <span>Used {item.usageCount}x</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+          )}
+
+          <div className={viewMode === 'grid' ? 'grid gap-4 sm:grid-cols-2' : 'flex flex-col gap-2'}>
+            {isLoading ? (
+              <div className="col-span-full grid gap-4 sm:grid-cols-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-40 animate-pulse rounded-2xl bg-gray-100" />
+                ))}
+              </div>
+            ) : collapsedItems.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-3xl border-2 border-dashed border-gray-200 py-16 text-center">
+                <Sparkles className="h-12 w-12 text-gray-300" />
+                <p className="mt-4 text-base font-semibold text-gray-500">Nothing here yet</p>
+                <p className="mt-2 max-w-sm text-sm text-gray-400">
+                  Your quizzes, assignments, chatbot sessions, images, and more will appear here.
+                </p>
+              </div>
+            ) : (
+              collapsedItems.map((item) => (
+                <div key={`${item.sourceType}:${item.id}`} className="space-y-2">
+                  <HistoryCard
+                    item={item}
+                  viewMode={viewMode}
+                  isSelected={selectedIds.includes(item.id)}
+                  isActive={selectedItem?.id === item.id && selectedItem?.sourceType === item.sourceType}
+                  selectMode={selectMode}
+                  onSelect={toggleSelect}
+                  onClick={(it) => setSelectedItem(it)}
+                  onDelete={(it) => {
+                    const path = DELETE_PATH_MAP[it.sourceType](it.id)
+                    apiRequest(path, { method: 'DELETE' })
+                      .then(() => {
+                        if (selectedItem?.id === it.id) setSelectedItem(null)
+                        invalidateHistory()
+                        toast.success('Deleted')
+                      })
+                      .catch(() => toast.error('Could not delete'))
+                  }}
+                  onDuplicate={handleDuplicate}
+                  onTogglePin={handleTogglePinItem}
+                  onOpenEdit={(it) => navigate(getItemRoute(it))}
+                  />
+                  {item.__collapsedIds && item.__collapsedIds.length > 0 && (
                     <button
+                      type="button"
+                      className="ml-6 text-left text-xs font-semibold text-gray-500 hover:text-gray-700"
                       onClick={(e) => {
                         e.stopPropagation()
+                        toast.info(`Collapsed ${item.__collapsedIds.length} earlier run${item.__collapsedIds.length === 1 ? '' : 's'}.`)
                       }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
                     >
-                      <Copy className="h-4 w-4" />
+                      Latest output · +{item.__collapsedIds.length} earlier
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                      }}
-                      className="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
-                    >
-                      <Share2 className="h-4 w-4" />
-                    </button>
-                  </div>
+                  )}
                 </div>
-              ))}
+              ))
+            )}
+            {isFetching && !isLoading && <div className="text-xs text-gray-500">Updating…</div>}
+          </div>
+
+          {historyData && historyData.total > PAGE_SIZE && (
+            <div className="flex items-center justify-between border-t border-gray-200 pt-4">
+              <p className="text-sm text-gray-500">
+                Showing {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, historyData.total)} of{' '}
+                {historyData.total}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={page >= totalPages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-semibold disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>
 
-        {/* Detail Sidebar */}
-        {selectedItem ? (
-          <aside className="rounded-3xl border-2 border-gray-200 bg-white p-6 shadow-lg">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Details</h3>
-              <button
-                onClick={() => setSelectedItem(null)}
-                className="rounded-lg p-1 text-gray-400 hover:bg-gray-100"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+        <aside className="hidden xl:block">
+          <div className="sticky top-6 max-h-[calc(100vh-4rem)]">
+            <HistoryDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
+          </div>
+        </aside>
+      </div>
 
-            <div className="mt-6 space-y-6">
-              <div>
-                <h4 className="text-base font-semibold text-gray-900">{selectedItem.title}</h4>
-                <p className="mt-1 text-sm text-gray-500">Template: {selectedItem.templateUsed}</p>
-              </div>
+      {selectedItem && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-white xl:hidden">
+          <div className="p-4">
+            <HistoryDetailPanel item={selectedItem} onClose={() => setSelectedItem(null)} />
+          </div>
+        </div>
+      )}
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Type</span>
-                  <span className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${typeColors[selectedItem.type]}`}>
-                    {selectedItem.type}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Status</span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors[selectedItem.status]}`}>
-                    {selectedItem.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Created</span>
-                  <span className="text-sm font-semibold text-gray-900">{selectedItem.createdDate}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Last used</span>
-                  <span className="text-sm font-semibold text-gray-900">{selectedItem.lastUsed}</span>
-                </div>
-                <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 p-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Times used</span>
-                  <span className="text-sm font-semibold text-gray-900">{selectedItem.usageCount}</span>
-                </div>
-              </div>
+      <CustomModal
+        open={bulkDeleteOpen}
+        close={() => setBulkDeleteOpen(false)}
+        title={`Delete ${selectedIds.length} item${selectedIds.length !== 1 ? 's' : ''}?`}
+        primaryButtonText={`Delete ${selectedIds.length} item${selectedIds.length !== 1 ? 's' : ''}`}
+        isDelete
+        loading={bulkDeletePending}
+        handleSave={handleBulkDelete}
+      >
+        <p className="text-sm text-gray-600">
+          This will permanently delete the selected items. Items that are pinned will also be removed. This cannot be
+          undone.
+        </p>
+      </CustomModal>
 
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Quick actions</p>
-                <div className="space-y-2">
-                  <button className="w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-500">
-                    Open & Edit
-                  </button>
-                  <button className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:border-blue-300 hover:bg-blue-50">
-                    Duplicate
-                  </button>
-                  <button className="w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-3 text-sm font-semibold text-gray-700 hover:border-blue-300 hover:bg-blue-50">
-                    Export PDF
-                  </button>
-                </div>
-              </div>
-
-              {selectedItem.performanceHint && (
-                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
-                  <div className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-green-600" />
-                    <p className="text-sm font-semibold text-green-900">Marked as effective</p>
-                  </div>
-                  <p className="mt-2 text-xs text-green-700">
-                    This resource has been flagged as working well in your classroom.
-                  </p>
-                </div>
-              )}
-            </div>
-          </aside>
-        ) : (
-          <aside className="rounded-3xl border-2 border-gray-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-6">
-            <div className="text-center">
-              <Sparkles className="mx-auto h-12 w-12 text-blue-500" />
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">Select an item</h3>
-              <p className="mt-2 text-sm text-gray-600">
-                Click on any item from your history to view details, edit, duplicate, or export it.
-              </p>
-            </div>
-          </aside>
-        )}
-      </section>
+      <CustomModal
+        open={clearHistoryOpen}
+        close={() => setClearHistoryOpen(false)}
+        title={isFiltered ? 'Clear filtered items?' : 'Clear all history?'}
+        primaryButtonText={
+          isFiltered
+            ? `Delete ${historyData?.total ?? ''} filtered items`
+            : `Delete all ${stats?.total ?? ''} items`
+        }
+        isDelete
+        loading={clearPending}
+        handleSave={handleClearHistory}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            {isFiltered
+              ? `This will permanently delete the ${historyData?.total ?? ''} items matching your current filters.`
+              : `This will permanently delete all ${stats?.total ?? ''} items in your history.`}
+          </p>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <input
+              type="checkbox"
+              checked={keepPinned}
+              onChange={(e) => setKeepPinned(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-primary-600"
+            />
+            <span className="text-sm font-medium text-gray-700">Keep pinned items</span>
+          </label>
+          {!isFiltered && (
+            <p className="rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">
+              This action is irreversible. Your quizzes, assignments, chatbot conversations, and generated images will
+              be permanently deleted.
+            </p>
+          )}
+        </div>
+      </CustomModal>
     </div>
   )
 }

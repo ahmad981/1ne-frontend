@@ -438,9 +438,20 @@ export default function QuizCreate() {
         if (!qid) return
         setQuestionLoadingId(qid)
         try {
+          const prevPrompt = stubs[index]?.prompt?.trim() ?? ''
           const updated = await apiRegenerateQuestion(liveQuizId, qid)
+          const nextStub = (updated.questionStubs as any)?.[index]
           setStubs(updated.questionStubs as any)
-          toast.success('Question regenerated.')
+          if (
+            prevPrompt &&
+            nextStub &&
+            typeof nextStub.prompt === 'string' &&
+            nextStub.prompt.trim() === prevPrompt
+          ) {
+            toast.warning('The model returned the same wording. Try again or edit the question.')
+          } else {
+            toast.success('Question regenerated.')
+          }
         } catch (e) {
           console.error('Question regeneration failed:', e)
           toast.error('Could not regenerate question')

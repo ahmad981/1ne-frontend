@@ -43,6 +43,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapDigitalCitizenshipLessonResult,
@@ -85,6 +86,65 @@ const DigitalLiteracyAdvisor = () => {
   const [integrationStrategies, setIntegrationStrategies] = useState<TechnologyIntegrationStrategy[]>([])
   const [selectedStrategy, setSelectedStrategy] = useState<TechnologyIntegrationStrategy | null>(null)
 
+  const DIGITAL_CAP_TABS: Record<string, TabType> = {
+    standards: 'standards',
+    digital_citizenship: 'digital-citizenship',
+    online_safety: 'online-safety',
+    media_literacy: 'media-literacy',
+    tech_integration: 'technology-integration',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: DIGITAL_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = [
+        'digital-citizenship',
+        'online-safety',
+        'media-literacy',
+        'technology-integration',
+        'standards',
+        'resources',
+      ]
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && DIGITAL_CAP_TABS[cap]
+            ? DIGITAL_CAP_TABS[cap]
+            : 'digital-citizenship'
+      setActiveTab(tab)
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        const u = userContent?.trim() ?? ''
+        if (tab === 'standards' || cap === 'standards') {
+          setCitizenshipStandards(mapDigitalStandardsToCitizenshipList(raw, gradeLevel))
+        } else if (tab === 'digital-citizenship' || cap === 'digital_citizenship') {
+          if (u) setLessonTopic(u)
+          setGeneratedLesson(mapDigitalCitizenshipLessonResult(raw, gradeLevel))
+        } else if (tab === 'online-safety' || cap === 'online_safety') {
+          if (u && u !== 'General online safety overview') {
+            setSafetyTopic(u)
+            try {
+              setGeneratedSafetyPlan(mapOnlineSafetyToPlan(raw, u, gradeLevel))
+            } catch {
+              setSafetyGuidelines(mapOnlineSafetyToGuidelines(raw, gradeLevel))
+            }
+          } else {
+            setSafetyGuidelines(mapOnlineSafetyToGuidelines(raw, gradeLevel))
+          }
+        } else if (tab === 'media-literacy' || cap === 'media_literacy') {
+          setMediaConcepts(mapMediaLiteracyResult(raw, gradeLevel))
+        } else if (tab === 'technology-integration' || cap === 'tech_integration') {
+          setIntegrationStrategies(mapTechIntegrationResult(raw, gradeLevel))
+        }
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const gradeLevels = getGradeLevels()
   const citizenshipTopics = getDigitalCitizenshipTopics()
   const safetyTopics = getOnlineSafetyTopics()
@@ -99,9 +159,11 @@ const DigitalLiteracyAdvisor = () => {
         parameters: {
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCitizenshipStandards(mapDigitalStandardsToCitizenshipList(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Standards loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -128,9 +190,11 @@ const DigitalLiteracyAdvisor = () => {
           lesson_topic: lessonTopic.trim(),
           duration: lessonDuration,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setGeneratedLesson(mapDigitalCitizenshipLessonResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Lesson generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -155,9 +219,11 @@ const DigitalLiteracyAdvisor = () => {
           grade_level: gradeLevel,
           safety_topic: 'General online safety overview',
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setSafetyGuidelines(mapOnlineSafetyToGuidelines(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Safety guidelines loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -184,9 +250,11 @@ const DigitalLiteracyAdvisor = () => {
           grade_level: gradeLevel,
           safety_topic: topic,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setGeneratedSafetyPlan(mapOnlineSafetyToPlan(response.result, topic, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Safety plan generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -210,9 +278,11 @@ const DigitalLiteracyAdvisor = () => {
         parameters: {
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setMediaConcepts(mapMediaLiteracyResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Media literacy content loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -236,9 +306,11 @@ const DigitalLiteracyAdvisor = () => {
         parameters: {
           grade_level: gradeLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setIntegrationStrategies(mapTechIntegrationResult(response.result, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Integration strategies loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

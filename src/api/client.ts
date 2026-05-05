@@ -1,5 +1,6 @@
 import { TemplateListParams } from './types'
 import { API_URL } from '../config/api'
+import { showSnackbar } from '../redux/features/snackbarSlice/snackbarSlice'
 
 // Use centralized API configuration — API_URL includes `/api` (e.g., http://127.0.0.1:8000/api)
 // For building API URLs, we use API_URL which already includes /api
@@ -17,19 +18,37 @@ export class ApiError extends Error {
 }
 
 interface RequestOptions extends Omit<RequestInit, 'body'> {
-  query?: Record<string, string | number | boolean | undefined>
+  query?: Record<string, string | number | boolean | undefined | Array<string | number | boolean>>
   body?: unknown
   timeout?: number // Timeout in milliseconds (default: 30000 = 30 seconds)
 }
 
-const toQueryString = (query?: Record<string, string | number | boolean | undefined>) => {
+const toQueryString = (query?: Record<string, string | number | boolean | undefined | Array<string | number | boolean>>) => {
   const params = new URLSearchParams()
   if (!query) return params
   Object.entries(query).forEach(([key, value]) => {
     if (value === undefined || value === '' || value === null) return
+    if (Array.isArray(value)) {
+      value.forEach((v) => {
+        if (v === undefined || v === '' || v === null) return
+        params.append(key, String(v))
+      })
+      return
+    }
     params.append(key, String(value))
   })
   return params
+}
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  quiz: 'Quiz',
+  assignment: 'Assignment',
+  worksheet: 'Worksheet',
+  exam: 'Exam',
+  chatbot_conversation: 'Chatbot conversation',
+  pixgen_generation: 'PixGen image',
+  youtube_quiz: 'YouTube quiz',
+  template_execution: 'Template',
 }
 
 // Store reference for accessing auth token from Redux (same as http.js)
@@ -167,7 +186,10 @@ export const getAuthToken = (): string | null => {
   return null
 }
 
-export const buildUrl = (path: string, query?: Record<string, string | number | boolean | undefined>): string => {
+export const buildUrl = (
+  path: string,
+  query?: Record<string, string | number | boolean | undefined | Array<string | number | boolean>>,
+): string => {
   const normalizedPath = path.startsWith('http') ? path : `${API_BASE_URL}/${path.replace(/^\//, '')}`
   const url = new URL(normalizedPath)
   const params = toQueryString(query)
@@ -256,6 +278,35 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     clearTimeout(timeoutId)
     
     console.log('[apiRequest] 📥 Response status:', response.status, response.statusText)
+
+    // Quota / eviction notice — fires for any endpoint that sets these headers
+    try {
+      const evictedTitle = response.headers.get('X-History-Eviction-Title')
+      const evictedType = response.headers.get('X-History-Eviction-Type')
+      const warningLevel = response.headers.get('X-History-Warning-Level')
+      const historyCount = response.headers.get('X-History-Count')
+      const historyLimit = response.headers.get('X-History-Limit')
+
+      if (evictedTitle && evictedType && storeRef) {
+        storeRef.dispatch(
+          showSnackbar({
+            variant: 'info',
+            message: `Your oldest ${SOURCE_TYPE_LABELS[evictedType] ?? evictedType} "${evictedTitle}" was removed to keep your history under the limit.`,
+          }),
+        )
+      }
+
+      if (warningLevel === 'warning' && historyCount && historyLimit && storeRef) {
+        storeRef.dispatch(
+          showSnackbar({
+            variant: 'warning',
+            message: `You've used ${historyCount} of your ${historyLimit} ${SOURCE_TYPE_LABELS[evictedType ?? ''] ?? 'history'} slots. Upgrade for more storage.`,
+          }),
+        )
+      }
+    } catch {
+      // Header processing should never break the request.
+    }
 
     let payload: unknown = null
     const contentType = response.headers.get('content-type')
@@ -387,6 +438,23 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
           msg = raw
         }
         throw new ApiError(response.status, msg, payload)
+      }
+
+      if (response.status === 429) {
+        const detail = (payload as any)?.detail
+        if (detail?.code === 'HISTORY_LIMIT_REACHED') {
+          if (storeRef) {
+            storeRef.dispatch(
+              showSnackbar({
+                variant: 'error',
+                message:
+                  detail?.message ||
+                  `You've reached the limit for ${detail?.source_type ?? 'history'} items and all are pinned. Unpin some to make room.`,
+              }),
+            )
+          }
+          throw new ApiError(response.status, detail?.message || 'History limit reached', payload)
+        }
       }
 
       // 502 from Vite dev server = proxy could not connect to FastAPI (ECONNREFUSED / wrong port).

@@ -28,6 +28,8 @@ export interface QuizApiItem {
   status: QuizStatus
   assignedAt?: string | null
   dueAt?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
   submissionCount: number
   avgScore: number
   topic: string

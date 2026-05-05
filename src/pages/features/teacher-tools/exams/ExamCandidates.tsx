@@ -1,13 +1,30 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsStatusBadge, Phase2Section } from '../components'
 import { demoStudents } from '../demo/teacherToolsDemoData'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
 
 export default function ExamCandidates() {
   const { examId } = useParams()
-  const { allExams } = useTeacherToolsDemo()
-  const e = useMemo(() => allExams.find((x) => x.id === examId), [allExams, examId])
+  const [exam, setExam] = useState<examApi.ExamApiItem | null>(null)
+
+  useEffect(() => {
+    if (!examId) return
+    let c = false
+    ;(async () => {
+      try {
+        const ex = await examApi.fetchExam(examId)
+        if (!c) setExam(ex)
+      } catch {
+        if (!c) setExam(null)
+      }
+    })()
+    return () => {
+      c = true
+    }
+  }, [examId])
+
+  const e = exam
 
   if (!e) {
     return (

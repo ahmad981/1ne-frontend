@@ -51,6 +51,7 @@ import {
   mapSkillsAssessmentResponseToUI,
 } from '../../utils/careerAdapters'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 const CAREER_COACH_SLUG = 'career-readiness-coach'
@@ -99,6 +100,72 @@ const CareerReadinessCoach = () => {
   const industries = getCareerIndustries()
   const interviewCategories = getInterviewCategories()
 
+  const CAREER_CAP_TABS: Record<string, TabType> = {
+    international_resume_builder: 'resume',
+    interview_prep: 'interview',
+    professional_skills_competencies: 'skills',
+    industry_insights: 'industry',
+    career_pathway_planning: 'pathway',
+    linkedin_guide: 'linkedin',
+    skills_assessment_gap_analysis: 'assessment',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CAREER_COACH_SLUG,
+    activeTab,
+    capabilityKeyToTab: CAREER_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const valid: TabType[] = ['resume', 'interview', 'skills', 'industry', 'pathway', 'linkedin', 'assessment', 'standards']
+      const tab: TabType =
+        valid.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && CAREER_CAP_TABS[cap]
+            ? CAREER_CAP_TABS[cap]
+            : 'resume'
+
+      setActiveTab(tab)
+      if (userContent) {
+        if (tab === 'resume') setSelectedResumeFormat(userContent)
+        if (tab === 'interview') setInterviewCategory(userContent)
+        if (tab === 'industry') setSelectedIndustry(userContent)
+        if (tab === 'pathway') setTargetCareer(userContent)
+        if (tab === 'assessment') setAssessmentCompetency(userContent)
+      }
+
+      try {
+        const data = JSON.parse(assistantContent) as Record<string, unknown>
+        setResumeFormat(null)
+        setInterviewQuestions([])
+        setSelectedQuestion(null)
+        setNACECompetencies([])
+        setSelectedCompetency(null)
+        setIndustryInsight(null)
+        setCareerPathway(null)
+        setLinkedInGuide(null)
+        setSkillsAssessment(null)
+
+        if (tab === 'resume') {
+          setResumeFormat(mapResumeFormatResponseToUI(data, selectedResumeFormat))
+        } else if (tab === 'interview') {
+          setInterviewQuestions(mapInterviewPrepResponseToUI(data, interviewCategory))
+        } else if (tab === 'skills') {
+          setNACECompetencies(mapNACECompetenciesResponseToUI(data))
+        } else if (tab === 'industry') {
+          setIndustryInsight(mapIndustryInsightsResponseToUI(data, selectedIndustry))
+        } else if (tab === 'pathway') {
+          setCareerPathway(mapCareerPathwayResponseToUI(data, targetCareer, selectedIndustry))
+        } else if (tab === 'linkedin') {
+          setLinkedInGuide(mapLinkedInGuideResponseToUI(data))
+        } else if (tab === 'assessment') {
+          setSkillsAssessment(mapSkillsAssessmentResponseToUI(data, assessmentCompetency, currentLevel, targetLevel))
+        }
+      } catch {
+        // keep restore silent
+      }
+    },
+  })
+
   // Resume Format Explorer (backend)
   const handleExploreResumeFormat = async () => {
     setIsGenerating(true)
@@ -108,10 +175,12 @@ const CareerReadinessCoach = () => {
         input: selectedResumeFormat,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const format = mapResumeFormatResponseToUI(response.result as Record<string, unknown>, selectedResumeFormat)
       setResumeFormat(format)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Resume format:', e)
@@ -129,10 +198,12 @@ const CareerReadinessCoach = () => {
         input: interviewCategory,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const questions = mapInterviewPrepResponseToUI(response.result as Record<string, unknown>, interviewCategory)
       setInterviewQuestions(questions)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Interview prep:', e)
@@ -150,10 +221,12 @@ const CareerReadinessCoach = () => {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const competencies = mapNACECompetenciesResponseToUI(response.result as Record<string, unknown>)
       setNACECompetencies(competencies)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Professional skills:', e)
@@ -171,10 +244,12 @@ const CareerReadinessCoach = () => {
         input: selectedIndustry,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const insight = mapIndustryInsightsResponseToUI(response.result as Record<string, unknown>, selectedIndustry)
       setIndustryInsight(insight)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Industry insights:', e)
@@ -192,10 +267,12 @@ const CareerReadinessCoach = () => {
         input: targetCareer,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry, career_level: careerLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const pathway = mapCareerPathwayResponseToUI(response.result as Record<string, unknown>, targetCareer, selectedIndustry)
       setCareerPathway(pathway)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Career pathway:', e)
@@ -213,10 +290,12 @@ const CareerReadinessCoach = () => {
         input: '',
         input_type: 'text',
         parameters: { grade_level: gradeLevel, region: selectedRegion, industry: selectedIndustry },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const guide = mapLinkedInGuideResponseToUI(response.result as Record<string, unknown>)
       setLinkedInGuide(guide)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('LinkedIn guide:', e)
@@ -234,10 +313,12 @@ const CareerReadinessCoach = () => {
         input: assessmentCompetency,
         input_type: 'text',
         parameters: { grade_level: gradeLevel, current_level: currentLevel, target_level: targetLevel },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       const assessment = mapSkillsAssessmentResponseToUI(response.result as Record<string, unknown>, assessmentCompetency, currentLevel, targetLevel)
       setSkillsAssessment(assessment)
+      pinFromResponse(response.conversation_id)
     } catch (e: unknown) {
       if (captureApiError(e)) return
       console.error('Skills assessment:', e)

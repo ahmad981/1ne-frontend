@@ -43,6 +43,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 import {
   mapCompetitionAnalyzerToProblem,
@@ -98,6 +99,64 @@ const CodingProgrammingTutor = () => {
   const [contentInput, setContentInput] = useState('')
   const [standardsAlignment, setStandardsAlignment] = useState<StandardsAlignment | null>(null)
 
+  const CODING_CAP_TABS: Record<string, TabType> = {
+    competition_analyzer: 'competition',
+    algorithm_tutor: 'algorithm',
+    debugging_assistant: 'debugging',
+    project_planner: 'pbl',
+    computational_thinking: 'thinking',
+    competition_roadmap: 'roadmap',
+    standards_alignment: 'standards',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: CODING_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const validTabs: TabType[] = ['competition', 'algorithm', 'debugging', 'pbl', 'thinking', 'roadmap', 'standards']
+      const tab: TabType =
+        validTabs.includes(tabKey as TabType)
+          ? (tabKey as TabType)
+          : cap && CODING_CAP_TABS[cap]
+            ? CODING_CAP_TABS[cap]
+            : 'competition'
+      setActiveTab(tab)
+      try {
+        const raw = JSON.parse(assistantContent) as Record<string, unknown>
+        setCompetitionProblem(null)
+        setAlgorithmExplanation(null)
+        setDebuggingStrategy(null)
+        setProjectMilestones([])
+        setComputationalThinking(null)
+        setRoadmap(null)
+        setStandardsAlignment(null)
+        const u = userContent?.trim() ?? ''
+        if (tab === 'competition') {
+          if (u) setProblemText(u)
+          setCompetitionProblem(mapCompetitionAnalyzerToProblem(raw, selectedCompetition, u || problemText))
+        } else if (tab === 'algorithm') {
+          setAlgorithmExplanation(mapAlgorithmTutorResult(raw, programmingLanguage))
+        } else if (tab === 'debugging') {
+          if (u) setCodeInput(u)
+          setDebuggingStrategy(mapDebuggingAssistantResult(raw))
+        } else if (tab === 'pbl') {
+          setProjectMilestones(mapProjectPlannerToMilestones(raw))
+        } else if (tab === 'thinking') {
+          setComputationalThinking(mapComputationalThinkingResult(raw))
+        } else if (tab === 'roadmap') {
+          setRoadmap(mapCompetitionRoadmapResult(raw, selectedCompetition, targetLevel))
+        } else if (tab === 'standards') {
+          if (u) setContentInput(u)
+          setStandardsAlignment(mapCodingStandardsAlignmentResult(raw, standardsFramework, gradeLevel))
+        }
+      } catch {
+        toast.error('Could not restore saved output from History.')
+      }
+    },
+  })
+
   const competitions = getCompetitions()
   const languages = getProgrammingLanguages()
 
@@ -116,9 +175,11 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           problem_description: text,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setCompetitionProblem(mapCompetitionAnalyzerToProblem(response.result, selectedCompetition, text))
+      pinFromResponse(response.conversation_id)
       toast.success('Problem analyzed')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -145,9 +206,11 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           select_algorithm: selectedAlgorithm,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setAlgorithmExplanation(mapAlgorithmTutorResult(response.result, programmingLanguage))
+      pinFromResponse(response.conversation_id)
       toast.success('Algorithm explanation loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -174,9 +237,11 @@ const CodingProgrammingTutor = () => {
           competition: selectedCompetition,
           error_type: errorType,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setDebuggingStrategy(mapDebuggingAssistantResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Debugging guidance loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -204,9 +269,11 @@ const CodingProgrammingTutor = () => {
           project_type: projectType,
           duration: projectDuration,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setProjectMilestones(mapProjectPlannerToMilestones(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Project plan generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -232,9 +299,11 @@ const CodingProgrammingTutor = () => {
           language: programmingLanguage,
           competition: selectedCompetition,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setComputationalThinking(mapComputationalThinkingResult(response.result))
+      pinFromResponse(response.conversation_id)
       toast.success('Computational thinking activities loaded')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -262,9 +331,11 @@ const CodingProgrammingTutor = () => {
           current_level: currentLevel,
           target_level: targetLevel,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setRoadmap(mapCompetitionRoadmapResult(response.result, selectedCompetition, targetLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Roadmap generated')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }
@@ -294,9 +365,11 @@ const CodingProgrammingTutor = () => {
           standards_framework: standardsFramework,
           content_to_analyze: content,
         },
+        conversation_id: conversationIdForActiveTab ?? undefined,
       }))
       if (response == null) return
       setStandardsAlignment(mapCodingStandardsAlignmentResult(response.result, standardsFramework, gradeLevel))
+      pinFromResponse(response.conversation_id)
       toast.success('Standards alignment analyzed')
     } catch (error: unknown) {
       const err = error as { detail?: string; message?: string; status?: number }

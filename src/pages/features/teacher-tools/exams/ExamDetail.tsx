@@ -1,16 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsStatusBadge } from '../components'
 import { Phase2Section, Phase2Badge } from '../components/Phase2Lock'
 import { TEACHER_TOOLS_SEED_EXAM_IDS } from '../demo/teacherToolsDemoData'
-import type { DemoExam } from '../demo/teacherToolsDemoData'
-import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
+import * as examApi from '../../../../api/examApi'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 
 const tabs = ['Overview', 'Sections', 'Rules', 'Candidates', 'Results', 'Analytics', 'Settings'] as const
 
-function fmtDateTime(v: string | undefined) {
+function fmtDateTime(v: string | null | undefined) {
   if (!v) return 'Not scheduled'
   const d = new Date(v)
   if (Number.isNaN(d.getTime())) return v
@@ -20,9 +19,9 @@ function fmtDateTime(v: string | undefined) {
   })
 }
 
-function examSections(e: DemoExam) {
+function examSectionsFallback(e: { totalMarks: number; examType: string }) {
   const m = e.totalMarks
-  const isShort = e.examType === 'Unit test' || e.examType === 'Mock'
+  const isShort = e.examType === 'Unit test' || e.examType === 'Mock exam'
   if (isShort) {
     const a = Math.round(m * 0.4)
     const b = Math.round(m * 0.35)
@@ -45,23 +44,60 @@ export default function ExamDetail() {
   const { examId } = useParams()
   const navigate = useNavigate()
   const { toast } = useSnackbar()
-  const { api, allExams } = useTeacherToolsDemo()
-  const e = useMemo(() => allExams.find((x) => x.id === examId), [allExams, examId])
+  const [exam, setExam] = useState<examApi.ExamApiItem | null>(null)
+  const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<(typeof tabs)[number]>('Overview')
+
+  useEffect(() => {
+    if (!examId) {
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    ;(async () => {
+      try {
+        const ex = await examApi.fetchExam(examId)
+        if (!cancelled) setExam(ex)
+      } catch {
+        if (!cancelled) setExam(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [examId])
 
   const goEdit = async () => {
     if (!examId) return
     if (TEACHER_TOOLS_SEED_EXAM_IDS.has(examId)) {
-      const r = await api.duplicateExam(examId)
-      if (r.ok && 'id' in r && r.id) {
-        toast.success('Created an editable copy from the sample library')
-        navigate(`/teacher-tools/exams/${r.id}/edit`)
-        return
+      try {
+        const r = await examApi.duplicateExam(examId)
+        if (r.ok && r.id) {
+          toast.success('Created an editable copy from the sample library')
+          navigate(`/teacher-tools/exams/${r.id}/edit`)
+          return
+        }
+      } catch {
+        /* ignore */
       }
       toast.error('Could not create a copy')
       return
     }
     navigate(`/teacher-tools/exams/${examId}/edit`)
+  }
+
+  const e = exam
+
+  if (loading) {
+    return (
+      <div className="space-y-4 p-6">
+        <div className="h-6 w-48 animate-pulse rounded bg-gray-200" />
+        <p className="text-sm text-gray-600">Loading exam…</p>
+      </div>
+    )
   }
 
   if (!e) {
@@ -75,7 +111,14 @@ export default function ExamDetail() {
     )
   }
 
-  const sections = Array.isArray(e.sections) && e.sections.length > 0 ? e.sections : examSections(e)
+  const sections =
+    Array.isArray(e.sections) && e.sections.length > 0
+      ? e.sections.map((s) => ({
+          title: s.title,
+          marks: s.marks,
+          description: s.description ?? '',
+        }))
+      : examSectionsFallback(e)
   const LOCKED_TABS = new Set<string>(['Candidates', 'Results', 'Analytics'])
 
   return (

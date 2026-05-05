@@ -312,8 +312,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     setExpandedMenus((prev) => ({ ...prev, ...expanded }))
   }, [location.pathname])
 
+  // Pages like chat UIs manage their own internal scroll (WhatsApp/ChatGPT style).
+  // For everything else, the main content pane should be scrollable.
+  // Only General Teaching Assistant currently manages its own internal scroll.
+  // Specialized chatbot pages still rely on the dashboard content pane scrolling.
+  const isChatPage = location.pathname === '/chatbots/general-teaching-assistant'
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="h-screen overflow-hidden bg-gray-50">
       {/* Mobile menu button */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2">
@@ -454,7 +460,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       </aside>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 h-full min-h-0 flex flex-col">
         {/* Top Header Bar with Profile Dropdown */}
         <div className="hidden lg:block fixed top-0 right-0 left-64 h-16 bg-white border-b border-gray-200 z-30">
           <div className="h-full px-6 flex items-center justify-between">
@@ -870,7 +876,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     onMouseDown={(e) => {
                       e.stopPropagation();
                     }}
-                    className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
+                    className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
                     <User className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm">Profile</span>
@@ -887,7 +893,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     onMouseDown={(e) => {
                       e.stopPropagation();
                     }}
-                    className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
+                    className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
                     <Settings className="w-4 h-4 flex-shrink-0" />
                     <span className="text-sm">Settings</span>
@@ -1037,7 +1043,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   onMouseDown={(e) => {
                     e.stopPropagation();
                   }}
-                  className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
+                  className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                 >
                   <User className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm">Profile</span>
@@ -1054,7 +1060,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   onMouseDown={(e) => {
                     e.stopPropagation();
                   }}
-                  className="block w-full flex items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
+                  className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                 >
                   <Settings className="w-4 h-4 flex-shrink-0" />
                   <span className="text-sm">Settings</span>
@@ -1084,12 +1090,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
         </div>
 
-        <main className="pt-20 lg:pt-24 px-6 lg:px-8">
-          {location.pathname.startsWith('/teacher-tools') ? (
-            <TeacherToolsDemoProvider>{children}</TeacherToolsDemoProvider>
-          ) : (
-            children
-          )}
+        <main className="pt-20 lg:pt-24 px-6 lg:px-8 flex-1 min-h-0 overflow-hidden flex flex-col">
+          <div className={`flex-1 min-h-0 ${isChatPage ? 'overflow-hidden' : 'overflow-auto'}`}>
+            {location.pathname.startsWith('/teacher-tools') ||
+            location.pathname.startsWith('/dashboard') ||
+            location.pathname.startsWith('/analytics') ||
+            location.pathname.startsWith('/use-cases') ? (
+              <TeacherToolsDemoProvider>{children}</TeacherToolsDemoProvider>
+            ) : (
+              children
+            )}
+          </div>
         </main>
       </div>
 

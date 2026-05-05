@@ -41,6 +41,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface GrammarCheck {
@@ -120,6 +121,52 @@ const GrammarWritingMentor = () => {
   const [hasGeneratedPeerGuide, setHasGeneratedPeerGuide] = useState(false)
   const [hasGeneratedLesson, setHasGeneratedLesson] = useState(false)
 
+  const GRAMMAR_CAPABILITY_TABS: Record<string, 'grammar' | 'feedback' | 'peer' | 'lessons'> = {
+    grammar_check: 'grammar',
+    writing_feedback: 'feedback',
+    peer_review_guide: 'peer',
+    grammar_lesson: 'lessons',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: GRAMMAR_CAPABILITY_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const tab: 'grammar' | 'feedback' | 'peer' | 'lessons' =
+        tabKey === 'grammar' || tabKey === 'feedback' || tabKey === 'peer' || tabKey === 'lessons'
+          ? tabKey
+          : cap && GRAMMAR_CAPABILITY_TABS[cap]
+            ? GRAMMAR_CAPABILITY_TABS[cap]
+            : 'grammar'
+      setActiveTab(tab)
+      if (userContent) setTextInput(userContent)
+      try {
+        const data = JSON.parse(assistantContent)
+        setGrammarCheck(null)
+        setWritingFeedback(null)
+        setPeerReviewGuide(null)
+        setGrammarLesson(null)
+        setHasGeneratedPeerGuide(false)
+        setHasGeneratedLesson(false)
+        if (tab === 'grammar') {
+          setGrammarCheck(data as GrammarCheck)
+        } else if (tab === 'feedback') {
+          setWritingFeedback(data as WritingFeedback)
+        } else if (tab === 'peer') {
+          setPeerReviewGuide(data as PeerReviewGuide)
+          setHasGeneratedPeerGuide(true)
+        } else if (tab === 'lessons') {
+          setGrammarLesson(data as GrammarLesson)
+          setHasGeneratedLesson(true)
+        }
+      } catch {
+        toast.info('Could not restore saved output from History.')
+      }
+    },
+  })
+
   // Helper function to extract error message from various error formats
   const extractErrorMessage = (error: any, defaultMessage: string): string => {
     if (typeof error === 'string') {
@@ -182,11 +229,13 @@ const GrammarWritingMentor = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setGrammarCheck(response.result as GrammarCheck)
+      pinFromResponse(response.conversation_id)
       toast.success('Grammar check completed')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -222,11 +271,13 @@ const GrammarWritingMentor = () => {
             grade_level: gradeLevel,
             writing_type: writingType,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setWritingFeedback(response.result as WritingFeedback)
+      pinFromResponse(response.conversation_id)
       toast.success('Writing feedback generated')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -256,12 +307,14 @@ const GrammarWritingMentor = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setPeerReviewGuide(response.result as PeerReviewGuide)
       setHasGeneratedPeerGuide(true)
+      pinFromResponse(response.conversation_id)
       toast.success('Peer review guide generated')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -291,12 +344,14 @@ const GrammarWritingMentor = () => {
           parameters: {
             grade_level: gradeLevel,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setGrammarLesson(response.result as GrammarLesson)
       setHasGeneratedLesson(true)
+      pinFromResponse(response.conversation_id)
       toast.success('Grammar lesson generated')
     } catch (error: any) {
       if (captureApiError(error)) return

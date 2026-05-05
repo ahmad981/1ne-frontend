@@ -18,6 +18,10 @@ import subscriptionReducer from './features/subscription/subscriptionSlice';
 import { quizApiSlice } from './features/teacherTools/quiz/quizApiSlice';
 import { assignmentApiSlice } from './features/teacherTools/assignment/assignmentApiSlice';
 import { worksheetApiSlice } from './features/teacherTools/worksheet/worksheetApiSlice';
+import { statsApiSlice } from './features/teacherTools/stats/statsApiSlice';
+import { analyticsApiSlice } from './features/teacherTools/analytics/analyticsApiSlice';
+import { contentRegistryApiSlice } from './features/contentRegistry/contentRegistryApiSlice';
+import { historyApiSlice } from './features/history/historyApiSlice';
 
 const storage =
   typeof window !== 'undefined'
@@ -62,6 +66,10 @@ const rootReducer = combineReducers({
   [quizApiSlice.reducerPath]: quizApiSlice.reducer,
   [assignmentApiSlice.reducerPath]: assignmentApiSlice.reducer,
   [worksheetApiSlice.reducerPath]: worksheetApiSlice.reducer,
+  [statsApiSlice.reducerPath]: statsApiSlice.reducer,
+  [analyticsApiSlice.reducerPath]: analyticsApiSlice.reducer,
+  [contentRegistryApiSlice.reducerPath]: contentRegistryApiSlice.reducer,
+  [historyApiSlice.reducerPath]: historyApiSlice.reducer,
 });
 
 // Create a persisted reducer
@@ -75,6 +83,10 @@ export const store = configureStore({
       quizApiSlice.middleware,
       assignmentApiSlice.middleware,
       worksheetApiSlice.middleware,
+      statsApiSlice.middleware,
+      analyticsApiSlice.middleware,
+      contentRegistryApiSlice.middleware,
+      historyApiSlice.middleware,
     ),
 });
 

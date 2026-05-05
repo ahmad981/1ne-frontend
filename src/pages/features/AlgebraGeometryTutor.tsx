@@ -47,6 +47,9 @@ import {
   PenTool,
   Eraser,
 } from 'lucide-react'
+import * as chatbotApi from '../../api/chatbots'
+import { useSnackbar } from '../../hooks/useSnackbar'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 
 interface VisualExplanation {
   concept: string
@@ -96,8 +99,19 @@ interface GeometryVisual {
   elements: string[]
 }
 
+type TutorTab = 'visual' | 'proof' | 'practice' | 'interactive' | 'assessment' | 'resources'
+
+function inferTabFromPayload(parsed: Record<string, unknown>): TutorTab | null {
+  if ('visualType' in parsed && typeof (parsed as VisualExplanation).visualType === 'string') return 'visual'
+  if ('proofType' in parsed && typeof (parsed as ProofStrategy).proofType === 'string') return 'proof'
+  if ('levels' in parsed && Array.isArray((parsed as ScaffoldedPractice).levels)) return 'practice'
+  return null
+}
+
 const AlgebraGeometryTutor = () => {
-  const [activeTab, setActiveTab] = useState<'visual' | 'proof' | 'practice' | 'interactive' | 'assessment' | 'resources'>('visual')
+  const { toast } = useSnackbar()
+  const CHATBOT_SLUG = 'algebra-geometry-tutor'
+  const [activeTab, setActiveTab] = useState<TutorTab>('visual')
   const [gradeLevel, setGradeLevel] = useState('9')
   const [topic, setTopic] = useState('')
   const [subject, setSubject] = useState<'algebra' | 'geometry'>('algebra')
@@ -105,6 +119,71 @@ const AlgebraGeometryTutor = () => {
   const [visualExplanation, setVisualExplanation] = useState<VisualExplanation | null>(null)
   const [proofStrategy, setProofStrategy] = useState<ProofStrategy | null>(null)
   const [scaffoldedPractice, setScaffoldedPractice] = useState<ScaffoldedPractice | null>(null)
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    detectTabFromMetadata: (m) => {
+      const t = (m?.tab ?? m?.Tab) as string | undefined
+      if (t === 'visual' || t === 'proof' || t === 'practice') return t
+      return null
+    },
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      try {
+        if (!assistantContent?.trim()) {
+          toast.info('This history entry has no saved output to restore.')
+          return
+        }
+        const meta = assistantMetadata || {}
+        let tab: TutorTab =
+          tabKey === 'visual' || tabKey === 'proof' || tabKey === 'practice' ? (tabKey as TutorTab) : 'visual'
+
+        const tabRaw = (meta.tab ?? meta.Tab) as string | undefined
+        const subj = meta.subject as string | undefined
+        if (subj === 'algebra' || subj === 'geometry') {
+          setSubject(subj)
+        }
+
+        const gl = meta.grade_level ?? meta.gradeLevel
+        if (typeof gl === 'string' || typeof gl === 'number') {
+          const g = String(gl).replace(/\D/g, '')
+          if (g) setGradeLevel(g)
+        }
+
+        if (userContent) {
+          setTopic(userContent)
+        }
+
+        let parsed: Record<string, unknown>
+        try {
+          parsed = JSON.parse(assistantContent) as Record<string, unknown>
+        } catch {
+          toast.info('Could not restore this generation (unexpected format).')
+          return
+        }
+
+        const inferred = inferTabFromPayload(parsed)
+        if (!tabRaw && inferred) {
+          tab = inferred
+        }
+        setActiveTab(tab)
+
+        setVisualExplanation(null)
+        setProofStrategy(null)
+        setScaffoldedPractice(null)
+
+        if (tab === 'visual') {
+          setVisualExplanation(parsed as unknown as VisualExplanation)
+        } else if (tab === 'proof') {
+          setProofStrategy(parsed as unknown as ProofStrategy)
+        } else if (tab === 'practice') {
+          setScaffoldedPractice(parsed as unknown as ScaffoldedPractice)
+        }
+      } catch {
+        toast.info('Could not load this conversation from History.')
+      }
+    },
+  })
 
   const handleVisualExplanation = async () => {
     if (!topic.trim()) return
@@ -164,6 +243,16 @@ const AlgebraGeometryTutor = () => {
       }
       setVisualExplanation(mockVisual)
       setIsGenerating(false)
+      void chatbotApi
+        .logChatbotHistory(CHATBOT_SLUG, {
+          title: `Visual explanation · ${mockVisual.concept}`,
+          user_content: topic,
+          assistant_content: JSON.stringify(mockVisual, null, 2),
+          metadata: { tab: 'visual', subject, grade_level: gradeLevel },
+          conversation_id: conversationIdForActiveTab ?? undefined,
+        })
+        .then((r) => pinFromResponse(r.conversation_id))
+        .catch(() => toast.info('Generated, but could not save to History.'))
     }, 2000)
   }
 
@@ -242,6 +331,16 @@ const AlgebraGeometryTutor = () => {
       }
       setProofStrategy(mockProof)
       setIsGenerating(false)
+      void chatbotApi
+        .logChatbotHistory(CHATBOT_SLUG, {
+          title: `Proof strategy · ${mockProof.theorem}`,
+          user_content: topic,
+          assistant_content: JSON.stringify(mockProof, null, 2),
+          metadata: { tab: 'proof', subject, grade_level: gradeLevel },
+          conversation_id: conversationIdForActiveTab ?? undefined,
+        })
+        .then((r) => pinFromResponse(r.conversation_id))
+        .catch(() => toast.info('Generated, but could not save to History.'))
     }, 2000)
   }
 
@@ -335,6 +434,16 @@ const AlgebraGeometryTutor = () => {
       }
       setScaffoldedPractice(mockPractice)
       setIsGenerating(false)
+      void chatbotApi
+        .logChatbotHistory(CHATBOT_SLUG, {
+          title: `Practice · ${mockPractice.topic}`,
+          user_content: topic,
+          assistant_content: JSON.stringify(mockPractice, null, 2),
+          metadata: { tab: 'practice', subject, grade_level: gradeLevel },
+          conversation_id: conversationIdForActiveTab ?? undefined,
+        })
+        .then((r) => pinFromResponse(r.conversation_id))
+        .catch(() => toast.info('Generated, but could not save to History.'))
     }, 2000)
   }
 

@@ -56,11 +56,17 @@ export default function AssignmentAnalytics() {
         ))}
       </div>
 
-      <SimpleBarChart
-        title="Submission rate over time"
-        subtitle={a ? `${a.submitted}/${a.assignedCount} submitted · demo series for ${ranges.find((x) => x.id === range)?.label}` : undefined}
-        points={submissionPoints}
-      />
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs text-amber-700">
+          <span className="font-semibold">Preview data</span>
+          <span>— Real results will appear here after students submit.</span>
+        </div>
+        <SimpleBarChart
+          title="Submission rate over time"
+          subtitle={a ? `${a.submitted}/${a.assignedCount} submitted · demo series for ${ranges.find((x) => x.id === range)?.label}` : undefined}
+          points={submissionPoints}
+        />
+      </div>
       <Link to={`/teacher-tools/assignment/${a.id}`} className="text-sm font-semibold text-primary-600">← Back</Link>
     </div>
   )

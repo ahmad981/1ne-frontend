@@ -34,6 +34,7 @@ import {
 import * as chatbotApi from '../../api/chatbots'
 import { useSnackbar } from '../../hooks/useSnackbar'
 import { useCapabilityCreditGate } from '../../hooks/useCapabilityCreditGate'
+import { useChatbotHistorySession } from '../../hooks/useChatbotHistorySession'
 import NoCreditsCard from '../../components/NoCreditsCard'
 
 interface ThemeAnalysis {
@@ -92,6 +93,43 @@ const LiteratureAnalysisExpert = () => {
   const [characterAnalysis, setCharacterAnalysis] = useState<CharacterAnalysis | null>(null)
   const [literaryDevices, setLiteraryDevices] = useState<LiteraryDevices | null>(null)
   const [discussionPrompts, setDiscussionPrompts] = useState<DiscussionPrompts | null>(null)
+
+  const LIT_CAP_TABS: Record<string, 'theme' | 'character' | 'devices' | 'discussion'> = {
+    theme_exploration: 'theme',
+    character_analysis: 'character',
+    literary_devices: 'devices',
+    discussion_prompts: 'discussion',
+  }
+
+  const { conversationIdForActiveTab, pinFromResponse } = useChatbotHistorySession({
+    slug: CHATBOT_SLUG,
+    activeTab,
+    capabilityKeyToTab: LIT_CAP_TABS,
+    onRestore: async ({ tabKey, userContent, assistantContent, assistantMetadata }) => {
+      const cap = assistantMetadata?.capability_key as string | undefined
+      const tab: 'theme' | 'character' | 'devices' | 'discussion' =
+        tabKey === 'theme' || tabKey === 'character' || tabKey === 'devices' || tabKey === 'discussion'
+          ? tabKey
+          : cap && LIT_CAP_TABS[cap]
+            ? LIT_CAP_TABS[cap]
+            : 'theme'
+      setActiveTab(tab)
+      if (userContent) setTextInput(userContent)
+      try {
+        const data = JSON.parse(assistantContent)
+        setThemeAnalysis(null)
+        setCharacterAnalysis(null)
+        setLiteraryDevices(null)
+        setDiscussionPrompts(null)
+        if (tab === 'theme') setThemeAnalysis(data as ThemeAnalysis)
+        else if (tab === 'character') setCharacterAnalysis(data as CharacterAnalysis)
+        else if (tab === 'devices') setLiteraryDevices(data as LiteraryDevices)
+        else setDiscussionPrompts(data as DiscussionPrompts)
+      } catch {
+        toast.info('Could not restore saved output from History.')
+      }
+    },
+  })
 
   // Helper function to extract error message from various error formats
   const extractErrorMessage = (error: any, defaultMessage: string): string => {
@@ -159,11 +197,13 @@ const LiteratureAnalysisExpert = () => {
             title: title || undefined,
             author: author || undefined,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setThemeAnalysis(response.result as ThemeAnalysis)
+      pinFromResponse(response.conversation_id)
       toast.success('Theme analysis completed')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -202,11 +242,13 @@ const LiteratureAnalysisExpert = () => {
             title: title || undefined,
             author: author || undefined,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setCharacterAnalysis(response.result as CharacterAnalysis)
+      pinFromResponse(response.conversation_id)
       toast.success('Character analysis completed')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -245,11 +287,13 @@ const LiteratureAnalysisExpert = () => {
             title: title || undefined,
             author: author || undefined,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setLiteraryDevices(response.result as LiteraryDevices)
+      pinFromResponse(response.conversation_id)
       toast.success('Literary devices analysis completed')
     } catch (error: any) {
       if (captureApiError(error)) return
@@ -288,11 +332,13 @@ const LiteratureAnalysisExpert = () => {
             title: title || undefined,
             author: author || undefined,
           },
+          conversation_id: conversationIdForActiveTab ?? undefined,
         }
       ))
       if (response == null) return
       
       setDiscussionPrompts(response.result as DiscussionPrompts)
+      pinFromResponse(response.conversation_id)
       toast.success('Discussion prompts generated')
     } catch (error: any) {
       if (captureApiError(error)) return

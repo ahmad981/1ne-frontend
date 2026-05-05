@@ -3,7 +3,12 @@ import { Link } from 'react-router-dom'
 import {
   BarChart3,
   Calendar,
+  CalendarClock,
   ClipboardCheck,
+  ClipboardList,
+  ChevronRight,
+  FileText,
+  GraduationCap,
   Layers,
   Plus,
   Sparkles,
@@ -12,35 +17,11 @@ import {
 } from 'lucide-react'
 import {
   CardGridSkeleton,
-  ChartSkeleton,
   SimpleBarChart,
-  TeacherToolsFilterBar,
-  type FilterValues,
 } from './components'
-import { OVERVIEW_ACTIVITY_STATUS_OPTIONS } from './components/teacherToolsStatusFilterOptions'
-import { useDemoAsync } from './hooks/useDemoAsync'
-import {
-  activityFeed,
-  demoClasses,
-  demoSubmissions,
-  draftItems,
-  overviewKpis,
-  upcomingDeadlines,
-} from './demo/teacherToolsDemoData'
-import { unifiedToolPoints } from './utils/analyticsDemoSeries'
 import { SUBJECTS } from './types'
 import { useTeacherToolsDemo } from './TeacherToolsDemoProvider'
-// @ts-expect-error — JS module
-import { useSnackbar } from '../../../hooks/useSnackbar'
-
-function dayInRange(day: string | undefined, from: string, to: string): boolean {
-  if (!from && !to) return true
-  if (!day) return true
-  const d = day.slice(0, 10)
-  if (from && d < from) return false
-  if (to && d > to) return false
-  return true
-}
+import { useGetStatsQuery } from '../../../redux/features/teacherTools/stats/statsApiSlice'
 
 function draftEditPath(tool: string, id: string): string {
   switch (tool) {
@@ -57,145 +38,394 @@ function draftEditPath(tool: string, id: string): string {
   }
 }
 
-function submissionReviewPath(s: (typeof demoSubmissions)[number]): string {
-  switch (s.toolType) {
-    case 'quiz':
-      return `/teacher-tools/quiz/${s.contentId}/submissions`
-    case 'assignment':
-      return `/teacher-tools/assignment/${s.contentId}/submissions`
-    case 'worksheet':
-      return `/teacher-tools/worksheet/${s.contentId}/responses`
-    case 'exam':
-      return `/teacher-tools/exams/${s.contentId}/candidates`
+function isAssignmentLive(status: string): boolean {
+  return status === 'active' || status === 'pending_review' || status === 'graded'
+}
+
+type ToolKind = 'Quiz' | 'Assignment' | 'Worksheet' | 'Exam'
+
+function contentDetailPath(tool: ToolKind, id: string): string {
+  switch (tool) {
+    case 'Quiz':
+      return `/teacher-tools/quiz/${id}`
+    case 'Assignment':
+      return `/teacher-tools/assignment/${id}`
+    case 'Worksheet':
+      return `/teacher-tools/worksheet/${id}`
+    case 'Exam':
+      return `/teacher-tools/exams/${id}`
     default:
       return '/teacher-tools'
   }
 }
 
+function formatRelativeActivity(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = Date.now()
+  const diffMs = now - d.getTime()
+  const absSec = Math.abs(Math.floor(diffMs / 1000))
+  if (diffMs < 0) {
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined })
+  }
+  if (absSec < 45) return 'Just now'
+  if (absSec < 3600) return `${Math.floor(absSec / 60)}m ago`
+  if (absSec < 86400) return `${Math.floor(absSec / 3600)}h ago`
+  const diffDays = Math.floor(absSec / 86400)
+  if (diffDays === 1) return 'Yesterday'
+  if (diffDays < 7) return `${diffDays}d ago`
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function deadlineUrgency(dateYmd: string): { headline: string; tone: 'soon' | 'week' | 'later' } {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const target = new Date(`${dateYmd}T12:00:00`)
+  const diffDays = Math.round((target.getTime() - today.getTime()) / 86400000)
+  if (diffDays === 0) return { headline: 'Today', tone: 'soon' }
+  if (diffDays === 1) return { headline: 'Tomorrow', tone: 'soon' }
+  if (diffDays <= 3) return { headline: `In ${diffDays} days`, tone: 'soon' }
+  if (diffDays <= 14) return { headline: `In ${diffDays} days`, tone: 'week' }
+  return {
+    headline: target.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+    tone: 'later',
+  }
+}
+
+const TOOL_ACCENTS: Record<
+  ToolKind,
+  { Icon: typeof ClipboardList; chip: string; rail: string; softBg: string }
+> = {
+  Quiz: {
+    Icon: ClipboardList,
+    chip: 'bg-indigo-50 text-indigo-800 ring-1 ring-indigo-200/70',
+    rail: 'bg-indigo-500',
+    softBg: 'bg-indigo-500/10',
+  },
+  Assignment: {
+    Icon: FileText,
+    chip: 'bg-violet-50 text-violet-800 ring-1 ring-violet-200/70',
+    rail: 'bg-violet-500',
+    softBg: 'bg-violet-500/10',
+  },
+  Worksheet: {
+    Icon: Layers,
+    chip: 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200/70',
+    rail: 'bg-emerald-500',
+    softBg: 'bg-emerald-500/10',
+  },
+  Exam: {
+    Icon: GraduationCap,
+    chip: 'bg-amber-50 text-amber-900 ring-1 ring-amber-200/80',
+    rail: 'bg-amber-500',
+    softBg: 'bg-amber-500/10',
+  },
+}
+
 export default function TeacherToolsOverview() {
-  const { toast } = useSnackbar()
   const { allQuizzes, allAssignments, allWorksheets, allExams } = useTeacherToolsDemo()
-  const [filters, setFilters] = useState<FilterValues>({
-    q: '',
-    subject: '',
-    grade: '',
-    classKey: '',
-    status: '',
-    dateFrom: '',
-    dateTo: '',
-  })
+  const { data: stats, isLoading: statsLoading } = useGetStatsQuery()
 
-  const loader = useMemo(
-    () => async () => ({
-      kpis: overviewKpis,
-    }),
-    []
-  )
+  const todayStr = useMemo(() => new Date().toISOString().slice(0, 10), [])
 
-  const { state, data, error, retry } = useDemoAsync(loader, { delayMs: 500 })
+  const kpis = useMemo(() => {
+    const totalActive =
+      stats?.summary.total_active ??
+      allQuizzes.filter((q) => q.status !== 'archived').length +
+        allAssignments.filter((a) => a.status !== 'archived').length +
+        allWorksheets.filter((w) => w.status !== 'archived').length +
+        allExams.filter((e) => e.status !== 'archived').length
 
-  const toolChartPoints = useMemo(() => unifiedToolPoints(filters), [filters])
+    const totalDraft =
+      stats?.summary.total_draft ??
+      [
+        ...allQuizzes,
+        ...allAssignments,
+        ...allWorksheets,
+        ...allExams,
+      ].filter((x) => x.status === 'draft').length
 
-  const filteredFeed = useMemo(() => {
-    return activityFeed.filter((a) => {
-      if (filters.subject && a.subject !== filters.subject) return false
-      if (filters.grade && a.grade !== filters.grade) return false
-      if (filters.classKey && a.classKey !== filters.classKey) return false
-      if (filters.status && a.type !== filters.status) return false
-      if (filters.q) {
-        const q = filters.q.toLowerCase()
-        if (
-          !a.text.toLowerCase().includes(q) &&
-          !a.subject.toLowerCase().includes(q) &&
-          !a.type.toLowerCase().includes(q)
-        ) {
-          return false
-        }
-      }
-      if (!dayInRange(a.activityDate, filters.dateFrom, filters.dateTo)) return false
-      return true
-    })
-  }, [filters])
+    const scheduledThisWeek = stats?.summary.scheduled_this_week ?? 0
 
-  const filteredDeadlines = useMemo(() => {
-    return upcomingDeadlines.filter((d) => {
-      if (filters.subject && d.subject !== filters.subject) return false
-      if (filters.grade && d.grade !== filters.grade) return false
-      if (filters.classKey && d.classKey !== filters.classKey) return false
-      if (filters.q && !d.title.toLowerCase().includes(filters.q.toLowerCase())) return false
-      if (!dayInRange(d.date, filters.dateFrom, filters.dateTo)) return false
-      return true
-    })
-  }, [filters])
+    const totalPublished =
+      stats?.summary.total_published ??
+      allQuizzes.filter((q) => q.status === 'published' || q.status === 'scheduled').length +
+        allAssignments.filter((a) => isAssignmentLive(a.status)).length +
+        allWorksheets.filter((w) => w.status === 'published').length +
+        allExams.filter((e) => e.status === 'scheduled' || e.status === 'completed').length
 
-  const filteredDrafts = useMemo(() => {
-    return draftItems.filter((d) => {
-      if (filters.subject && d.subject !== filters.subject) return false
-      if (filters.grade && d.grade !== filters.grade) return false
-      if (filters.classKey && d.classKey !== filters.classKey) return false
-      if (filters.q) {
-        const q = filters.q.toLowerCase()
-        if (!d.title.toLowerCase().includes(q) && !d.tool.toLowerCase().includes(q) && !d.subject.toLowerCase().includes(q)) {
-          return false
-        }
-      }
-      if (!dayInRange(d.updated, filters.dateFrom, filters.dateTo)) return false
-      return true
-    })
-  }, [filters])
+    const scoredQuizzes = allQuizzes.filter((q) => q.submissionCount > 0 && q.avgScore > 0)
+    const avgScore = scoredQuizzes.length
+      ? Math.round(scoredQuizzes.reduce((sum, q) => sum + q.avgScore, 0) / scoredQuizzes.length)
+      : null
 
-  const filteredHandins = useMemo(() => {
-    return demoSubmissions.filter((s) => {
-      const title =
-        s.toolType === 'quiz'
-          ? allQuizzes.find((q) => q.id === s.contentId)?.title
-          : s.toolType === 'assignment'
-            ? allAssignments.find((a) => a.id === s.contentId)?.title
-            : s.toolType === 'worksheet'
-              ? allWorksheets.find((w) => w.id === s.contentId)?.title
-              : s.toolType === 'exam'
-                ? allExams.find((e) => e.id === s.contentId)?.title
-                : s.contentId
-      const subj =
-        s.toolType === 'quiz'
-          ? allQuizzes.find((q) => q.id === s.contentId)?.subject
-          : s.toolType === 'assignment'
-            ? allAssignments.find((a) => a.id === s.contentId)?.subject
-            : s.toolType === 'worksheet'
-              ? allWorksheets.find((w) => w.id === s.contentId)?.subject
-              : s.toolType === 'exam'
-                ? allExams.find((e) => e.id === s.contentId)?.subject
-                : undefined
-      if (filters.subject && subj !== filters.subject) return false
-      if (filters.classKey && s.classKey !== filters.classKey) return false
-      if (filters.grade) {
-        const g = demoClasses.find((c) => c.key === s.classKey)?.grade
-        if (g !== filters.grade) return false
-      }
-      if (filters.q) {
-        const q = filters.q.toLowerCase()
-        const titleLc = (title ?? s.contentId).toLowerCase()
-        if (!s.studentName.toLowerCase().includes(q) && !titleLc.includes(q) && !s.contentId.toLowerCase().includes(q)) {
-          return false
-        }
-      }
-      if (!dayInRange(s.submittedAt, filters.dateFrom, filters.dateTo)) return false
-      return true
-    })
-  }, [filters, allQuizzes, allAssignments, allWorksheets, allExams])
+    return { totalActive, totalDraft, scheduledThisWeek, totalPublished, avgScore }
+  }, [stats, allQuizzes, allAssignments, allWorksheets, allExams])
 
-  const handinTitle = (s: (typeof demoSubmissions)[number]) => {
-    if (s.toolType === 'quiz') return allQuizzes.find((q) => q.id === s.contentId)?.title ?? s.contentId
-    if (s.toolType === 'assignment') return allAssignments.find((a) => a.id === s.contentId)?.title ?? s.contentId
-    if (s.toolType === 'worksheet') return allWorksheets.find((w) => w.id === s.contentId)?.title ?? s.contentId
-    if (s.toolType === 'exam') return allExams.find((e) => e.id === s.contentId)?.title ?? s.contentId
-    return s.contentId
+  type FeedItem = {
+    id: string
+    contentId: string
+    tool: ToolKind
+    title: string
+    actionLabel: string
+    subject: string
+    grade: string
+    classKey: string
+    type: string
+    activityDate: string
   }
 
-  const classOptionsWithGrade = useMemo(
-    () => demoClasses.map((c) => ({ key: c.key, label: `${c.label} (${c.grade})`, grade: c.grade })),
-    []
-  )
+  const liveActivityFeed = useMemo((): FeedItem[] => {
+    const entries: FeedItem[] = []
+
+    allQuizzes.forEach((q) => {
+      const d = q.updatedAt ?? q.createdAt ?? q.assignedAt ?? ''
+      if (!d) return
+      const actionLabel =
+        q.status === 'draft'
+          ? 'Saved as draft'
+          : q.status === 'published'
+            ? 'Published'
+            : q.status === 'scheduled'
+              ? 'Scheduled'
+              : q.status === 'archived'
+                ? 'Archived'
+                : 'Updated'
+      const actType =
+        q.status === 'draft' ? 'created' : q.status === 'scheduled' ? 'scheduled' : 'published'
+      entries.push({
+        id: `quiz-${q.id}`,
+        contentId: q.id,
+        tool: 'Quiz',
+        title: q.title,
+        actionLabel,
+        subject: q.subject,
+        grade: q.grade,
+        classKey: q.classes?.[0] ?? '',
+        type: actType,
+        activityDate: d,
+      })
+    })
+
+    allAssignments.forEach((a) => {
+      const d = a.updatedAt ?? a.createdAt ?? (a.dueAt ? `${a.dueAt}T12:00:00.000Z` : '')
+      if (!d) return
+      const actionLabel =
+        a.status === 'draft'
+          ? 'Saved as draft'
+          : isAssignmentLive(a.status)
+            ? 'Live'
+            : a.status === 'archived'
+              ? 'Archived'
+              : 'Updated'
+      entries.push({
+        id: `asgn-${a.id}`,
+        contentId: a.id,
+        tool: 'Assignment',
+        title: a.title,
+        actionLabel,
+        subject: a.subject,
+        grade: a.grade,
+        classKey: a.classes?.[0] ?? '',
+        type: a.status === 'draft' ? 'created' : 'published',
+        activityDate: d,
+      })
+    })
+
+    allWorksheets.forEach((w) => {
+      const d = w.createdAt ?? ''
+      if (!d) return
+      const actionLabel =
+        w.status === 'draft'
+          ? 'Saved as draft'
+          : w.status === 'published'
+            ? 'Published'
+            : w.status === 'archived'
+              ? 'Archived'
+              : 'Updated'
+      entries.push({
+        id: `ws-${w.id}`,
+        contentId: w.id,
+        tool: 'Worksheet',
+        title: w.title,
+        actionLabel,
+        subject: w.subject,
+        grade: w.grade,
+        classKey: w.classes?.[0] ?? '',
+        type: w.status === 'draft' ? 'created' : w.status === 'published' ? 'published' : 'published',
+        activityDate: d,
+      })
+    })
+
+    allExams.forEach((e) => {
+      const d = e.scheduleStart ?? ''
+      if (!d) return
+      const actionLabel =
+        e.status === 'draft'
+          ? 'Saved as draft'
+          : e.status === 'scheduled'
+            ? 'Scheduled'
+            : e.status === 'archived'
+              ? 'Archived'
+              : 'Updated'
+      entries.push({
+        id: `exam-${e.id}`,
+        contentId: e.id,
+        tool: 'Exam',
+        title: e.title,
+        actionLabel,
+        subject: e.subject,
+        grade: e.grade,
+        classKey: e.classes?.[0] ?? '',
+        type: e.status === 'draft' ? 'created' : e.status === 'scheduled' ? 'scheduled' : 'published',
+        activityDate: d,
+      })
+    })
+
+    return entries.sort((a, b) => b.activityDate.localeCompare(a.activityDate)).slice(0, 20)
+  }, [allQuizzes, allAssignments, allWorksheets, allExams])
+
+  const visibleFeed = liveActivityFeed
+
+  type DeadlineItem = {
+    id: string
+    contentId: string
+    title: string
+    date: string
+    tool: ToolKind
+    subject: string
+    grade: string
+    classKey: string
+  }
+
+  const liveDeadlines = useMemo((): DeadlineItem[] => {
+    const items: DeadlineItem[] = []
+
+    allQuizzes.forEach((q) => {
+      if (q.dueAt && q.dueAt.slice(0, 10) >= todayStr) {
+        items.push({
+          id: `quiz-dl-${q.id}`,
+          contentId: q.id,
+          title: q.title,
+          date: q.dueAt.slice(0, 10),
+          tool: 'Quiz',
+          subject: q.subject,
+          grade: q.grade,
+          classKey: q.classes?.[0] ?? '',
+        })
+      }
+    })
+
+    allAssignments.forEach((a) => {
+      if (a.dueAt && a.dueAt.slice(0, 10) >= todayStr) {
+        items.push({
+          id: `asgn-dl-${a.id}`,
+          contentId: a.id,
+          title: a.title,
+          date: a.dueAt.slice(0, 10),
+          tool: 'Assignment',
+          subject: a.subject,
+          grade: a.grade,
+          classKey: a.classes?.[0] ?? '',
+        })
+      }
+    })
+
+    allExams.forEach((e) => {
+      if (e.scheduleStart && e.scheduleStart.slice(0, 10) >= todayStr) {
+        items.push({
+          id: `exam-dl-${e.id}`,
+          contentId: e.id,
+          title: e.title,
+          date: e.scheduleStart.slice(0, 10),
+          tool: 'Exam',
+          subject: e.subject,
+          grade: e.grade,
+          classKey: e.classes?.[0] ?? '',
+        })
+      }
+    })
+
+    return items.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 10)
+  }, [allQuizzes, allAssignments, allExams, todayStr])
+
+  const visibleDeadlines = liveDeadlines
+
+  type DraftItem = {
+    id: string
+    title: string
+    tool: string
+    subject: string
+    grade: string
+    classKey: string
+    updated: string
+  }
+
+  const liveDrafts = useMemo((): DraftItem[] => {
+    const items: DraftItem[] = [
+      ...allQuizzes
+        .filter((q) => q.status === 'draft')
+        .map((q) => ({
+          id: q.id,
+          title: q.title,
+          tool: 'Quiz',
+          subject: q.subject,
+          grade: q.grade,
+          classKey: q.classes?.[0] ?? '',
+          updated: q.updatedAt ?? q.createdAt ?? '',
+        })),
+      ...allAssignments
+        .filter((a) => a.status === 'draft')
+        .map((a) => ({
+          id: a.id,
+          title: a.title,
+          tool: 'Assignment',
+          subject: a.subject,
+          grade: a.grade,
+          classKey: a.classes?.[0] ?? '',
+          updated: a.updatedAt ?? a.createdAt ?? '',
+        })),
+      ...allWorksheets
+        .filter((w) => w.status === 'draft')
+        .map((w) => ({
+          id: w.id,
+          title: w.title,
+          tool: 'Worksheet',
+          subject: w.subject,
+          grade: w.grade,
+          classKey: w.classes?.[0] ?? '',
+          updated: w.createdAt ?? '',
+        })),
+      ...allExams
+        .filter((e) => e.status === 'draft')
+        .map((e) => ({
+          id: e.id,
+          title: e.title,
+          tool: 'Exam',
+          subject: e.subject,
+          grade: e.grade,
+          classKey: e.classes?.[0] ?? '',
+          updated: e.scheduleStart ?? '',
+        })),
+    ]
+    return items.sort((a, b) => b.updated.localeCompare(a.updated))
+  }, [allQuizzes, allAssignments, allWorksheets, allExams])
+
+  const visibleDrafts = liveDrafts
+
+  const liveToolPoints = useMemo(() => {
+    const quizCount = stats?.quizzes.total ?? allQuizzes.length
+    const assignCount = stats?.assignments.total ?? allAssignments.length
+    const wsCount = stats?.worksheets.total ?? allWorksheets.length
+    const examCount = stats?.exams.total ?? allExams.length
+    const max = Math.max(quizCount, assignCount, wsCount, examCount, 1)
+    return [
+      { label: 'Quiz', value: quizCount, max, colorClass: 'bg-indigo-500' },
+      { label: 'Assign', value: assignCount, max, colorClass: 'bg-violet-500' },
+      { label: 'Sheet', value: wsCount, max, colorClass: 'bg-emerald-500' },
+      { label: 'Exam', value: examCount, max, colorClass: 'bg-amber-500' },
+    ]
+  }, [stats, allQuizzes, allAssignments, allWorksheets, allExams])
 
   return (
     <div className="space-y-8">
@@ -239,69 +469,38 @@ export default function TeacherToolsOverview() {
           </div>
           <div className="grid w-full max-w-sm gap-3 rounded-2xl bg-white/10 p-5 backdrop-blur">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">Pending review</span>
-              <span className="text-2xl font-semibold">{overviewKpis.pendingReview}</span>
+              <span className="text-white/70">Pending drafts</span>
+              <span className="text-2xl font-semibold">{statsLoading ? '…' : kpis.totalDraft}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-white/70">Avg completion</span>
-              <span className="text-2xl font-semibold">{Math.round(overviewKpis.avgCompletion * 100)}%</span>
+              <span className="text-white/70">Published items</span>
+              <span className="text-2xl font-semibold">{statsLoading ? '…' : kpis.totalPublished}</span>
             </div>
           </div>
         </div>
       </section>
 
-      <div className="space-y-1">
-        <TeacherToolsFilterBar
-          value={filters}
-          onChange={setFilters}
-          subjects={[...SUBJECTS]}
-          grades={[]}
-          hideGrade
-          classOptions={classOptionsWithGrade}
-          statusOptions={OVERVIEW_ACTIVITY_STATUS_OPTIONS}
-        />
-        <p className="text-xs text-gray-500">
-          One scope control: pick a class (shows grade in the label) instead of separate grade + class. Activity type filters{' '}
-          <span className="font-medium text-gray-700">Recent activity</span> only. Dates apply to activity, deadlines, drafts, and
-          hand-ins.
-        </p>
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
+          <span className="rounded-full bg-gray-100 px-2 py-1">Live</span>
+          <span>{SUBJECTS.length} subjects supported</span>
+        </div>
+        <div className="text-xs text-gray-500">Overview shows your latest content activity and upcoming dates.</div>
       </div>
 
-      {state === 'loading' && (
-        <div className="space-y-6">
-          <CardGridSkeleton n={4} />
-          <ChartSkeleton />
-        </div>
-      )}
+      {statsLoading && <CardGridSkeleton n={6} />}
 
-      {state === 'error' && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-800">
-          <p className="font-semibold">Could not load overview</p>
-          <p className="mt-1">{error}</p>
-          <button
-            type="button"
-            onClick={() => {
-              retry()
-              toast.success('Retrying…')
-            }}
-            className="mt-3 rounded-full bg-red-700 px-4 py-2 text-xs font-semibold text-white hover:bg-red-600"
-          >
-            Retry
-          </button>
-        </div>
-      )}
-
-      {state === 'success' && data && (
+      {!statsLoading && (
         <>
-          <p className="text-xs text-gray-500">Global metrics — totals are not narrowed by the filters below.</p>
+          <p className="text-xs text-gray-500">Global metrics — not narrowed by filters below.</p>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {[
-              { label: 'Total active items', value: data.kpis.activeItems, icon: Layers },
-              { label: 'Scheduled this week', value: data.kpis.scheduledThisWeek, icon: Calendar },
-              { label: 'Pending review', value: data.kpis.pendingReview, icon: ClipboardCheck },
-              { label: 'Submissions received', value: data.kpis.submissionsReceived, icon: TrendingUp },
-              { label: 'Avg completion', value: `${Math.round(data.kpis.avgCompletion * 100)}%`, icon: BarChart3 },
-              { label: 'Average score', value: `${data.kpis.avgScore}%`, icon: Sparkles },
+              { label: 'Total active items', value: kpis.totalActive, icon: Layers },
+              { label: 'Scheduled this week', value: kpis.scheduledThisWeek, icon: Calendar },
+              { label: 'Pending drafts', value: kpis.totalDraft, icon: ClipboardCheck },
+              { label: 'Published items', value: kpis.totalPublished, icon: TrendingUp },
+              { label: 'Avg quiz score', value: kpis.avgScore !== null ? `${kpis.avgScore}%` : '—', icon: BarChart3 },
+              { label: 'Quizzes taken', value: allQuizzes.filter((q) => q.submissionCount > 0).length, icon: Sparkles },
             ].map((k) => (
               <div key={k.label} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center justify-between">
@@ -312,129 +511,252 @@ export default function TeacherToolsOverview() {
               </div>
             ))}
           </section>
-
-          <p className="text-xs font-medium text-gray-600">
-            Filtered views (search, subject, class, dates, and activity type where noted)
-          </p>
-          <section className="grid gap-6 lg:grid-cols-2">
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900">Recent activity</h3>
-              <p className="mt-0.5 text-xs text-gray-500">Respects activity type + filters above.</p>
-              <ul className="mt-4 space-y-3">
-                {filteredFeed.map((a) => (
-                  <li
-                    key={a.id}
-                    className="flex items-start justify-between gap-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm"
-                  >
-                    <span className="text-gray-800">{a.text}</span>
-                    <span className="shrink-0 text-xs text-gray-500">{a.time}</span>
-                  </li>
-                ))}
-              </ul>
-              {filteredFeed.length === 0 && (
-                <p className="mt-2 text-sm text-gray-500">Nothing matches these filters. Try clearing search or activity type.</p>
-              )}
-            </div>
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900">Upcoming deadlines</h3>
-              <ul className="mt-4 space-y-3">
-                {filteredDeadlines.map((d) => (
-                  <li key={d.id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm">
-                    <span className="font-medium text-gray-900">{d.title}</span>
-                    <span className="text-xs text-gray-600">
-                      {d.date} · {d.tool}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-              {filteredDeadlines.length === 0 && (
-                <p className="mt-2 text-sm text-gray-500">No deadlines in range for these filters.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-            <div className="flex flex-wrap items-end justify-between gap-2">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Recent hand-ins</h3>
-                <p className="mt-0.5 text-xs text-gray-500">Demo queue — open the tool to review or grade.</p>
-              </div>
-              <Link to="/teacher-tools/quiz" className="text-xs font-semibold text-primary-600 hover:text-primary-500">
-                Browse tools
-              </Link>
-            </div>
-            <div className="mt-4 overflow-x-auto rounded-xl border border-gray-100">
-              <table className="min-w-full divide-y divide-gray-100 text-sm">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Student</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Item</th>
-                    <th className="px-3 py-2 text-left font-semibold text-gray-700">Status</th>
-                    <th className="px-3 py-2 text-right font-semibold text-gray-700">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {filteredHandins.slice(0, 10).map((s) => (
-                    <tr key={s.id} className="bg-white">
-                      <td className="px-3 py-2 text-gray-800">{s.studentName}</td>
-                      <td className="px-3 py-2 text-gray-700">{handinTitle(s)}</td>
-                      <td className="px-3 py-2 capitalize text-gray-600">{s.status.replace(/_/g, ' ')}</td>
-                      <td className="px-3 py-2 text-right">
-                        <Link
-                          to={submissionReviewPath(s)}
-                          className="font-semibold text-primary-600 hover:text-primary-500"
-                        >
-                          Open
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {filteredHandins.length === 0 && (
-              <p className="mt-2 text-sm text-gray-500">No hand-ins match these filters.</p>
-            )}
-          </section>
-
-          <section className="grid gap-6">
-            <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900">Continue editing</h3>
-              <p className="mt-0.5 text-xs text-gray-500">Drafts in your library — opens the editor.</p>
-              <ul className="mt-4 space-y-2">
-                {filteredDrafts.map((d) => (
-                  <li key={d.id}>
-                    <Link
-                      to={draftEditPath(d.tool, d.id)}
-                      className="flex items-center justify-between rounded-xl border border-dashed border-gray-200 px-3 py-2 text-sm hover:border-primary-300 hover:bg-primary-50/40"
-                    >
-                      <span>
-                        <span className="font-medium text-gray-900">{d.title}</span>
-                        <span className="ml-2 text-xs text-gray-500">{d.tool}</span>
-                      </span>
-                      <span className="text-xs text-gray-500">{d.updated}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-              {filteredDrafts.length === 0 && (
-                <p className="mt-2 text-sm text-gray-500">No drafts match these filters.</p>
-              )}
-            </div>
-          </section>
-
-          <SimpleBarChart
-            title="Tool usage distribution"
-            subtitle="Scaled to your current filters (illustrative)"
-            points={toolChartPoints.map((t, i) => ({
-              label: t.label,
-              value: t.value,
-              max: t.max,
-              colorClass: ['bg-indigo-500', 'bg-violet-500', 'bg-emerald-500', 'bg-amber-500'][i],
-            }))}
-          />
         </>
       )}
+
+      <SimpleBarChart
+        title="Tool library"
+        subtitle="Total items created per tool"
+        points={liveToolPoints}
+      />
+
+      <p className="text-xs font-medium text-gray-600">
+        Latest activity and upcoming dates from your library
+      </p>
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.04]">
+          <div className="border-b border-gray-100 bg-gradient-to-br from-slate-50/90 via-white to-primary-50/30 px-5 py-4 sm:px-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-600 to-indigo-700 text-white shadow-md shadow-primary-700/25">
+                  <Sparkles className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold tracking-tight text-gray-900">Recent activity</h3>
+                  <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
+                    Live from your library — opens the item. Filter by type above.
+                  </p>
+                </div>
+              </div>
+              {visibleFeed.length > 0 && (
+                <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 shadow-sm ring-1 ring-gray-200/80">
+                  {visibleFeed.length}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="p-3 sm:p-4">
+            <ul className="space-y-1">
+              {visibleFeed.map((a) => {
+                const acc = TOOL_ACCENTS[a.tool]
+                const Icon = acc.Icon
+                const rel = formatRelativeActivity(a.activityDate)
+                return (
+                  <li key={a.id}>
+                    <Link
+                      to={contentDetailPath(a.tool, a.contentId)}
+                      className="group flex gap-3 rounded-2xl border border-transparent px-2 py-2.5 transition-colors hover:border-gray-200/90 hover:bg-gray-50/95"
+                    >
+                      <span
+                        className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${acc.softBg}`}
+                        aria-hidden
+                      >
+                        <Icon className="h-5 w-5 text-gray-800/90" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate font-medium leading-snug text-gray-900 group-hover:text-primary-800">{a.title}</p>
+                          <time
+                            className="shrink-0 text-[11px] font-medium tabular-nums text-gray-400"
+                            dateTime={a.activityDate}
+                          >
+                            {rel}
+                          </time>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {[a.subject, a.grade].filter(Boolean).join(' · ')}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${acc.chip}`}
+                          >
+                            {a.tool}
+                          </span>
+                          <span className="text-[11px] text-gray-500">{a.actionLabel}</span>
+                        </div>
+                      </div>
+                      <ChevronRight
+                        className="mt-2.5 h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-500"
+                        aria-hidden
+                      />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+            {visibleFeed.length === 0 &&
+              (liveActivityFeed.length === 0 ? (
+                <div className="flex flex-col items-center px-4 py-14 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-gray-100 to-gray-50 text-gray-400 ring-1 ring-gray-200/80">
+                    <ClipboardCheck className="h-8 w-8" aria-hidden />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900">Your timeline is ready</p>
+                  <p className="mt-2 max-w-[260px] text-xs leading-relaxed text-gray-500">
+                    Saves, publishes, and schedules will appear here as you work — tied to each quiz, assignment, worksheet, and
+                    exam.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center px-4 py-12 text-center">
+                  <div className="mb-3 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/70">
+                    No matches
+                  </div>
+                  <p className="max-w-xs text-sm text-gray-600">
+                    No activity items available right now.
+                  </p>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        <div className="overflow-hidden rounded-3xl border border-gray-200/90 bg-white shadow-[0_2px_8px_rgba(15,23,42,0.06)] ring-1 ring-black/[0.04]">
+          <div className="border-b border-gray-100 bg-gradient-to-br from-slate-50/90 via-white to-violet-50/25 px-5 py-4 sm:px-6">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-md shadow-violet-700/20">
+                  <CalendarClock className="h-5 w-5" aria-hidden />
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold tracking-tight text-gray-900">Upcoming deadlines</h3>
+                  <p className="mt-0.5 text-xs leading-relaxed text-gray-500">
+                    Due dates and scheduled exams — soon worksheet due dates too.
+                  </p>
+                </div>
+              </div>
+              {visibleDeadlines.length > 0 && (
+                <span className="rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-gray-600 shadow-sm ring-1 ring-gray-200/80">
+                  {visibleDeadlines.length}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="p-3 sm:p-4">
+            <ul className="space-y-1">
+              {visibleDeadlines.map((d) => {
+                const acc = TOOL_ACCENTS[d.tool]
+                const Icon = acc.Icon
+                const urg = deadlineUrgency(d.date)
+                const urgencyRing =
+                  urg.tone === 'soon'
+                    ? 'bg-amber-50 text-amber-950 ring-amber-200/90'
+                    : urg.tone === 'week'
+                      ? 'bg-violet-50 text-violet-950 ring-violet-200/80'
+                      : 'bg-gray-50 text-gray-700 ring-gray-200/80'
+                return (
+                  <li key={d.id}>
+                    <Link
+                      to={contentDetailPath(d.tool, d.contentId)}
+                      className="group flex gap-3 rounded-2xl border border-transparent px-2 py-2.5 transition-colors hover:border-gray-200/90 hover:bg-gray-50/95"
+                    >
+                      <span
+                        className={`mt-0.5 flex w-1 shrink-0 self-stretch rounded-full ${acc.rail}`}
+                        aria-hidden
+                      />
+                      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${acc.softBg}`}>
+                        <Icon className="h-5 w-5 text-gray-800/90" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="truncate font-medium leading-snug text-gray-900 group-hover:text-primary-800">{d.title}</p>
+                          <span
+                            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ${urgencyRing}`}
+                          >
+                            {urg.headline}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 truncate text-xs text-gray-500">
+                          {[d.subject, d.grade].filter(Boolean).join(' · ')}
+                        </p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                          <span className={`text-[10px] font-semibold uppercase tracking-wide ${acc.chip} rounded-full px-2 py-0.5`}>
+                            {d.tool}
+                          </span>
+                          <span className="text-[11px] tabular-nums text-gray-500">{d.date}</span>
+                        </div>
+                      </div>
+                      <ChevronRight
+                        className="mt-2.5 h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:translate-x-0.5 group-hover:text-primary-500"
+                        aria-hidden
+                      />
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+            {visibleDeadlines.length === 0 &&
+              (liveDeadlines.length === 0 ? (
+                <div className="flex flex-col items-center px-4 py-14 text-center">
+                  <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-white text-emerald-600 ring-1 ring-emerald-200/70">
+                    <Calendar className="h-8 w-8" aria-hidden />
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900">No upcoming dates</p>
+                  <p className="mt-2 max-w-[260px] text-xs leading-relaxed text-gray-500">
+                    Add due dates on quizzes and assignments or schedule exams — they roll up here in chronological order.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center px-4 py-12 text-center">
+                  <div className="mb-3 rounded-full bg-amber-50 px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200/70">
+                    No matches
+                  </div>
+                  <p className="max-w-xs text-sm text-gray-600">
+                    No deadlines available right now.
+                  </p>
+                </div>
+              ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">Recent hand-ins</h3>
+            <p className="mt-0.5 text-xs text-gray-500">Student submission tracking.</p>
+          </div>
+          <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-500">Phase 2</span>
+        </div>
+        <p className="mt-3 text-sm text-gray-500">
+          When students submit quizzes, assignments, worksheets, and exams, their hand-ins appear here. Student-facing portal
+          coming in Phase 2.
+        </p>
+      </section>
+
+      <section className="grid gap-6">
+        <div className="rounded-3xl border border-gray-200 bg-white p-6 shadow-sm">
+          <h3 className="text-lg font-semibold text-gray-900">Continue editing</h3>
+          <p className="mt-0.5 text-xs text-gray-500">Drafts in your library — opens the editor.</p>
+          <ul className="mt-4 space-y-2">
+            {visibleDrafts.map((d) => (
+              <li key={`${d.tool}-${d.id}`}>
+                <Link
+                  to={draftEditPath(d.tool, d.id)}
+                  className="flex items-center justify-between rounded-xl border border-dashed border-gray-200 px-3 py-2 text-sm hover:border-primary-300 hover:bg-primary-50/40"
+                >
+                  <span>
+                    <span className="font-medium text-gray-900">{d.title}</span>
+                    <span className="ml-2 text-xs text-gray-500">{d.tool}</span>
+                  </span>
+                  <span className="text-xs text-gray-500">{d.updated || '—'}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+              {visibleDrafts.length === 0 && (
+            <p className="mt-2 text-sm text-gray-500">No drafts match these filters.</p>
+          )}
+        </div>
+      </section>
     </div>
   )
 }

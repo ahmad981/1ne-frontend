@@ -93,6 +93,18 @@ export interface ExecuteCapabilityResponse {
   metadata?: Record<string, any>
   usage_id?: string
   progress_update?: Record<string, any>
+  conversation_id?: string
+}
+
+function notifyHistoryChanged() {
+  if (typeof window === 'undefined') return
+  try {
+    window.dispatchEvent(new CustomEvent('history:changed'))
+    // Also notify other browser tabs via storage event.
+    window.localStorage?.setItem('history:last_changed', String(Date.now()))
+  } catch {
+    // no-op
+  }
 }
 
 /**
@@ -121,6 +133,26 @@ export async function listConversations(slug: string): Promise<Conversation[]> {
  */
 export async function getConversation(conversationId: string): Promise<ConversationDetail> {
   return apiRequest<ConversationDetail>(`v1/chatbots/conversations/${conversationId}`)
+}
+
+/** Paginated messages for long chats (newest page first; use `before` to load older). */
+export interface ConversationMessagesPage {
+  items: Message[]
+  has_more: boolean
+  next_before: string | null
+}
+
+export async function listConversationMessages(
+  conversationId: string,
+  opts: { limit?: number; before?: string | null } = {},
+): Promise<ConversationMessagesPage> {
+  return apiRequest<ConversationMessagesPage>(`v1/chatbots/conversations/${conversationId}/messages`, {
+    method: 'GET',
+    query: {
+      limit: opts.limit ?? 50,
+      before: opts.before ?? undefined,
+    },
+  })
 }
 
 /**
@@ -292,8 +324,31 @@ export async function executeCapability(
     ...request,
     input: request.input?.length ? request.input : ' ',
   }
-  return apiRequest<ExecuteCapabilityResponse>(`v1/chatbots/${slug}/capabilities/${capabilityKey}`, {
+  const res = await apiRequest<ExecuteCapabilityResponse>(`v1/chatbots/${slug}/capabilities/${capabilityKey}`, {
     method: 'POST',
     body: normalizedRequest, // apiRequest will JSON.stringify it
   })
+  // Capability execution may create/update a History row (chatbot_conversation)
+  if (normalizedRequest.save_result !== false) {
+    notifyHistoryChanged()
+  }
+  return res
+}
+
+export async function logChatbotHistory(
+  slug: string,
+  body: {
+    title?: string
+    user_content: string
+    assistant_content: string
+    metadata?: Record<string, any>
+    conversation_id?: string
+  },
+): Promise<{ conversation_id: string }> {
+  const res = await apiRequest<{ conversation_id: string }>(`v1/chatbots/${slug}/history-log`, {
+    method: 'POST',
+    body,
+  })
+  notifyHistoryChanged()
+  return res
 }

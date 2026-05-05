@@ -2,12 +2,12 @@ import { ChangeEvent, FormEvent, useEffect, useMemo, useState, useRef } from 're
 import { ArrowLeft, Loader2, Copy, Check, RefreshCw, FileText, Send, ChevronDown, ChevronUp, Download, Printer, Edit, Languages, Volume2, Bookmark, ThumbsUp, ThumbsDown } from 'lucide-react'
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx'
 import { saveAs } from 'file-saver'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import TurndownService from 'turndown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
-import { fetchTemplateDetail } from '../../api/templates'
+import { fetchTemplateDetail, fetchTemplateExecution } from '../../api/templates'
 import { TemplateResponse } from '../../api/types'
 import { useTemplateStream } from '../../hooks/useTemplateStream'
 import { useRefreshCreditBalance } from '../../hooks/useRefreshCreditBalance'
@@ -31,6 +31,9 @@ type TemplateField = {
 const TemplateRunner = () => {
   const { slug } = useParams<{ slug: string }>()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const executionParam = searchParams.get('execution')
+  const restoreDoneRef = useRef<string | null>(null)
   const [template, setTemplate] = useState<TemplateResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -248,6 +251,96 @@ const TemplateRunner = () => {
   useEffect(() => {
     setFormValues(initialFormValues)
   }, [initialFormValues])
+
+  useEffect(() => {
+    restoreDoneRef.current = null
+  }, [slug])
+
+  // History → Open: restore form + output from saved execution (`?execution=<id>`)
+  useEffect(() => {
+    if (!template?.slug || !slug || !executionParam || schemaFields.length === 0) {
+      return
+    }
+    const doneKey = `${slug}:${executionParam}`
+    if (restoreDoneRef.current === doneKey) {
+      return
+    }
+
+    let cancelled = false
+    const ac = new AbortController()
+
+    const stripExecutionParam = () => {
+      setSearchParams((prev) => {
+        const n = new URLSearchParams(prev)
+        n.delete('execution')
+        return n
+      }, { replace: true })
+    }
+
+    ;(async () => {
+      try {
+        const exec = await fetchTemplateExecution(executionParam, ac.signal)
+        if (cancelled) {
+          return
+        }
+        if (exec.template_slug !== slug) {
+          console.warn('[TemplateRunner] Execution slug mismatch:', exec.template_slug, slug)
+          stripExecutionParam()
+          return
+        }
+
+        const nextValues: Record<string, string> = { ...initialFormValues }
+        schemaFields.forEach((field) => {
+          const raw = exec.input_data[field.name]
+          if (raw === null || raw === undefined) {
+            return
+          }
+          if (typeof raw === 'string') {
+            nextValues[field.name] = raw
+          } else if (typeof raw === 'number' || typeof raw === 'boolean') {
+            nextValues[field.name] = String(raw)
+          } else if (Array.isArray(raw)) {
+            nextValues[field.name] = raw.map((x) => String(x)).join('\n')
+          } else {
+            nextValues[field.name] = JSON.stringify(raw)
+          }
+        })
+        setFormValues(nextValues)
+
+        if (exec.output_data && typeof exec.output_data === 'object' && Object.keys(exec.output_data).length > 0) {
+          setParsedOutput(exec.output_data as Record<string, any>)
+        } else {
+          setParsedOutput(null)
+        }
+        setSubmitError(null)
+        setExemplarNotice(null)
+        setShowOutput(true)
+        setShowPromptEditor(false)
+        resetStream()
+        restoreDoneRef.current = doneKey
+        stripExecutionParam()
+      } catch (err) {
+        if (cancelled) {
+          return
+        }
+        console.error('[TemplateRunner] Failed to restore execution:', err)
+        stripExecutionParam()
+      }
+    })()
+
+    return () => {
+      cancelled = true
+      ac.abort()
+    }
+  }, [
+    template?.slug,
+    slug,
+    executionParam,
+    schemaFields,
+    initialFormValues,
+    setSearchParams,
+    resetStream,
+  ])
 
   const handleInputChange = (name: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [name]: value }))
