@@ -5,6 +5,7 @@ import { PersistGate } from 'redux-persist/integration/react'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
 import { store, persistor } from './redux/store'
+import './i18n'
 import './index.css'
 
 // Loading component for PersistGate - shows while Redux is rehydrating

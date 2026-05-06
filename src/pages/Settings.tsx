@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useDispatch, useSelector } from 'react-redux'
 import {
   Settings2,
   Bell,
@@ -18,6 +19,9 @@ import {
   BarChart3,
   Loader2,
   ChevronRight,
+  CheckCircle,
+  AlertCircle,
+  Search,
 } from 'lucide-react'
 import { creditBalanceUiPercents } from '../utils/creditBalanceUi'
 import {
@@ -31,6 +35,17 @@ import {
   CreditTransaction,
 } from '../api/subscriptions'
 import ActivateCreditsModal from '../components/ActivateCreditsModal'
+import { formatDate, formatNumber } from '../lib/i18n/format'
+import i18n, { SUPPORTED_LOCALES } from '../i18n'
+import { LANGUAGE_OPTIONS, TIMEZONE_OPTIONS } from '../constants/preferencesOptions'
+import {
+  setLanguage,
+  setTheme,
+  setTimezone,
+  syncPreferences,
+  type Theme,
+} from '../redux/features/preferences/preferencesSlice'
+import { useTranslation } from 'react-i18next'
 
 type Tab = 'general' | 'notifications' | 'plan' | 'integrations' | 'developer' | 'export'
 
@@ -107,10 +122,7 @@ function PlanCreditsTab() {
               {balance?.subscription_started_at && (
                 <p className="text-xs text-gray-400">
                   Member since{' '}
-                  {new Date(balance.subscription_started_at).toLocaleDateString('en-US', {
-                    month: 'long',
-                    year: 'numeric',
-                  })}
+                  {formatDate(balance.subscription_started_at, { month: 'long', year: 'numeric' })}
                 </p>
               )}
             </div>
@@ -125,9 +137,9 @@ function PlanCreditsTab() {
 
         <div className="mt-5 space-y-3">
           <div className="flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-gray-900">{bal.toLocaleString()}</span>
+            <span className="text-3xl font-bold text-gray-900">{formatNumber(bal)}</span>
             {total > 0 && (
-              <span className="text-sm text-gray-400">/ {total.toLocaleString()} credits</span>
+              <span className="text-sm text-gray-400">/ {formatNumber(total)} credits</span>
             )}
           </div>
 
@@ -145,11 +157,7 @@ function PlanCreditsTab() {
                   <span className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
                     Expires{' '}
-                    {new Date(balance.expires_at).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
+                    {formatDate(balance.expires_at, { month: 'short', day: 'numeric', year: 'numeric' })}
                   </span>
                 )}
                 {balance?.auto_renew && (
@@ -238,7 +246,7 @@ function PlanCreditsTab() {
                       {txn.description || txn.feature_key || 'Activity'}
                     </p>
                     <p className="text-xs text-gray-400">
-                      {new Date(txn.created_at).toLocaleDateString('en-US', {
+                      {formatDate(txn.created_at, {
                         month: 'short',
                         day: 'numeric',
                         hour: 'numeric',
@@ -251,10 +259,10 @@ function PlanCreditsTab() {
                   <span className={`text-sm font-semibold ${
                     txn.amount > 0 ? 'text-emerald-600' : 'text-gray-700'
                   }`}>
-                    {txn.amount > 0 ? '+' : ''}{txn.amount.toLocaleString()}
+                    {txn.amount > 0 ? '+' : ''}{formatNumber(txn.amount)}
                   </span>
                   <span className="text-xs text-gray-400 hidden sm:block">
-                    {txn.balance_after.toLocaleString()} left
+                    {formatNumber(txn.balance_after)} left
                   </span>
                 </div>
               </div>
@@ -272,8 +280,16 @@ function PlanCreditsTab() {
 
 const Settings = () => {
   const [searchParams, setSearchParams] = useSearchParams()
-  const [theme] = useState<'system' | 'light' | 'dark'>('system')
-  const [language] = useState('English (United States)')
+  const dispatch = useDispatch()
+  const theme = useSelector((s: any) => (s.preferences?.theme ?? 'system') as Theme)
+  const language = useSelector((s: any) => (s.preferences?.language ?? 'en-US') as string)
+  const timezone = useSelector((s: any) => (s.preferences?.timezone ?? 'UTC') as string)
+  const syncStatus = useSelector((s: any) => (s.preferences?.syncStatus ?? 'idle') as string)
+
+  const [languageOpen, setLanguageOpen] = useState(false)
+  const [timezoneOpen, setTimezoneOpen] = useState(false)
+  const [tzQuery, setTzQuery] = useState('')
+  const { t } = useTranslation()
 
   const initialTab = (searchParams.get('tab') as Tab) || 'general'
   const [activeTab, setActiveTab] = useState<Tab>(initialTab)
@@ -286,6 +302,66 @@ const Settings = () => {
   const handleTabChange = (tab: Tab) => {
     setActiveTab(tab)
     setSearchParams(tab === 'general' ? {} : { tab })
+  }
+
+  const currentLanguageLabel =
+    LANGUAGE_OPTIONS.find((l) => l.value === language)?.label ||
+    LANGUAGE_OPTIONS[0]?.label ||
+    language
+
+  const currentTimezoneLabel = TIMEZONE_OPTIONS.find((z) => z.value === timezone)?.label ?? timezone
+
+  const filteredTimezones = useMemo(() => {
+    const q = tzQuery.trim().toLowerCase()
+    if (!q) return TIMEZONE_OPTIONS.slice(0, 120)
+    return TIMEZONE_OPTIONS.filter((z) => z.value.toLowerCase().includes(q) || z.label.toLowerCase().includes(q)).slice(0, 120)
+  }, [tzQuery])
+
+  const onSelectLanguage = (next: string) => {
+    const supported = (SUPPORTED_LOCALES as readonly string[]).includes(next)
+    const finalLang = supported ? next : 'en-US'
+    dispatch(setLanguage(finalLang))
+    dispatch(syncPreferences({ language: finalLang }) as any)
+    i18n.changeLanguage(finalLang).catch(() => {})
+    setLanguageOpen(false)
+  }
+
+  const onSelectTimezone = (next: string) => {
+    dispatch(setTimezone(next))
+    dispatch(syncPreferences({ timezone: next }) as any)
+    setTimezoneOpen(false)
+    setTzQuery('')
+  }
+
+  const onSelectTheme = (next: Theme) => {
+    dispatch(setTheme(next))
+    dispatch(syncPreferences({ theme: next }) as any)
+  }
+
+  const SyncPill = () => {
+    if (syncStatus === 'idle') return null
+    if (syncStatus === 'syncing') {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-gray-400">
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>{t('settings.general.syncSaving')}</span>
+        </div>
+      )
+    }
+    if (syncStatus === 'synced') {
+      return (
+        <div className="flex items-center gap-1.5 text-xs text-emerald-600">
+          <CheckCircle className="h-3.5 w-3.5" />
+          <span>{t('settings.general.syncSaved')}</span>
+        </div>
+      )
+    }
+    return (
+      <div className="flex items-center gap-1.5 text-xs text-red-500">
+        <AlertCircle className="h-3.5 w-3.5" />
+        <span>{t('settings.general.syncError')}</span>
+      </div>
+    )
   }
 
   const integrations = [
@@ -327,39 +403,137 @@ const Settings = () => {
           <div className="space-y-6">
             {activeTab === 'general' && (
               <div className="card">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">General preferences</h2>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">{t('settings.general.title')}</h2>
+                  <SyncPill />
+                </div>
                 <div className="space-y-4 text-sm text-gray-600">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Globe className="h-5 w-5 text-primary-500" />
                       <div>
-                        <p className="font-medium text-gray-900">Language</p>
-                        <p>{language}</p>
+                        <p className="font-medium text-gray-900">{t('settings.general.language.label')}</p>
+                        <p>{currentLanguageLabel}</p>
                       </div>
                     </div>
-                    <button className="text-sm font-semibold text-primary-600 hover:text-primary-500">Change</button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setLanguageOpen((v) => !v)}
+                        className="text-sm font-semibold text-primary-600 hover:text-primary-500"
+                      >
+                        {t('settings.general.language.change')}
+                      </button>
+                      {languageOpen && (
+                        <>
+                          <div className="fixed inset-0 z-10" onClick={() => setLanguageOpen(false)} />
+                          <div className="absolute right-0 top-7 z-20 w-72 rounded-2xl border border-gray-200 bg-white shadow-xl py-1">
+                            {LANGUAGE_OPTIONS.map((opt) => (
+                              <button
+                                key={opt.value}
+                                onClick={() => onSelectLanguage(opt.value)}
+                                className={`flex w-full items-center justify-between px-4 py-2.5 text-left text-sm hover:bg-gray-50 ${
+                                  opt.value === language ? 'font-semibold text-primary-600' : 'text-gray-700'
+                                }`}
+                              >
+                                <span>{opt.label}</span>
+                                {opt.value === language && <CheckCircle className="h-4 w-4 text-primary-500" />}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Laptop className="h-5 w-5 text-slate-500" />
                       <div>
-                        <p className="font-medium text-gray-900">Time zone</p>
-                        <p>America/Denver (MT)</p>
+                        <p className="font-medium text-gray-900">{t('settings.general.timezone.label')}</p>
+                        <p>{currentTimezoneLabel}</p>
                       </div>
                     </div>
-                    <button className="text-sm font-semibold text-primary-600 hover:text-primary-500">Adjust</button>
+                    <div className="relative">
+                      <button
+                        onClick={() => setTimezoneOpen((v) => !v)}
+                        className="text-sm font-semibold text-primary-600 hover:text-primary-500"
+                      >
+                        {t('settings.general.timezone.adjust')}
+                      </button>
+                      {timezoneOpen && (
+                        <>
+                          <div
+                            className="fixed inset-0 z-10"
+                            onClick={() => {
+                              setTimezoneOpen(false)
+                              setTzQuery('')
+                            }}
+                          />
+                          <div className="absolute right-0 top-7 z-20 w-80 rounded-2xl border border-gray-200 bg-white shadow-xl">
+                            <div className="border-b border-gray-100 p-3">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                                <input
+                                  autoFocus
+                                  value={tzQuery}
+                                  onChange={(e) => setTzQuery(e.target.value)}
+                                  placeholder={`${t('common.search')}…`}
+                                  className="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-primary-400"
+                                />
+                              </div>
+                            </div>
+                            <ul className="max-h-64 overflow-y-auto py-1">
+                              {filteredTimezones.length === 0 ? (
+                                <li className="px-4 py-3 text-sm text-gray-400">No timezones match.</li>
+                              ) : (
+                                filteredTimezones.map((z) => (
+                                  <li key={z.value}>
+                                    <button
+                                      onClick={() => onSelectTimezone(z.value)}
+                                      className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 ${
+                                        z.value === timezone ? 'font-semibold text-primary-600' : 'text-gray-700'
+                                      }`}
+                                    >
+                                      {z.label}
+                                    </button>
+                                  </li>
+                                ))
+                              )}
+                            </ul>
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <Palette className="h-5 w-5 text-rose-500" />
                       <div>
-                        <p className="font-medium text-gray-900">Interface theme</p>
-                        <p className="capitalize">{theme} (follows device)</p>
+                        <p className="font-medium text-gray-900">{t('settings.general.theme.label')}</p>
+                        <p className="capitalize">{theme}{theme === 'system' ? ' (follows device)' : ''}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 text-gray-400">
-                      <Sun className="h-4 w-4" />
-                      <Moon className="h-4 w-4" />
+                    <div className="flex items-center gap-1 rounded-xl bg-gray-100 p-1">
+                      {([
+                        { value: 'light' as Theme, icon: Sun, label: t('settings.general.theme.light') },
+                        { value: 'dark' as Theme, icon: Moon, label: t('settings.general.theme.dark') },
+                        { value: 'system' as Theme, icon: Laptop, label: t('settings.general.theme.system') },
+                      ] as const).map((opt) => {
+                        const Icon = opt.icon
+                        const active = theme === opt.value
+                        return (
+                          <button
+                            key={opt.value}
+                            onClick={() => onSelectTheme(opt.value)}
+                            title={opt.label}
+                            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ${
+                              active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                            }`}
+                          >
+                            <Icon className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline">{opt.label}</span>
+                          </button>
+                        )
+                      })}
                     </div>
                   </div>
                 </div>

@@ -30,6 +30,66 @@
     @apply bg-white rounded-lg shadow-sm border border-gray-200 p-6;
   }
 
+  /* Dark mode primitives (Phase A): flip shell instantly */
+  .dark body {
+    @apply bg-gray-950 text-gray-100;
+  }
+
+  .dark .card {
+    @apply bg-gray-900 border-gray-800 shadow-none;
+  }
+
+  .dark .bg-white {
+    @apply bg-gray-900;
+  }
+
+  .dark .bg-gray-50 {
+    @apply bg-gray-950;
+  }
+
+  .dark .bg-gray-100 {
+    @apply bg-gray-800;
+  }
+
+  .dark .border-gray-200 {
+    @apply border-gray-800;
+  }
+
+  .dark .border-gray-100 {
+    @apply border-gray-800;
+  }
+
+  .dark .text-gray-900 {
+    @apply text-gray-100;
+  }
+
+  .dark .text-gray-800 {
+    @apply text-gray-200;
+  }
+
+  .dark .text-gray-700 {
+    @apply text-gray-300;
+  }
+
+  .dark .text-gray-600 {
+    @apply text-gray-300;
+  }
+
+  .dark .text-gray-500 {
+    color: rgb(156 163 175); /* gray-400 */
+  }
+
+  .dark input,
+  .dark textarea,
+  .dark select {
+    @apply bg-gray-800 border-gray-700 text-gray-100;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    color: rgb(107 114 128); /* gray-500 */
+  }
+
   /* Custom Input Styles */
   .text-danger {
     @apply text-red-600;

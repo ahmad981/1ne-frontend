@@ -55,6 +55,8 @@ import {
 import { fetchCreditBalance } from '../redux/features/subscription/subscriptionSlice'
 import ActivateCreditsModal from './ActivateCreditsModal'
 import { creditBalanceUiPercents } from '../utils/creditBalanceUi'
+import { formatDate, formatNumber } from '../lib/i18n/format'
+import { useTranslation } from 'react-i18next'
 
 type MenuItem = {
   path: string
@@ -129,9 +131,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const { user, role } = useStoreData()
   const dispatch = useDispatch()
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({})
   const { profileDetails } = useSelector((state: any) => state.auth)
   const subscription = useSelector((state: any) => state.subscription)
+  const language = useSelector((state: any) => state.preferences?.language)
+  void language
   const profileDropdownRef = useRef<HTMLDivElement>(null)
   const [activateModalOpen, setActivateModalOpen] = useState(false)
   
@@ -273,12 +278,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
     return {
       path: item.path,
       icon: item.icon,
-      label: item.text,
+      label: item.i18nKey ? t(item.i18nKey) : item.text,
       iconColor: iconColors.color,
       iconBg: iconColors.bg,
       subItems: item.child?.map((childItem) => ({
         path: childItem.path,
-        label: childItem.text,
+        label: childItem.i18nKey ? t(childItem.i18nKey) : childItem.text,
         icon: childItem.icon,
       })),
     }
@@ -324,7 +329,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <GraduationCap className="w-6 h-6 text-primary-600" />
-          <span className="font-bold text-lg text-gray-900">Teacher Assistant</span>
+          <span className="font-bold text-lg text-gray-900">{t('app.name')}</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -352,7 +357,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <GraduationCap className="w-5 h-5 text-white" />
               </div>
               <span className="font-bold text-lg text-gray-900 hidden lg:block">
-                Teacher Assistant
+                {t('app.name')}
               </span>
             </div>
             <button
@@ -504,7 +509,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     className="flex items-center gap-2 rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-gray-500 hover:border-primary-300 hover:text-primary-600 transition"
                   >
                     <Coins className="h-4 w-4" />
-                    Activate credits
+                    {t('layout.activateCredits')}
                   </button>
                 )
               }
@@ -513,7 +518,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <button
                   onClick={() => navigate('/settings?tab=plan')}
                   title={subscription.expiresAt
-                    ? `Expires ${new Date(subscription.expiresAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+                    ? `Expires ${formatDate(subscription.expiresAt, { month: 'short', day: 'numeric', year: 'numeric' })}`
                     : subscription.autoRenew ? 'Auto-renewing' : undefined}
                   className={`flex items-center gap-2 rounded-xl border border-gray-200 bg-gradient-to-r ${bgColor} px-4 py-2 transition hover:shadow-sm`}
                 >
@@ -522,13 +527,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   </div>
                   <div className="flex flex-col">
                     <div className="flex items-center gap-1">
-                      <span className="text-xs font-semibold text-gray-600">Credits</span>
+                      <span className="text-xs font-semibold text-gray-600">{t('layout.credits')}</span>
                       <Zap className="h-3 w-3 text-amber-500" />
                     </div>
                     <div className="flex items-baseline gap-1">
-                      <span className="text-sm font-bold text-gray-900">{bal.toLocaleString()}</span>
+                      <span className="text-sm font-bold text-gray-900">{formatNumber(bal)}</span>
                       {total > 0 && (
-                        <span className="text-xs text-gray-500">/ {total.toLocaleString()}</span>
+                        <span className="text-xs text-gray-500">/ {formatNumber(total)}</span>
                       )}
                     </div>
                   </div>
@@ -578,8 +583,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900">Messages</h3>
-                      <span className="text-xs text-gray-500">3 new</span>
+                      <h3 className="text-sm font-semibold text-gray-900">{t('layout.messages')}</h3>
+                      <span className="text-xs text-gray-500">{t('layout.newCount', { count: 3 })}</span>
                     </div>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
@@ -634,7 +639,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   </div>
                   <div className="p-3 border-t border-gray-200">
                     <button className="w-full text-center text-sm font-semibold text-primary-600 hover:text-primary-500">
-                      View all messages
+                      {t('layout.viewAllMessages')}
                     </button>
                   </div>
                 </div>
@@ -673,8 +678,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-4 border-b border-gray-200">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>
-                      <span className="text-xs text-gray-500">5 new</span>
+                      <h3 className="text-sm font-semibold text-gray-900">{t('layout.notifications')}</h3>
+                      <span className="text-xs text-gray-500">{t('layout.newCount', { count: 5 })}</span>
                     </div>
                   </div>
                   <div className="max-h-96 overflow-y-auto">
@@ -752,7 +757,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   </div>
                   <div className="p-3 border-t border-gray-200">
                     <button className="w-full text-center text-sm font-semibold text-primary-600 hover:text-primary-500">
-                      View all notifications
+                      {t('layout.viewAllNotifications')}
                     </button>
                   </div>
                 </div>
@@ -879,7 +884,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
                     <User className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">Profile</span>
+                    <span className="text-sm">{t('nav.profile')}</span>
                   </Link>
                   <Link
                     to="/settings"
@@ -896,7 +901,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                   >
                     <Settings className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">Settings</span>
+                    <span className="text-sm">{t('nav.settings')}</span>
                   </Link>
                   <div className="border-t border-gray-200 my-1"></div>
                   <button
@@ -915,7 +920,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <LogOut className="w-4 h-4 flex-shrink-0" />
-                    <span className="text-sm">{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
+                    <span className="text-sm">{isLoggingOut ? t('layout.signingOut') : t('layout.signOut')}</span>
                   </button>
                 </div>
               )}
@@ -1063,7 +1068,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   className="flex w-full items-center space-x-3 px-4 py-2 text-left text-gray-700 hover:bg-gray-100 transition-colors duration-200 cursor-pointer no-underline"
                 >
                   <Settings className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm">Settings</span>
+                  <span className="text-sm">{t('nav.settings')}</span>
                 </Link>
                 <div className="border-t border-gray-200 my-1"></div>
                 <button
@@ -1083,7 +1088,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   className="w-full flex items-center space-x-3 px-4 py-2 text-left text-red-600 hover:bg-red-50 transition-colors duration-200 cursor-pointer z-[101] relative disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <LogOut className="w-4 h-4 flex-shrink-0" />
-                  <span className="text-sm">{isLoggingOut ? 'Signing out...' : 'Sign out'}</span>
+                  <span className="text-sm">{isLoggingOut ? t('layout.signingOut') : t('layout.signOut')}</span>
                 </button>
               </div>
             )}

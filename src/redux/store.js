@@ -15,6 +15,7 @@ import learningProgressReducer from './features/learningProgress/learningProgres
 import learningHubAdminReducer from './features/learningHubAdmin/learningHubAdminSlice';
 import personalizationReducer from './features/personalization/personalizationSlice';
 import subscriptionReducer from './features/subscription/subscriptionSlice';
+import preferencesReducer from './features/preferences/preferencesSlice';
 import { quizApiSlice } from './features/teacherTools/quiz/quizApiSlice';
 import { assignmentApiSlice } from './features/teacherTools/assignment/assignmentApiSlice';
 import { worksheetApiSlice } from './features/teacherTools/worksheet/worksheetApiSlice';
@@ -46,7 +47,7 @@ const storage =
 const persistConfig = {
   key: 'root',
   storage,
-  whitelist: ['auth'],
+  whitelist: ['auth', 'preferences'],
 };
 
 // Combine reducers
@@ -63,6 +64,7 @@ const rootReducer = combineReducers({
   learningHubAdmin: learningHubAdminReducer,
   personalization: personalizationReducer,
   subscription: subscriptionReducer,
+  preferences: preferencesReducer,
   [quizApiSlice.reducerPath]: quizApiSlice.reducer,
   [assignmentApiSlice.reducerPath]: assignmentApiSlice.reducer,
   [worksheetApiSlice.reducerPath]: worksheetApiSlice.reducer,
@@ -102,3 +104,7 @@ setStoreReference(store);
 // This allows the new API client to access Redux state for auth token (same as axios)
 import { setStoreReference as setApiClientStoreReference } from '../api/client';
 setApiClientStoreReference(store);
+
+// Set store reference in formatting helpers (locale/timezone-aware formatters)
+import { setFormatStoreReference } from '../lib/i18n/format'
+setFormatStoreReference(store)
