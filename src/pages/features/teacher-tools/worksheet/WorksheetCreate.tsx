@@ -33,6 +33,15 @@ import { downloadQuizPdf } from '../utils/generateQuizPdf'
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
+// @ts-expect-error — JS module
+import { store } from '../../../../redux/store'
+import { setBalance } from '../../../../redux/features/subscription/subscriptionSlice'
+import { getCreditBalance } from '../../../../api/subscriptions'
+import NoCreditsCard from '../../../../components/NoCreditsCard'
+import { parseCreditErrorFromUnknown, type ParsedCreditError } from '../../../../utils/creditErrors'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const appDispatch = store.dispatch as any
 import {
   ArrowDown,
   ArrowUp,
@@ -333,6 +342,12 @@ export default function WorksheetCreate() {
   const worksheetIdRef = useRef<string | null>(worksheetId ?? null)
   const idempotencyKeyRef = useRef<string>(typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`)
 
+  const refreshCredits = useCallback(() => {
+    void getCreditBalance()
+      .then((b) => appDispatch(setBalance(b)))
+      .catch(() => {})
+  }, [])
+
   useEffect(() => {
     worksheetIdRef.current = worksheetId ?? worksheetIdRef.current
   }, [worksheetId])
@@ -360,6 +375,8 @@ export default function WorksheetCreate() {
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
+  const [blockRegenCreditGate, setBlockRegenCreditGate] = useState<ParsedCreditError | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
   const [sessions, setSessions] = useState<LocalWorksheetSession[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -499,6 +516,8 @@ export default function WorksheetCreate() {
     }
     idempotencyKeyRef.current =
       typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}`
+    setCreditGate(null)
+    setBlockRegenCreditGate(null)
     setRegeneratingAll(true)
     try {
       const result = await generateWorksheetMutation({
@@ -520,7 +539,13 @@ export default function WorksheetCreate() {
       const warn = result.warnings?.[0]
       if (warn) toast.warning(warn)
       else toast.success('Worksheet regenerated from sources.')
+      refreshCredits()
     } catch (err) {
+      const credit = parseCreditErrorFromUnknown(err)
+      if (credit) {
+        setCreditGate(credit)
+        return
+      }
       toast.error(worksheetMutationErrorMessage(err))
     } finally {
       setRegeneratingAll(false)
@@ -542,6 +567,7 @@ export default function WorksheetCreate() {
     teacherNotes,
     toast,
     generateWorksheetMutation,
+    refreshCredits,
   ])
 
   const addSession = async () => {
@@ -652,6 +678,7 @@ export default function WorksheetCreate() {
       return
     }
     const rk = `${sessionId}:${block._id}`
+    setBlockRegenCreditGate(null)
     setRegeneratingBlockKey(rk)
     try {
       const updated = await regenerateWorksheetBlockMutation({
@@ -661,7 +688,13 @@ export default function WorksheetCreate() {
       }).unwrap()
       setSessions(apiSessionsToLocal(updated.sessions))
       toast.success('Question replaced with a new version.')
+      refreshCredits()
     } catch (err) {
+      const credit = parseCreditErrorFromUnknown(err)
+      if (credit) {
+        setBlockRegenCreditGate(credit)
+        return
+      }
       toast.error(worksheetMutationErrorMessage(err))
     } finally {
       setRegeneratingBlockKey(null)
@@ -741,6 +774,8 @@ export default function WorksheetCreate() {
     }
     setBuildErrors([])
     setGenerationError(null)
+    setCreditGate(null)
+    setBlockRegenCreditGate(null)
     setGenerating(true)
     setGenProgress(0.12)
     const steps = window.setInterval(() => {
@@ -805,7 +840,14 @@ export default function WorksheetCreate() {
       setPhase('review')
       if (result.warnings.length > 0) toast.warning(result.warnings[0] ?? '')
       else toast.success('Worksheet generated — review below.')
+      refreshCredits()
     } catch (err) {
+      const credit = parseCreditErrorFromUnknown(err)
+      if (credit) {
+        setCreditGate(credit)
+        setGenerationError(null)
+        return
+      }
       setGenerationError('Generation failed. Please retry.')
       toast.error(worksheetMutationErrorMessage(err))
     } finally {
@@ -837,6 +879,7 @@ export default function WorksheetCreate() {
     createWorksheet,
     patchWorksheet,
     generateWorksheetMutation,
+    refreshCredits,
   ])
 
   const handleSaveDraft = async () => {
@@ -993,6 +1036,15 @@ export default function WorksheetCreate() {
         </div>
       )}
 
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
+
       {phase === 'build' && (
         <div className="space-y-10">
           <WorksheetRagIdentitySection
@@ -1059,6 +1111,16 @@ export default function WorksheetCreate() {
             </button>
           </div>
         </div>
+      )}
+
+      {phase === 'review' && blockRegenCreditGate && (
+        <NoCreditsCard
+          compact
+          reason={blockRegenCreditGate.reason}
+          balance={blockRegenCreditGate.balance}
+          required={blockRegenCreditGate.required}
+          onActivated={() => setBlockRegenCreditGate(null)}
+        />
       )}
 
       {phase === 'review' && (

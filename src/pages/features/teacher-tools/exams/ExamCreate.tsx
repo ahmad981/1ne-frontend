@@ -17,6 +17,15 @@ import { downloadExamHandoutPdf } from '../utils/generateExamPdf'
 import { useSnackbar } from '../../../../hooks/useSnackbar'
 // @ts-expect-error — JS module
 import { CustomModal } from '../../../../components/shared/CustomModal'
+// @ts-expect-error — JS module
+import { store } from '../../../../redux/store'
+import { setBalance } from '../../../../redux/features/subscription/subscriptionSlice'
+import { getCreditBalance } from '../../../../api/subscriptions'
+import NoCreditsCard from '../../../../components/NoCreditsCard'
+import { parseCreditError, type ParsedCreditError } from '../../../../utils/creditErrors'
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const appDispatch = store.dispatch as any
 import { AlertCircle, Download, Eye, FileJson, Loader2, Sparkles } from 'lucide-react'
 import { QuizGeneratingOverlay } from '../quiz/components/QuizGeneratingOverlay'
 import {
@@ -81,10 +90,18 @@ export default function ExamCreate() {
   const isEdit = location.pathname.endsWith('/edit')
   const { toast } = useSnackbar()
 
+  const refreshCredits = useCallback(() => {
+    void getCreditBalance()
+      .then((b) => appDispatch(setBalance(b)))
+      .catch(() => {})
+  }, [])
+
   const [phase, setPhase] = useState<'build' | 'review'>(isEdit ? 'review' : 'build')
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
+  const [regenCreditGate, setRegenCreditGate] = useState<ParsedCreditError | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
   const [generatedSections, setGeneratedSections] = useState<ExamSectionStub[]>([])
   const [previewOpen, setPreviewOpen] = useState(false)
@@ -290,6 +307,8 @@ export default function ExamCreate() {
     }
     setBuildErrors([])
     setGenerationError(null)
+    setCreditGate(null)
+    setRegenCreditGate(null)
     setGenProgress(0.15)
     setGenerating(true)
     const progressTimer = window.setInterval(() => {
@@ -341,8 +360,15 @@ export default function ExamCreate() {
       setPhase('review')
       if (gen.warnings?.length) toast.success(`Exam generated (${gen.warnings.length} notice${gen.warnings.length === 1 ? '' : 's'})`)
       else toast.success('Exam generated — review below.')
+      refreshCredits()
     } catch (e) {
       console.warn('[ExamCreate] generate failed', e)
+      const credit = parseCreditError(e)
+      if (credit) {
+        setCreditGate(credit)
+        setGenerationError(null)
+        return
+      }
       setGenerationError('Generation failed. Check sources and paper settings, then retry.')
       toast.error('Could not generate the exam.')
     } finally {
@@ -357,12 +383,20 @@ export default function ExamCreate() {
       toast.error('Generate the exam first.')
       return
     }
+    setCreditGate(null)
+    setRegenCreditGate(null)
     setExamRegenerateBusy('sections')
     try {
       const gen = await examApi.generateExam(effectiveExamId, { regenerateScope: 'all' }, crypto.randomUUID())
       applyExamFromApi(gen.exam)
       toast.success('Exam regenerated')
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditError(e)
+      if (credit) {
+        setCreditGate(credit)
+        return
+      }
       toast.error('Regeneration failed')
     } finally {
       setExamRegenerateBusy(null)
@@ -400,6 +434,7 @@ export default function ExamCreate() {
     if (!q) return
     const prevStem = q.stem
     const prevOpts = [...q.options]
+    setRegenCreditGate(null)
     setExamRegenerateBusy(`mcq:${q._id}`)
     try {
       const updated = await examApi.regenerateMcqApi(effectiveExamId, q._id)
@@ -410,7 +445,13 @@ export default function ExamCreate() {
       } else {
         toast.success('Question regenerated')
       }
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditError(e)
+      if (credit) {
+        setRegenCreditGate(credit)
+        return
+      }
       toast.error('Regeneration failed')
     } finally {
       setExamRegenerateBusy(null)
@@ -471,6 +512,7 @@ export default function ExamCreate() {
     const q = examShorts[index]
     if (!q) return
     const prevStem = q.stem
+    setRegenCreditGate(null)
     setExamRegenerateBusy(`short:${q._id}`)
     try {
       const updated = await examApi.regenerateShortApi(effectiveExamId, q._id)
@@ -481,7 +523,13 @@ export default function ExamCreate() {
       } else {
         toast.success('Question regenerated')
       }
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditError(e)
+      if (credit) {
+        setRegenCreditGate(credit)
+        return
+      }
       toast.error('Regeneration failed')
     } finally {
       setExamRegenerateBusy(null)
@@ -538,6 +586,7 @@ export default function ExamCreate() {
     if (!q) return
     const prevStem = q.stem
     const prevSub = [...q.subparts]
+    setRegenCreditGate(null)
     setExamRegenerateBusy(`long:${q._id}`)
     try {
       const updated = await examApi.regenerateLongApi(effectiveExamId, q._id)
@@ -552,7 +601,13 @@ export default function ExamCreate() {
       } else {
         toast.success('Question regenerated')
       }
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditError(e)
+      if (credit) {
+        setRegenCreditGate(credit)
+        return
+      }
       toast.error('Regeneration failed')
     } finally {
       setExamRegenerateBusy(null)
@@ -724,6 +779,25 @@ export default function ExamCreate() {
             Dismiss
           </button>
         </div>
+      )}
+
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
+
+      {phase === 'review' && regenCreditGate && (
+        <NoCreditsCard
+          compact
+          reason={regenCreditGate.reason}
+          balance={regenCreditGate.balance}
+          required={regenCreditGate.required}
+          onActivated={() => setRegenCreditGate(null)}
+        />
       )}
 
       {phase === 'build' && (

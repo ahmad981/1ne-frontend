@@ -10,6 +10,10 @@ import { useTeacherToolsDemo } from '../TeacherToolsDemoProvider'
 // @ts-expect-error — JS module
 import { store } from '../../../../redux/store'
 import { assignmentApiSlice } from '../../../../redux/features/teacherTools/assignment/assignmentApiSlice'
+import { setBalance } from '../../../../redux/features/subscription/subscriptionSlice'
+import { getCreditBalance } from '../../../../api/subscriptions'
+import NoCreditsCard from '../../../../components/NoCreditsCard'
+import { parseCreditErrorFromUnknown, type ParsedCreditError } from '../../../../utils/creditErrors'
 import type { AssignmentCreatePayload, AssignmentGeneratePayload } from '../../../../api/assignmentApi'
 // @ts-expect-error — JS module
 import { useSnackbar } from '../../../../hooks/useSnackbar'
@@ -67,10 +71,18 @@ export default function AssignmentCreate() {
   const { toast } = useSnackbar()
   const { api } = useTeacherToolsDemo()
 
+  const refreshCredits = useCallback(() => {
+    void getCreditBalance()
+      .then((b) => appDispatch(setBalance(b)))
+      .catch(() => {})
+  }, [])
+
   const [phase, setPhase] = useState<'build' | 'review'>('build')
   const [generating, setGenerating] = useState(false)
   const [genProgress, setGenProgress] = useState(0.15)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
+  const [regenCreditGate, setRegenCreditGate] = useState<ParsedCreditError | null>(null)
   const [buildErrors, setBuildErrors] = useState<string[]>([])
   const [topicBlocks, setTopicBlocks] = useState<AssignmentBriefTopicStub[]>([])
   const [printOpen, setPrintOpen] = useState(false)
@@ -248,6 +260,8 @@ export default function AssignmentCreate() {
     }
     setBuildErrors([])
     setGenerationError(null)
+    setCreditGate(null)
+    setRegenCreditGate(null)
     setGenerating(true)
     setGenProgress(0.12)
     const steps = window.setInterval(() => {
@@ -288,7 +302,14 @@ export default function AssignmentCreate() {
       if (genResult.warnings?.length) {
         console.warn('Assignment generation warnings:', genResult.warnings)
       }
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditErrorFromUnknown(e)
+      if (credit) {
+        setCreditGate(credit)
+        setGenerationError(null)
+        return
+      }
       setGenerationError('Generation failed. Check your connection and try again.')
       toast.error('Could not generate assignment brief.')
     } finally {
@@ -306,10 +327,13 @@ export default function AssignmentCreate() {
     difficulty,
     generatorInstructions,
     rigorProfile,
+    refreshCredits,
   ])
 
   const regenerateAll = useCallback(async () => {
     if (!liveAssignmentId) return
+    setCreditGate(null)
+    setRegenCreditGate(null)
     setGenerating(true)
     setGenProgress(0.2)
     const steps = window.setInterval(() => {
@@ -330,20 +354,27 @@ export default function AssignmentCreate() {
       ).unwrap()
       setTopicBlocks(genResult.assignment.briefTopics as AssignmentBriefTopicStub[])
       toast.success('Brief regenerated.')
-    } catch {
+      refreshCredits()
+    } catch (e) {
+      const credit = parseCreditErrorFromUnknown(e)
+      if (credit) {
+        setCreditGate(credit)
+        return
+      }
       toast.error('Could not regenerate brief.')
     } finally {
       window.clearInterval(steps)
       setGenerating(false)
       setGenProgress(1)
     }
-  }, [liveAssignmentId, topicCount, difficulty, generatorInstructions, rigorProfile, toast])
+  }, [liveAssignmentId, topicCount, difficulty, generatorInstructions, rigorProfile, toast, refreshCredits])
 
   const regenerateTopic = useCallback(
     async (topicId: string) => {
       if (!liveAssignmentId) return
       const t = topicBlocks.find((x) => x.id === topicId)
       if (!t) return
+      setRegenCreditGate(null)
       setRegenTopicId(topicId)
       try {
         const res = await appDispatch(
@@ -359,14 +390,20 @@ export default function AssignmentCreate() {
           ),
         )
         toast.success('Topic section regenerated.')
+        refreshCredits()
       } catch (e) {
+        const credit = parseCreditErrorFromUnknown(e)
+        if (credit) {
+          setRegenCreditGate(credit)
+          return
+        }
         console.warn('[AssignmentCreate] regenerateTopic failed', e)
         toast.error(formatListLoadError(e))
       } finally {
         setRegenTopicId(null)
       }
     },
-    [liveAssignmentId, topicBlocks, toast],
+    [liveAssignmentId, topicBlocks, toast, refreshCredits],
   )
 
   const moveTopic = useCallback((index: number, dir: -1 | 1) => {
@@ -415,6 +452,7 @@ export default function AssignmentCreate() {
       const t = topicBlocks.find((x) => x.id === topicId)
       if (!t) return
       const lineKey = `${topicId}:${lineIndex}`
+      setRegenCreditGate(null)
       setRegenLineKey(lineKey)
       try {
         const res = await appDispatch(
@@ -435,14 +473,20 @@ export default function AssignmentCreate() {
           }),
         )
         toast.success('Line regenerated.')
+        refreshCredits()
       } catch (e) {
+        const credit = parseCreditErrorFromUnknown(e)
+        if (credit) {
+          setRegenCreditGate(credit)
+          return
+        }
         console.warn('[AssignmentCreate] regenerateLine failed', e)
         toast.error(formatListLoadError(e))
       } finally {
         setRegenLineKey(null)
       }
     },
-    [liveAssignmentId, topicBlocks, toast],
+    [liveAssignmentId, topicBlocks, toast, refreshCredits],
   )
 
   const updateLineText = useCallback((topicId: string, lineId: string, text: string) => {
@@ -725,6 +769,15 @@ export default function AssignmentCreate() {
         </div>
       )}
 
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
+
       <QuizGeneratingOverlay open={generating} progress={genProgress} />
 
       {phase === 'build' && (
@@ -779,6 +832,16 @@ export default function AssignmentCreate() {
             </button>
           </div>
         </>
+      )}
+
+      {phase === 'review' && regenCreditGate && (
+        <NoCreditsCard
+          compact
+          reason={regenCreditGate.reason}
+          balance={regenCreditGate.balance}
+          required={regenCreditGate.required}
+          onActivated={() => setRegenCreditGate(null)}
+        />
       )}
 
       {phase === 'review' && (

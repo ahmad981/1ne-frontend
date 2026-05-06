@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDispatch } from 'react-redux'
 import { useNavigate, useParams, useLocation, useSearchParams } from 'react-router-dom'
 import { TeacherToolsPageHeader, TeacherToolsWizardStepper } from '../components'
 import { demoClasses } from '../demo/teacherToolsDemoData'
@@ -43,6 +44,10 @@ import { QuizRagBuildSection } from './components/QuizRagBuildSection'
 import { QuizGeneratingOverlay } from './components/QuizGeneratingOverlay'
 import { QuizReviewSection } from './components/QuizReviewSection'
 import type { QuizPrintMeta } from './components/QuizPrintPreviewModal'
+import NoCreditsCard from '../../../../components/NoCreditsCard'
+import { getCreditBalance } from '../../../../api/subscriptions'
+import { setBalance } from '../../../../redux/features/subscription/subscriptionSlice'
+import { parseCreditError, type ParsedCreditError } from '../../../../utils/creditErrors'
 
 function classKeyForGrade(grade: string) {
   return demoClasses.find((c) => c.grade === grade)?.key ?? demoClasses[0]?.key ?? 'g8c'
@@ -65,10 +70,19 @@ export default function QuizCreate() {
   const isEdit = location.pathname.endsWith('/edit')
   const { toast } = useSnackbar()
   const { api } = useTeacherToolsDemo()
+  const dispatch = useDispatch()
+
+  const refreshCredits = useCallback(() => {
+    void getCreditBalance()
+      .then((b) => dispatch(setBalance(b)))
+      .catch(() => {})
+  }, [dispatch])
 
   const [phase, setPhase] = useState<'build' | 'review'>(isEdit ? 'review' : 'build')
   const [generating, setGenerating] = useState(false)
   const [generationError, setGenerationError] = useState<string | null>(null)
+  const [creditGate, setCreditGate] = useState<ParsedCreditError | null>(null)
+  const [regenQuestionCreditGate, setRegenQuestionCreditGate] = useState<ParsedCreditError | null>(null)
   const [genProgress, setGenProgress] = useState(0.15)
   const [lastCriteria, setLastCriteria] = useState<QuizStubCriteria | null>(null)
   const [liveQuizId, setLiveQuizId] = useState<string | null>(null)
@@ -262,6 +276,8 @@ export default function QuizCreate() {
     }
     setBuildErrors([])
     setGenerationError(null)
+    setCreditGate(null)
+    setRegenQuestionCreditGate(null)
     setGenerating(true)
     setGenProgress(0.12)
     const steps = window.setInterval(() => {
@@ -291,6 +307,7 @@ export default function QuizCreate() {
         setLastCriteria(crit)
         setPhase('review')
         toast.success('Questions generated — review below.')
+        refreshCredits()
         return
       }
 
@@ -347,7 +364,14 @@ export default function QuizCreate() {
       setLastCriteria(crit)
       setPhase('review')
       toast.success('Questions generated — review below.')
+      refreshCredits()
     } catch (e) {
+      const credit = parseCreditError(e)
+      if (credit) {
+        setCreditGate(credit)
+        setGenerationError(null)
+        return
+      }
       setGenerationError('Generation failed. Adjust sources and try again.')
       toast.error('Could not generate questions.')
       console.error('Quiz generation failed:', e)
@@ -373,6 +397,7 @@ export default function QuizCreate() {
     rag.selectedBookIds,
     rag.selectedTopics,
     rag.scopeRefinement,
+    refreshCredits,
   ])
 
   const regenerateAll = useCallback(() => {
@@ -383,6 +408,8 @@ export default function QuizCreate() {
       }
       if (generating || questionLoadingId || isRegeneratingAll) return
       setIsRegeneratingAll(true)
+      setCreditGate(null)
+      setRegenQuestionCreditGate(null)
       try {
         const genPayload: QuizGeneratePayload = {
           questionCount: mixMode === 'custom' ? Math.min(QUESTION_COUNT.max, Math.max(QUESTION_COUNT.min, countMcq + countTf + countShort)) : questionCount,
@@ -399,7 +426,13 @@ export default function QuizCreate() {
         const crit = lastCriteria ?? buildCriteria(liveQuizId)
         setLastCriteria(crit)
         toast.success('Question set regenerated.')
+        refreshCredits()
       } catch (e) {
+        const credit = parseCreditError(e)
+        if (credit) {
+          setCreditGate(credit)
+          return
+        }
         console.error('Regenerate all failed:', e)
         toast.error('Could not regenerate question set')
       } finally {
@@ -424,6 +457,7 @@ export default function QuizCreate() {
     generating,
     questionLoadingId,
     isRegeneratingAll,
+    refreshCredits,
   ])
 
   const regenerateOne = useCallback(
@@ -436,6 +470,7 @@ export default function QuizCreate() {
         if (generating || questionLoadingId || isRegeneratingAll) return
         const qid = stubs[index]?.id
         if (!qid) return
+        setRegenQuestionCreditGate(null)
         setQuestionLoadingId(qid)
         try {
           const prevPrompt = stubs[index]?.prompt?.trim() ?? ''
@@ -452,7 +487,13 @@ export default function QuizCreate() {
           } else {
             toast.success('Question regenerated.')
           }
+          refreshCredits()
         } catch (e) {
+          const credit = parseCreditError(e)
+          if (credit) {
+            setRegenQuestionCreditGate(credit)
+            return
+          }
           console.error('Question regeneration failed:', e)
           toast.error('Could not regenerate question')
         } finally {
@@ -460,7 +501,7 @@ export default function QuizCreate() {
         }
       })()
     },
-    [liveQuizId, stubs, toast, generating, questionLoadingId, isRegeneratingAll]
+    [liveQuizId, stubs, toast, generating, questionLoadingId, isRegeneratingAll, refreshCredits]
   )
 
   const reorder = useCallback((from: number, to: number) => {
@@ -694,6 +735,15 @@ export default function QuizCreate() {
         </div>
       )}
 
+      {creditGate && (
+        <NoCreditsCard
+          reason={creditGate.reason}
+          balance={creditGate.balance}
+          required={creditGate.required}
+          onActivated={() => setCreditGate(null)}
+        />
+      )}
+
       <QuizGeneratingOverlay open={generating} progress={genProgress} />
 
       {phase === 'build' && (
@@ -757,6 +807,16 @@ export default function QuizCreate() {
             </button>
           </div>
         </>
+      )}
+
+      {phase === 'review' && regenQuestionCreditGate && (
+        <NoCreditsCard
+          compact
+          reason={regenQuestionCreditGate.reason}
+          balance={regenQuestionCreditGate.balance}
+          required={regenQuestionCreditGate.required}
+          onActivated={() => setRegenQuestionCreditGate(null)}
+        />
       )}
 
       {phase === 'review' && (

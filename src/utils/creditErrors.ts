@@ -57,3 +57,17 @@ export function parseCreditError(err: unknown): ParsedCreditError | null {
 export function isInsufficientCredits(err: unknown): boolean {
   return parseCreditError(err) !== null
 }
+
+/** RTK Query `.unwrap()` rejects with `{ status, data }` where `data` is the JSON body (not ApiError). */
+export function parseCreditErrorFromUnknown(err: unknown): ParsedCreditError | null {
+  const fromApi = parseCreditError(err)
+  if (fromApi) return fromApi
+  if (err && typeof err === 'object' && err !== null && 'status' in err) {
+    const status = (err as { status: unknown }).status
+    const data = (err as { data?: unknown }).data
+    if (status === 402 && data !== undefined && data !== null) {
+      return parseCreditError(new ApiError(402, 'Insufficient credits', data))
+    }
+  }
+  return null
+}
